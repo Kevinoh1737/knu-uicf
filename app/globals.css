@@ -30,3 +30,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 @media(orientation:landscape) and (max-height:520px) and (max-width:900px){.topbar{position:relative}.mobile-nav{height:56px}.content{padding-bottom:68px}.focus-banner{grid-template-columns:1fr 1fr}.focus-work{padding:12px}.focus-copy{padding:20px}.focus-copy p{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 @media(max-width:760px){button{min-width:44px!important;min-height:44px!important}.topbar .primary{width:44px!important;height:44px!important}.focus-copy button{padding-block:8px}.panel-head button{padding:8px}.focus-work button{min-width:48px!important}}
+
+/* Official KNU UICF identity */
+.sidebar .brand{height:178px;justify-content:center;padding:0 12px}.official-logo{display:block;width:148px;height:auto;object-fit:contain}.sidebar nav{margin-top:18px}
+@media(max-height:760px) and (min-width:761px){.sidebar .brand{height:128px}.official-logo{width:104px}.sidebar nav{margin-top:10px}.nav-label.second{margin-top:16px}}

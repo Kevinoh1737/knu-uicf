@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 
 type View = "overview" | "companies" | "company" | "instructors" | "surveys";
 
@@ -48,7 +49,7 @@ const instructors = [
 ];
 
 function Brand() {
-  return <div className="brand"><span className="brand-mark">K</span><div><strong>KNU UICF 교육사업팀</strong><small>EDUCATION PROGRAM OPS</small></div></div>;
+  return <div className="brand"><Image className="official-logo" src="/knu-uicf-logo.png" width={168} height={180} priority alt="강원대학교 산학협력단 UICF" /></div>;
 }
 
 function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) {
