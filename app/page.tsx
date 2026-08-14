@@ -148,29 +148,47 @@ function Instructors(){return <section className="workspace-panel"><div classNam
 function Surveys(){return <section className="workspace-panel surveys-page"><div className="survey-hero"><div><span>✦ AI 설문 설계</span><h2>수업 내용에 맞춘 질문을<br/>미리 준비했습니다.</h2><p>관리자가 검토·승인하면 예약한 시간에 수강생에게 자동 발송됩니다.</p></div><div className="donut"><b>78%</b><span>평균 응답률</span></div></div><div className="survey-columns"><div><div className="section-title"><h3>검토 대기</h3><span>3</span></div>{["더존비즈온 · 생성형 AI 업무 적용","휴젤 · 의료 데이터 AI 활용","바디텍메드 · 보고서 자동화"].map((x,i)=><article key={x}><span className="survey-icon">◎</span><div><b>{x}</b><p>맞춤 문항 {12+i}개 · 필수 문항 8개</p><small>{["08. 27 교육","08. 30 교육","09. 03 교육"][i]}</small></div><button>검토 →</button></article>)}</div><div><div className="section-title"><h3>발송 예정</h3><span>2</span></div>{["강원랜드 · 현장 실무 AI","한국수자원공사 · 데이터 분석"].map((x,i)=><article key={x}><span className="survey-icon approved">✓</span><div><b>{x}</b><p>승인 완료 · 수강생 {[24,18][i]}명</p><small>{["08. 21 17:00 발송","08. 25 16:30 발송"][i]}</small></div><button>일정 →</button></article>)}</div></div></section>}
 
 function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCreated: (company: CompanyItem) => void }) {
+  type Candidate = { name: string; url: string; hostname: string; description: string; source: string };
+  const [inputMode, setInputMode] = useState<"url" | "name" | "pdf">("url");
   const [websiteUrl, setWebsiteUrl] = useState("");
+  const [companyName, setCompanyName] = useState("");
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const researchCompany = async (urlValue: string, resolvedName?: string) => {
+    const normalized = new URL(/^https?:\/\//i.test(urlValue) ? urlValue : `https://${urlValue}`);
+    const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href, companyName: resolvedName }) });
+    const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"]; intelligence?: CompanyIntelligence };
+    if (!researchResponse.ok || !researchResult.report) throw new Error(researchResult.error || "Gemini 기업 조사에 실패했습니다.");
+    const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
+    const draft = { name: researchResult.report.companyName || resolvedName || fallbackName, websiteUrl: normalized.href, industry: researchResult.report.industry, research: researchResult.report, intelligence: researchResult.intelligence, crawl: researchResult.crawl, questions: researchResult.report.questions };
+    const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+    const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
+    if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
+    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
+    onClose();
+  };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLoading(true); setError("");
     try {
-      const normalized = new URL(/^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`);
-      const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href }) });
-      const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"]; intelligence?: CompanyIntelligence };
-      if (!researchResponse.ok || !researchResult.report) throw new Error(researchResult.error || "Gemini 기업 조사에 실패했습니다.");
-      const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
-      const draft = { name: researchResult.report.companyName || fallbackName, websiteUrl: normalized.href, industry: researchResult.report.industry, research: researchResult.report, intelligence: researchResult.intelligence, crawl: researchResult.crawl, questions: researchResult.report.questions };
-      const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
-      const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
-      if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
-      onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
-      onClose();
+      if (candidates.length) return;
+      if (inputMode === "url") await researchCompany(websiteUrl);
+      else {
+        const form = new FormData();
+        if (companyName) form.set("companyName", companyName);
+        if (pdfFile) form.set("file", pdfFile);
+        const response = await fetch("/api/companies/discover", { method: "POST", body: form });
+        const result = await response.json() as { error?: string; companyName?: string; candidates?: Candidate[] };
+        if (!response.ok || !result.candidates?.length) throw new Error(result.error || "공식 홈페이지 후보를 찾지 못했습니다.");
+        setCompanyName(result.companyName || companyName); setCandidates(result.candidates);
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "회사 정보를 가져오지 못했습니다.");
     } finally { setLoading(false); }
   };
-  return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal" onMouseDown={event => event.stopPropagation()} onSubmit={submit}><div className="modal-head"><div><span>NEW COMPANY RESEARCH</span><h2>새 기업 조사</h2><p>홈페이지·OpenDART·공개 채용정보를 수집하고 Gemini가 교육 관점으로 분석합니다.</p></div><button type="button" onClick={onClose} aria-label="닫기">×</button></div><label>회사 홈페이지 URL<input autoFocus type="text" inputMode="url" value={websiteUrl} onChange={event => setWebsiteUrl(event.target.value)} placeholder="예: https://company.co.kr" required disabled={loading}/></label><div className={`auto-preview ${loading ? "is-loading" : ""}`}><span>{loading ? <i className="spinner"/> : "✦"}</span><div><b>{loading ? "기업 자료를 수집하고 분석하는 중" : "조사 범위"}</b><p>{loading ? "웹사이트·공시·채용정보를 확인하고 있습니다. 최대 1분 정도 걸릴 수 있습니다." : "기업 개요 · 공시 및 재무 · 채용과 IT 인력 신호 · AI 교육 기회 · 경쟁사 · 니즈 질문지"}</p></div></div>{error && <p className="modal-error" role="alert">{error}</p>}<div className="modal-actions"><button type="button" onClick={onClose} disabled={loading}>취소</button><button className="primary-small" disabled={loading}>{loading ? "조사 중…" : "기업 조사 시작"}</button></div></form></div>;
+  return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal company-discovery" onMouseDown={event => event.stopPropagation()} onSubmit={submit}><div className="modal-head"><div><span>NEW COMPANY RESEARCH</span><h2>{candidates.length ? "공식 홈페이지를 선택하세요" : "새 기업 조사"}</h2><p>{candidates.length ? `‘${companyName}’과 관련된 후보입니다. 실제 조사할 회사를 확인해 주세요.` : "URL, 회사명 또는 회사소개 PDF 중 편한 방법으로 시작하세요."}</p></div><button type="button" onClick={onClose} aria-label="닫기">×</button></div>{candidates.length ? <div className="candidate-list">{candidates.map(candidate => <button type="button" key={candidate.hostname} onClick={async()=>{setLoading(true);setError("");try{await researchCompany(candidate.url, companyName);}catch(caught){setError(caught instanceof Error?caught.message:"기업 조사에 실패했습니다.");setLoading(false);}}} disabled={loading}><span>{candidate.source}</span><b>{candidate.name || candidate.hostname}</b><small>{candidate.hostname}</small>{candidate.description && <p>{candidate.description}</p>}<em>이 회사 조사하기 →</em></button>)}</div> : <><div className="input-tabs" role="tablist">{[["url","홈페이지 URL"],["name","회사 이름"],["pdf","회사소개 PDF"]].map(([id,label])=><button type="button" role="tab" aria-selected={inputMode===id} className={inputMode===id?"active":""} onClick={()=>{setInputMode(id as "url"|"name"|"pdf");setError("");}} key={id}>{label}</button>)}</div>{inputMode === "url" && <label>회사 홈페이지 URL<input autoFocus type="text" inputMode="url" value={websiteUrl} onChange={event=>setWebsiteUrl(event.target.value)} placeholder="예: https://company.co.kr" required disabled={loading}/></label>}{inputMode === "name" && <label>회사 이름<input autoFocus value={companyName} onChange={event=>setCompanyName(event.target.value)} placeholder="예: 한주케미칼" required disabled={loading}/><small className="field-help">네이버에서 공식 홈페이지 후보를 찾습니다.</small></label>}{inputMode === "pdf" && <label>회사소개 PDF<input type="file" accept="application/pdf,.pdf" onChange={event=>setPdfFile(event.target.files?.[0]||null)} required disabled={loading}/><small className="field-help">최대 15MB · Gemini가 회사명과 홈페이지 정보를 추출합니다.</small></label>}<div className={`auto-preview ${loading?"is-loading":""}`}><span>{loading?<i className="spinner"/>:"✦"}</span><div><b>{loading?(inputMode==="url"?"기업 자료를 수집하고 분석하는 중":"공식 홈페이지 후보를 찾는 중"):"조사 범위"}</b><p>{loading?"잠시만 기다려 주세요.":"기업 개요 · 공시 및 재무 · 채용과 IT 인력 신호 · AI 교육 기회 · 경쟁사 · 니즈 질문지"}</p></div></div></>}{error&&<p className="modal-error" role="alert">{error}</p>}<div className="modal-actions"><button type="button" onClick={candidates.length?()=>setCandidates([]):onClose} disabled={loading}>{candidates.length?"다시 입력":"취소"}</button>{!candidates.length&&<button className="primary-small" disabled={loading}>{loading?"처리 중…":inputMode==="url"?"기업 조사 시작":"후보 찾기"}</button>}</div></form></div>;
 }
 
 export default function Home() {
