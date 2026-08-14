@@ -140,7 +140,7 @@ function Companies({ companyItems, onSelectCompany }: { companyItems: CompanyIte
   </section>;
 }
 
-function CompanyDetail({ company }: { company: CompanyItem }) {
+function CompanyDetail({ company, onRefreshLogo }: { company: CompanyItem; onRefreshLogo: (company: CompanyItem) => Promise<void> }) {
   const [tab, setTab] = useState("overview");
   const [questions, setQuestions] = useState(company.research?.questions?.length ? company.research.questions : [
     "현재 구성원들이 반복적으로 많은 시간을 쓰는 업무는 무엇인가요?",
@@ -149,7 +149,7 @@ function CompanyDetail({ company }: { company: CompanyItem }) {
   ]);
   const addQuestion = () => setQuestions([...questions, "새 질문을 입력해 주세요."]);
   return <section className="company-detail">
-    <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p></div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
+    <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p>{!company.logoUrl && company.websiteUrl && <button className="logo-retry" onClick={() => onRefreshLogo(company)}>로고 다시 가져오기</button>}</div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
     <div className="detail-tabs">{[["overview","개요"],["research","기업 조사"],["questions","니즈 질문지"],["consulting","상담 기록"],["courses","교육 과정"],["students","수강생"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>{questions.length}</em>}</button>)}</div>
     {tab === "overview" && <div className="detail-grid"><div className="detail-main">
       <article className="next-action"><span>✦</span><div><small>AI가 제안하는 다음 단계</small><h3>상담 녹취 분석 결과를 검토해 주세요</h3><p>핵심 니즈 5개와 4시간 특강 3개를 구성했습니다.</p></div><button onClick={()=>setTab("consulting")}>결과 검토 →</button></article>
@@ -213,6 +213,15 @@ export default function Home() {
   const [selectedCompany, setSelectedCompany] = useState<CompanyItem>(companies[0]);
   const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
-  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems} onSelectCompany={selectCompany}/>, companies: <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>, company: <CompanyDetail key={selectedCompany.name} company={selectedCompany}/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems, selectedCompany]);
+  const refreshCompanyLogo = async (company: CompanyItem) => {
+    if (!company.websiteUrl) return;
+    const response = await fetch("/api/companies/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: company.websiteUrl }) });
+    const result = await response.json() as { logoDataUrl?: string | null; error?: string };
+    if (!response.ok || !result.logoDataUrl) throw new Error(result.error || "로고를 찾지 못했습니다.");
+    const updated = { ...company, logoUrl: result.logoDataUrl };
+    setCompanyItems(current => current.map(item => item === company || item.name === company.name ? updated : item));
+    setSelectedCompany(updated);
+  };
+  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems} onSelectCompany={selectCompany}/>, companies: <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>, company: <CompanyDetail key={selectedCompany.name} company={selectedCompany} onRefreshLogo={refreshCompanyLogo}/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems, selectedCompany]);
   return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(view === "instructors" ? "instructor" : "company")} selectedCompany={selectedCompany}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id || view === "company" && item.id === "companies" ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label.split(" ")[0]}</button>)}</nav>{modal && <Modal type={modal} onClose={() => setModal(null)} onCompanyCreated={addCompany}/>}</div>;
 }

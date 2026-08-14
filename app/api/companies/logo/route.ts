@@ -86,6 +86,9 @@ function pageMetadata(html: string, base: URL) {
     const identity = [attr(tag, "alt"), attr(tag, "class"), attr(tag, "id")].filter(Boolean).join(" ");
     if (source && /logo|brand|symbol/i.test(identity) && !/customers?|clients?|partners?|portfolio|testimonial/i.test(source)) candidates.unshift(source);
   }
+  for (const match of html.matchAll(/["']([^"']*(?:logo|brand|symbol)[^"']*\.(?:png|jpe?g|webp|gif|svg)(?:\?[^"']*)?)["']/gi)) {
+    if (!/customers?|clients?|partners?|portfolio|testimonial/i.test(match[1])) candidates.unshift(match[1]);
+  }
   for (const match of html.matchAll(/["']logo["']\s*:\s*["']([^"']+)["']/gi)) candidates.unshift(match[1]);
   if (!companyName) companyName = unescapeHtml(html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.split(/[|·–—-]/)[0]?.trim() || "");
   const urls = [...candidates, ...socialImages].flatMap((source) => {
@@ -141,6 +144,17 @@ async function removeEdgeBackground(input: Buffer) {
   return { png, width: metadata.width, height: metadata.height };
 }
 
+async function normalizeLogo(input: Buffer) {
+  try {
+    return await removeEdgeBackground(input);
+  } catch {
+    const png = await sharp(input, { animated: false }).rotate().resize(512, 512, { fit: "inside", withoutEnlargement: true }).ensureAlpha()
+      .extend({ top: 12, bottom: 12, left: 12, right: 12, background: { r: 0, g: 0, b: 0, alpha: 0 } }).png({ compressionLevel: 9 }).toBuffer();
+    const metadata = await sharp(png).metadata();
+    return { png, width: metadata.width, height: metadata.height };
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { websiteUrl } = await request.json() as { websiteUrl?: string };
@@ -151,16 +165,17 @@ export async function POST(request: Request) {
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml")) throw new Error("홈페이지 HTML을 확인할 수 없습니다.");
     const html = page.buffer.toString("utf8");
     const metadata = pageMetadata(html, page.finalUrl);
+    const failures: string[] = [];
     for (const candidate of metadata.candidates) {
       try {
         const image = await fetchPublic(candidate, "image/*", IMAGE_LIMIT);
         const imageType = image.response.headers.get("content-type") || "";
         if (!imageType.startsWith("image/") && !/\.(png|jpe?g|webp|gif|svg)(\?|$)/i.test(candidate.href)) continue;
-        const result = await removeEdgeBackground(image.buffer);
+        const result = await normalizeLogo(image.buffer);
         return Response.json({ companyName: metadata.companyName, websiteUrl: page.finalUrl.href, sourceUrl: image.finalUrl.href, logoDataUrl: `data:image/png;base64,${result.png.toString("base64")}`, width: result.width, height: result.height });
-      } catch { /* 다음 로고 후보를 확인합니다. */ }
+      } catch (candidateError) { failures.push(`${candidate.href}: ${candidateError instanceof Error ? candidateError.message : "처리 실패"}`); }
     }
-    return Response.json({ companyName: metadata.companyName, websiteUrl: page.finalUrl.href, logoDataUrl: null, warning: "홈페이지에서 사용할 수 있는 로고를 찾지 못했습니다." });
+    return Response.json({ companyName: metadata.companyName, websiteUrl: page.finalUrl.href, logoDataUrl: null, warning: "홈페이지에서 사용할 수 있는 로고를 찾지 못했습니다.", ...(process.env.NODE_ENV === "development" ? { debug: { candidates: metadata.candidates.map(url => url.href), failures } } : {}) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "회사 로고를 가져오지 못했습니다.";
     return Response.json({ error: message }, { status: 422 });
