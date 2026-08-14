@@ -49,7 +49,7 @@ const instructors = [
 ];
 
 function Brand() {
-  return <div className="brand"><Image className="official-logo" src="/knu-uicf-logo.png" width={168} height={180} priority alt="강원대학교 산학협력단 UICF" /></div>;
+  return <div className="brand"><Image className="official-logo" src="/knu-uicf-logo.png" width={96} height={103} priority alt="강원대학교 산학협력단 UICF" /><span className="team-name">교육사업팀</span></div>;
 }
 
 function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) {
