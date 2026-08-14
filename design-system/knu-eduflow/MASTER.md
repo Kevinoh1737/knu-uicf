@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** KNU EduFlow
+**Project:** KNU UICF 교육사업팀
 **Generated:** 2026-08-14 10:52:42
 **Category:** Luxury/Premium Brand
 **Design Dials:** Variance 4/10 (Balanced / Modern) | Motion 3/10 (Subtle) | Density 8/10 (Dense / Dashboard)

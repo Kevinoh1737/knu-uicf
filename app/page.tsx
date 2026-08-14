@@ -48,7 +48,7 @@ const instructors = [
 ];
 
 function Brand() {
-  return <div className="brand"><span className="brand-mark">K</span><div><strong>KNU 교육사업팀</strong><small>AI PROGRAM OPS</small></div></div>;
+  return <div className="brand"><span className="brand-mark">K</span><div><strong>KNU UICF 교육사업팀</strong><small>EDUCATION PROGRAM OPS</small></div></div>;
 }
 
 function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) {
