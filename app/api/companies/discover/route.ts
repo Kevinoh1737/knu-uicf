@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { requireTeamSession } from "@/lib/auth/guard";
 import { generateWithGemini } from "@/lib/ai/gemini";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -160,6 +161,8 @@ const pdfSchema = {
 };
 
 export async function POST(request: Request) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   let storagePath = "";
   try {
     const body = await request.json() as { companyName?: string; storagePath?: string };

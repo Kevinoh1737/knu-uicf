@@ -1,5 +1,6 @@
 import AdmZip from "adm-zip";
 import { NextResponse } from "next/server";
+import { requireTeamSession } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 
@@ -79,6 +80,8 @@ function buildQuestionnaire(companyName: string, questions: string[]) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const contentLength = Number(request.headers.get("content-length") || 0);
     if (contentLength > 1_000_000) return NextResponse.json({ error: "질문지 내용이 너무 큽니다." }, { status: 413 });

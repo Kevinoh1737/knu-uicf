@@ -1,3 +1,4 @@
+import { requireTeamSession } from "@/lib/auth/guard";
 import { generateWithGemini } from "@/lib/ai/gemini";
 import { deleteGeminiFile, uploadGeminiFile } from "@/lib/ai/gemini-files";
 import {
@@ -91,6 +92,8 @@ function cleanSummary(value: ConsultationSummary): ConsultationSummary {
 }
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
     if (!UUID.test(id)) return Response.json({ error: "기업 정보를 확인하지 못했습니다." }, { status: 400 });
@@ -112,6 +115,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 }
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   let consultationId = "";
   let geminiFileName = "";
   try {

@@ -70,7 +70,20 @@ RESEND_API_KEY=
 EMAIL_FROM=education@knu.ac.kr
 CRON_SECRET=
 OPENDART_API_KEY=
+AUTH_SECRET=
+TEAM_ACCESS_CODE=
 ```
+
+`AUTH_SECRET` (32+ characters, random) signs the session cookie and `TEAM_ACCESS_CODE` is the shared
+passcode the team types on `/login`. Without them every request fails closed and the app is unreachable.
+
+Both are already registered on Vercel for Production and Preview (verified by pulling each environment
+back and comparing). Production and Preview deliberately use a **different** `AUTH_SECRET` than local
+development, so a leaked development secret cannot forge production sessions; `TEAM_ACCESS_CODE` is the
+same everywhere. Rotating `AUTH_SECRET` simply signs everyone out — no data is affected.
+
+Note when pulling: `vercel env pull` writes to `.env.local` by default and will overwrite it. Always
+pass an explicit output path.
 
 Resend was not fully configured earlier. The user said most other keys were added, including Supabase, Gemini, OpenDART, and cron secret. Verify only by running feature checks, not by exposing secrets.
 
@@ -110,6 +123,31 @@ Important tables/buckets:
 The `company_consultations` migration was already applied remotely to Supabase during prior work. Security advisor reported no lints. Performance advisor only flagged the new index as unused, which is expected because the table was new.
 
 ## Implemented Main Workflows
+
+### Team Access Gate
+
+Relevant files:
+
+- `proxy.ts` (Next.js 16 renamed Middleware to Proxy; the file must stay in the project root)
+- `lib/auth/session.ts`
+- `lib/auth/guard.ts`
+- `app/login/page.tsx`, `app/login/login-form.tsx`
+- `app/api/auth/login/route.ts`, `app/api/auth/logout/route.ts`
+
+Every page and API route requires a shared team passcode. `proxy.ts` redirects unauthenticated page
+requests to `/login?next=…` and answers `/api/*` with 401. Each route handler additionally calls
+`requireTeamSession()`, so a request that somehow skips the proxy is still rejected.
+
+- Session cookie `knu_session`: HttpOnly, SameSite=Lax, Secure in production, HMAC-SHA256 signed, 12 hours.
+- Everything fails closed. A missing `AUTH_SECRET`, a tampered signature, or an expired claim all deny access.
+- Login attempts are rate limited to 8 per 10 minutes per IP, and the passcode comparison is constant-time.
+- Exempt from the gate: `/login`, the two auth routes, and `/api/ai/health` (it carries its own `CRON_SECRET` check).
+- Sign out from the sidebar. The sidebar still shows a placeholder operator name; passcode login has no
+  per-user identity, so that label is mock data waiting on the cleanup pass.
+
+Verified locally: unauthenticated page 307 → `/login`, unauthenticated API 401, wrong passcode 401,
+correct passcode 200 with cookie, session grants page and API access, logout clears it, forged cookie
+rejected, `npm run build` registers the proxy.
 
 ### Company Intake
 

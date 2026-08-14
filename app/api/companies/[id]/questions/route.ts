@@ -1,8 +1,11 @@
+import { requireTeamSession } from "@/lib/auth/guard";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
     const { questions } = await request.json() as { questions?: unknown };

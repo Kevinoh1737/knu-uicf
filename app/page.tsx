@@ -202,6 +202,16 @@ function Brand() {
   return <div className="brand"><Image className="official-logo" src="/knu-uicf-logo.png" width={96} height={103} priority alt="강원대학교 산학협력단 UICF" /><span className="team-name">교육사업팀</span></div>;
 }
 
+function SignOutButton() {
+  const [signingOut, setSigningOut] = useState(false);
+  const signOut = async () => {
+    setSigningOut(true);
+    await fetch("/api/auth/logout", { method: "POST" }).catch(() => undefined);
+    window.location.replace("/login");
+  };
+  return <button type="button" className="signout" onClick={signOut} disabled={signingOut}>{signingOut ? "종료 중" : "로그아웃"}</button>;
+}
+
 function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) {
   return <aside className="sidebar">
     <Brand />
@@ -209,7 +219,7 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
       <p className="nav-label">WORKSPACE</p>
       {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}
     </nav>
-    <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><button aria-label="프로필 메뉴">•••</button></div>
+    <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><SignOutButton /></div>
   </aside>;
 }
 

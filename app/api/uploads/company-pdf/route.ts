@@ -1,3 +1,4 @@
+import { requireTeamSession } from "@/lib/auth/guard";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -6,6 +7,8 @@ const BUCKET = "company-source-documents";
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 
 export async function POST(request: Request) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const body = await request.json() as { fileName?: string; fileSize?: number; mimeType?: string };
     if (body.mimeType !== "application/pdf" || !body.fileName?.toLowerCase().endsWith(".pdf")) {

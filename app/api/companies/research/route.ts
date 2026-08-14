@@ -1,5 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { requireTeamSession } from "@/lib/auth/guard";
 import { generateWithGemini } from "@/lib/ai/gemini";
 import { AX_FOUNDATION_QUESTIONS } from "@/lib/ai/ax-questionnaire";
 import { researchDart } from "@/lib/company-intelligence/dart";
@@ -114,6 +115,8 @@ function fallbackTailoredQuestions(report: { opportunities?: Array<{ title?: str
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const { websiteUrl, companyName, documentSummary } = await request.json() as { websiteUrl?: string; companyName?: string; documentSummary?: string };
     if (!websiteUrl) return Response.json({ error: "홈페이지 주소가 필요합니다." }, { status: 400 });

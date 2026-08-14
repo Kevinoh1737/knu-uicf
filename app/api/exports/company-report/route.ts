@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import { NextResponse } from "next/server";
+import { requireTeamSession } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 
@@ -245,6 +246,8 @@ async function createPdf(payload: ReportPayload) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const contentLength = Number(request.headers.get("content-length") || 0);
     if (contentLength > 2_000_000) return NextResponse.json({ error: "기업 조사 내용이 너무 큽니다." }, { status: 413 });

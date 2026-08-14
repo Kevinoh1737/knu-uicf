@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateWithGemini } from "@/lib/ai/gemini";
 import { AI_ROLE_CONFIG, GEMINI_MODELS } from "@/lib/ai/models";
+import { requireTeamSession } from "@/lib/auth/guard";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   return NextResponse.json({
     configured: Boolean(process.env.GEMINI_API_KEY),
     models: GEMINI_MODELS,

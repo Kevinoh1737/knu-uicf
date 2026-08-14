@@ -1,8 +1,11 @@
+import { requireTeamSession } from "@/lib/auth/guard";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const { data, error } = await createSupabaseAdmin()
       .from("company_research")
@@ -16,6 +19,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireTeamSession();
+  if (unauthorized) return unauthorized;
   try {
     const body = await request.json() as { name?: string; websiteUrl?: string; industry?: string; research?: unknown; intelligence?: unknown; crawl?: unknown; questions?: string[] };
     if (!body.name || !body.websiteUrl) return Response.json({ error: "기업명과 홈페이지 주소가 필요합니다." }, { status: 400 });
