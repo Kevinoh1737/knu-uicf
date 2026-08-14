@@ -4,11 +4,34 @@ import { useMemo, useState } from "react";
 
 type View = "overview" | "companies" | "company" | "instructors" | "surveys";
 
+type IconName = "home" | "building" | "person" | "survey" | "spark" | "settings" | "search" | "bell" | "plus" | "document" | "audio" | "calendar" | "chart" | "clock" | "upload";
+
+function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  const paths: Record<IconName, React.ReactNode> = {
+    home: <><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v10h13V10M9 20v-6h6v6"/></>,
+    building: <><path d="M4 21V5a2 2 0 0 1 2-2h9v18M15 9h5v12M8 7h3M8 11h3M8 15h3M3 21h19"/></>,
+    person: <><circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/></>,
+    survey: <><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2 4.8-5"/></>,
+    spark: <><path d="m12 3 1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3Z"/><path d="m18 16 .7 2.3L21 19l-2.3.7L18 22l-.7-2.3L15 19l2.3-.7L18 16Z"/></>,
+    settings: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
+    search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
+    bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></>,
+    plus: <path d="M12 5v14M5 12h14"/>,
+    document: <><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></>,
+    audio: <><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></>,
+    chart: <><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></>,
+    clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
+    upload: <><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 14v6h14v-6"/></>,
+  };
+  return <svg className="ui-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
 const nav = [
-  { id: "overview" as View, icon: "⌂", label: "오늘의 운영" },
-  { id: "companies" as View, icon: "▦", label: "기업 · 교육" },
-  { id: "instructors" as View, icon: "◇", label: "강사 풀" },
-  { id: "surveys" as View, icon: "◎", label: "만족도 조사" },
+  { id: "overview" as View, icon: "home" as IconName, label: "오늘의 운영" },
+  { id: "companies" as View, icon: "building" as IconName, label: "기업 · 교육" },
+  { id: "instructors" as View, icon: "person" as IconName, label: "강사 풀" },
+  { id: "surveys" as View, icon: "survey" as IconName, label: "만족도 조사" },
 ];
 
 const companies = [
@@ -33,12 +56,12 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
     <Brand />
     <nav aria-label="주 메뉴">
       <p className="nav-label">WORKSPACE</p>
-      {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span>{item.icon}</span>{item.label}{item.id === "surveys" && <em>3</em>}</button>)}
+      {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}{item.id === "surveys" && <em>3</em>}</button>)}
       <p className="nav-label second">SYSTEM</p>
-      <button className="nav-item"><span>⌘</span>AI 작업 센터</button>
-      <button className="nav-item"><span>⚙</span>설정</button>
+      <button className="nav-item"><span><Icon name="spark" /></span>AI 작업 센터</button>
+      <button className="nav-item"><span><Icon name="settings" /></span>설정</button>
     </nav>
-    <div className="ai-credit"><span className="spark">✦</span><div><b>AI 자동화 준비됨</b><small>Gemini 연결 후 활성화</small></div><i>→</i></div>
+    <div className="ai-credit"><span className="spark"><Icon name="spark" size={17}/></span><div><b>AI 자동화 준비됨</b><small>Gemini 연결 후 활성화</small></div><i>→</i></div>
     <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><button aria-label="프로필 메뉴">•••</button></div>
   </aside>;
 }
@@ -51,7 +74,7 @@ function Header({ view, onNew }: { view: View; onNew: () => void }) {
     instructors: ["강사 풀", "전문분야, 일정, 평가를 기반으로 적합한 강사를 관리합니다."],
     surveys: ["만족도 조사", "수업별 맞춤 문항을 준비하고 응답을 분석합니다."],
   };
-  return <header className="topbar"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><div className="header-actions"><button className="icon-button" aria-label="검색">⌕</button><button className="icon-button notification" aria-label="알림">♢<i /></button><button className="primary" onClick={onNew}><span>＋</span>{view === "instructors" ? "강사 등록" : "새 기업 등록"}</button></div></header>;
+  return <header className="topbar"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><div className="header-actions"><button className="icon-button" aria-label="검색"><Icon name="search" /></button><button className="icon-button notification" aria-label="알림"><Icon name="bell" /><i /></button><button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>{view === "instructors" ? "강사 등록" : "새 기업 등록"}</button></div></header>;
 }
 
 function Overview({ setView }: { setView: (v: View) => void }) {
@@ -65,10 +88,10 @@ function Overview({ setView }: { setView: (v: View) => void }) {
     </section>
 
     <section className="metric-row" aria-label="운영 현황">
-      <article><span className="metric-icon">▧</span><div><small>진행 중인 기업</small><strong>8</strong><em>이번 달 +3</em></div></article>
-      <article><span className="metric-icon">◷</span><div><small>예정된 수업</small><strong>12</strong><em>7일 내 4건</em></div></article>
-      <article><span className="metric-icon">♢</span><div><small>배정 가능 강사</small><strong>26</strong><em>전문분야 11개</em></div></article>
-      <article><span className="metric-icon">◎</span><div><small>평균 만족도</small><strong>4.78</strong><em className="up">↑ 0.12</em></div></article>
+      <article><span className="metric-icon"><Icon name="building" /></span><div><small>진행 중인 기업</small><strong>8</strong><em>이번 달 +3</em></div></article>
+      <article><span className="metric-icon"><Icon name="calendar" /></span><div><small>예정된 수업</small><strong>12</strong><em>7일 내 4건</em></div></article>
+      <article><span className="metric-icon"><Icon name="person" /></span><div><small>배정 가능 강사</small><strong>26</strong><em>전문분야 11개</em></div></article>
+      <article><span className="metric-icon"><Icon name="chart" /></span><div><small>평균 만족도</small><strong>4.78</strong><em className="up">상승 0.12</em></div></article>
     </section>
 
     <section className="dashboard-grid">
@@ -127,4 +150,4 @@ function Surveys(){return <section className="workspace-panel surveys-page"><div
 
 function Modal({ type, onClose }: { type: "company"|"instructor"; onClose:()=>void }){return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal" onMouseDown={e=>e.stopPropagation()} onSubmit={e=>{e.preventDefault();onClose();}}><div className="modal-head"><div><span>{type==="company"?"NEW COMPANY":"NEW INSTRUCTOR"}</span><h2>{type==="company"?"새 기업 등록":"새 강사 등록"}</h2><p>{type==="company"?"이름이나 URL 하나만 입력하면 나머지는 AI가 채웁니다.":"프로필 파일을 올리면 경력과 전문분야를 자동으로 정리합니다."}</p></div><button type="button" onClick={onClose}>×</button></div>{type==="company"?<><label>기업명 또는 홈페이지 URL<input autoFocus placeholder="예: https://company.co.kr" required/></label><div className="auto-preview"><span>✦</span><div><b>자동으로 준비할 정보</b><p>사업자 정보 · 산업 분류 · 담당 연락처 · 회사 소개 · 첨부 브로슈어 · 경쟁사 후보</p></div></div></>:<><label>강사 이름<input autoFocus placeholder="이름을 입력하세요" required/></label><div className="drop-mini">프로필 파일을 여기에 놓으세요 <small>PDF, DOCX, HWP, XLSX</small></div></>}<div className="modal-actions"><button type="button" onClick={onClose}>취소</button><button className="primary-small">{type==="company"?"기업 조사 시작":"강사 등록"}</button></div></form></div>}
 
-export default function Home(){const [view,setView]=useState<View>("overview");const [modal,setModal]=useState<null|"company"|"instructor">(null);const content=useMemo(()=>({overview:<Overview setView={setView}/>,companies:<Companies setView={setView}/>,company:<CompanyDetail/>,instructors:<Instructors/>,surveys:<Surveys/>})[view],[view]);return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main"><Header view={view} onNew={()=>setModal(view==="instructors"?"instructor":"company")}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(x=><button key={x.id} className={view===x.id||view==="company"&&x.id==="companies"?"active":""} onClick={()=>setView(x.id)}><span>{x.icon}</span>{x.label.split(" ")[0]}</button>)}</nav>{modal&&<Modal type={modal} onClose={()=>setModal(null)}/>}</div>}
+export default function Home(){const [view,setView]=useState<View>("overview");const [modal,setModal]=useState<null|"company"|"instructor">(null);const content=useMemo(()=>({overview:<Overview setView={setView}/>,companies:<Companies setView={setView}/>,company:<CompanyDetail/>,instructors:<Instructors/>,surveys:<Surveys/>})[view],[view]);return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={()=>setModal(view==="instructors"?"instructor":"company")}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(x=><button key={x.id} className={view===x.id||view==="company"&&x.id==="companies"?"active":""} onClick={()=>setView(x.id)}><span><Icon name={x.icon}/></span>{x.label.split(" ")[0]}</button>)}</nav>{modal&&<Modal type={modal} onClose={()=>setModal(null)}/>}</div>}
