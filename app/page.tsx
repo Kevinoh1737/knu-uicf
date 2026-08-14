@@ -22,6 +22,7 @@ type CompanyItem = {
   date: string;
   color: string;
   logoUrl?: string;
+  logoNeedsDark?: boolean;
   websiteUrl?: string;
   research?: ResearchReport;
   crawl?: { pageCount: number; attachmentCount: number; pages: string[]; attachments: string[] };
@@ -66,7 +67,7 @@ const companies: CompanyItem[] = [
 ];
 
 function CompanyLogo({ company, size = "" }: { company: CompanyItem; size?: "large" | "xl" | "" }) {
-  return <span className={`company-logo ${size} ${company.color} ${company.logoUrl ? "has-image" : ""}`}>
+  return <span className={`company-logo ${size} ${company.color} ${company.logoUrl ? "has-image" : ""} ${company.logoNeedsDark ? "light-logo" : ""}`}>
     {company.logoUrl ? <Image src={company.logoUrl} alt={`${company.name} 로고`} width={96} height={96} unoptimized /> : company.name[0]}
   </span>;
 }
@@ -149,7 +150,7 @@ function CompanyDetail({ company, onRefreshLogo }: { company: CompanyItem; onRef
   ]);
   const addQuestion = () => setQuestions([...questions, "새 질문을 입력해 주세요."]);
   return <section className="company-detail">
-    <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p>{!company.logoUrl && company.websiteUrl && <button className="logo-retry" onClick={() => onRefreshLogo(company)}>로고 다시 가져오기</button>}</div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
+    <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p>{company.websiteUrl && <button className="logo-retry" onClick={() => onRefreshLogo(company)}>{company.logoUrl ? "로고 새로고침" : "로고 다시 가져오기"}</button>}</div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
     <div className="detail-tabs">{[["overview","개요"],["research","기업 조사"],["questions","니즈 질문지"],["consulting","상담 기록"],["courses","교육 과정"],["students","수강생"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>{questions.length}</em>}</button>)}</div>
     {tab === "overview" && <div className="detail-grid"><div className="detail-main">
       <article className="next-action"><span>✦</span><div><small>AI가 제안하는 다음 단계</small><h3>상담 녹취 분석 결과를 검토해 주세요</h3><p>핵심 니즈 5개와 4시간 특강 3개를 구성했습니다.</p></div><button onClick={()=>setTab("consulting")}>결과 검토 →</button></article>
@@ -190,14 +191,14 @@ function Modal({ type, onClose, onCompanyCreated }: { type: "company" | "instruc
     setLoading(true); setError("");
     try {
       const logoResponse = await fetch("/api/companies/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl }) });
-      const result = await logoResponse.json() as { error?: string; companyName?: string; websiteUrl?: string; logoDataUrl?: string | null };
+      const result = await logoResponse.json() as { error?: string; companyName?: string; websiteUrl?: string; logoDataUrl?: string | null; logoNeedsDark?: boolean };
       if (!logoResponse.ok) throw new Error(result.error || "홈페이지 기본 정보 수집에 실패했습니다.");
       const normalized = new URL(result.websiteUrl || (/^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`));
       const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href }) });
       const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"] };
       if (!researchResponse.ok || !researchResult.report) throw new Error(researchResult.error || "Gemini 기업 조사에 실패했습니다.");
       const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
-      onCompanyCreated({ name: researchResult.report.companyName || result.companyName || fallbackName, field: researchResult.report.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", logoUrl: result.logoDataUrl || undefined, websiteUrl: normalized.href, research: researchResult.report, crawl: researchResult.crawl });
+      onCompanyCreated({ name: researchResult.report.companyName || result.companyName || fallbackName, field: researchResult.report.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", logoUrl: result.logoDataUrl || undefined, logoNeedsDark: result.logoNeedsDark, websiteUrl: normalized.href, research: researchResult.report, crawl: researchResult.crawl });
       onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "회사 정보를 가져오지 못했습니다.");
@@ -216,9 +217,9 @@ export default function Home() {
   const refreshCompanyLogo = async (company: CompanyItem) => {
     if (!company.websiteUrl) return;
     const response = await fetch("/api/companies/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: company.websiteUrl }) });
-    const result = await response.json() as { logoDataUrl?: string | null; error?: string };
+    const result = await response.json() as { logoDataUrl?: string | null; logoNeedsDark?: boolean; error?: string };
     if (!response.ok || !result.logoDataUrl) throw new Error(result.error || "로고를 찾지 못했습니다.");
-    const updated = { ...company, logoUrl: result.logoDataUrl };
+    const updated = { ...company, logoUrl: result.logoDataUrl, logoNeedsDark: result.logoNeedsDark };
     setCompanyItems(current => current.map(item => item === company || item.name === company.name ? updated : item));
     setSelectedCompany(updated);
   };
