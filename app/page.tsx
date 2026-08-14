@@ -13,6 +13,20 @@ type ResearchReport = {
   evidence: Array<{ claim: string; url: string }>;
 };
 
+type CompanyIntelligence = {
+  dart?: {
+    available: boolean; reason?: string; corpCode?: string; stockCode?: string | null;
+    profile?: { representative?: string; address?: string; industryCode?: string; establishedDate?: string; corporationClass?: string };
+    financialYear?: number | null;
+    financials?: { revenue?: number | null; operatingProfit?: number | null; netIncome?: number | null; assets?: number | null; liabilities?: number | null };
+  };
+  recruiting?: {
+    available?: boolean; reason?: string; postingCount?: number; itPostingCount?: number; hasInternalItSignal?: boolean;
+    itRoles?: string[]; jobAreas?: string[]; caveat?: string;
+    postings?: Array<{ source: string; title: string; company: string; jobAreas: string[]; url: string; itSignal: boolean }>;
+  };
+};
+
 type CompanyItem = {
   name: string;
   field: string;
@@ -25,6 +39,7 @@ type CompanyItem = {
   logoNeedsDark?: boolean;
   websiteUrl?: string;
   research?: ResearchReport;
+  intelligence?: CompanyIntelligence;
   crawl?: { pageCount: number; attachmentCount: number; pages: string[]; attachments: string[] };
   researchError?: string;
 };
@@ -168,7 +183,11 @@ function CompanyDetail({ company, onRefreshLogo }: { company: CompanyItem; onRef
 function ResearchTab({ company }: { company: CompanyItem }) {
   if (!company.research) return <section className="tab-content research"><div className="research-empty"><span>!</span><h2>조사 결과가 없습니다</h2><p>{company.researchError || "이 기업은 실제 조사 기능 연결 전에 등록되었습니다. 새 기업 등록에서 홈페이지를 다시 입력해 주세요."}</p></div></section>;
   const report = company.research;
-  return <section className="tab-content research"><div className="content-title"><div><span className="ai-tag">✦ 실제 웹 수집 · GEMINI 분석 완료</span><h2>기업 인텔리전스 리포트</h2><p>홈페이지 {company.crawl?.pageCount || 0}개 페이지와 첨부파일 링크 {company.crawl?.attachmentCount || 0}개를 확인했습니다.</p></div></div><div className="research-grid"><article><small>기업 한눈에 보기</small><h3>{report.headline}</h3><p>{report.summary}</p><div className="chips">{report.keywords.map(keyword => <span key={keyword}>{keyword}</span>)}</div></article><article><small>AI 교육 기회</small><ul>{report.opportunities.map(item => <li key={item.title}><b>{item.title}</b><span>{item.detail}</span></li>)}</ul></article><article className="competitor"><small>동종업계 후보</small><h3>경쟁사 검토 대상</h3>{report.competitors.map((item, index) => <div key={item.name}><span>{index + 1}</span><b>{item.name}</b><em>{item.reason} · {item.verificationNote}</em></div>)}</article></div><div className="evidence-list"><b>근거 출처</b>{report.evidence.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}>{item.claim}<span>{new URL(item.url).hostname} ↗</span></a>)}</div></section>;
+  const dart = company.intelligence?.dart;
+  const recruiting = company.intelligence?.recruiting;
+  const won = (value?: number | null) => value == null ? "확인되지 않음" : `${new Intl.NumberFormat("ko-KR", { notation: "compact", maximumFractionDigits: 1 }).format(value)}원`;
+  const date = (value?: string) => value?.length === 8 ? `${value.slice(0, 4)}.${value.slice(4, 6)}.${value.slice(6, 8)}` : value || "확인되지 않음";
+  return <section className="tab-content research"><div className="content-title"><div><span className="ai-tag">✦ 실제 웹 수집 · GEMINI 분석 완료</span><h2>기업 인텔리전스 리포트</h2><p>홈페이지 {company.crawl?.pageCount || 0}개 페이지와 첨부파일 링크 {company.crawl?.attachmentCount || 0}개를 확인했습니다.</p></div></div>{company.intelligence && <div className="intelligence-grid"><article><div className="intel-head"><div><small>OPEN DART</small><h3>공시 기반 기업 정보</h3></div><span className={dart?.available ? "verified" : "unavailable"}>{dart?.available ? "공식 확인" : "자료 없음"}</span></div>{dart?.available ? <><dl><div><dt>대표이사</dt><dd>{dart.profile?.representative || "확인되지 않음"}</dd></div><div><dt>설립일</dt><dd>{date(dart.profile?.establishedDate)}</dd></div><div><dt>본점 주소</dt><dd>{dart.profile?.address || "확인되지 않음"}</dd></div><div><dt>업종 코드</dt><dd>{dart.profile?.industryCode || "확인되지 않음"}</dd></div></dl><div className="finance-row"><span><small>{dart.financialYear || "-"} 매출</small><b>{won(dart.financials?.revenue)}</b></span><span><small>영업이익</small><b>{won(dart.financials?.operatingProfit)}</b></span><span><small>자산</small><b>{won(dart.financials?.assets)}</b></span></div></> : <p className="intel-empty">{dart?.reason || "DART에서 일치하는 기업을 찾지 못했습니다."}</p>}</article><article><div className="intel-head"><div><small>RECRUITING SIGNAL</small><h3>조직·IT 인력 신호</h3></div><span className={recruiting?.hasInternalItSignal ? "verified" : "unavailable"}>{recruiting?.hasInternalItSignal ? "IT 채용 신호 있음" : "확인 필요"}</span></div><div className="recruit-summary"><span><b>{recruiting?.postingCount || 0}</b><small>현재 공개 공고</small></span><span><b>{recruiting?.itPostingCount || 0}</b><small>IT 관련 공고</small></span></div>{recruiting?.itRoles?.length ? <div className="role-list">{recruiting.itRoles.map(role => <span key={role}>{role}</span>)}</div> : <p className="intel-empty">현재 공개검색에서 IT 직무 공고를 확인하지 못했습니다. 내부 인력 부재를 의미하지는 않습니다.</p>}<p className="intel-caveat">{recruiting?.caveat}</p></article></div>}<div className="research-grid"><article><small>기업 한눈에 보기</small><h3>{report.headline}</h3><p>{report.summary}</p><div className="chips">{report.keywords.map(keyword => <span key={keyword}>{keyword}</span>)}</div></article><article><small>AI 교육 기회</small><ul>{report.opportunities.map(item => <li key={item.title}><b>{item.title}</b><span>{item.detail}</span></li>)}</ul></article><article className="competitor"><small>동종업계 후보</small><h3>경쟁사 검토 대상</h3>{report.competitors.map((item, index) => <div key={item.name}><span>{index + 1}</span><b>{item.name}</b><em>{item.reason} · {item.verificationNote}</em></div>)}</article></div><div className="evidence-list"><b>근거 출처</b>{report.evidence.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}>{item.claim}<span>{new URL(item.url).hostname} ↗</span></a>)}</div></section>;
 }
 
 function ConsultingTab(){const [uploaded,setUploaded]=useState(false);return <section className="tab-content consulting"><div className="content-title"><div><span className="ai-tag">✦ 상담 분석</span><h2>상담 기록과 녹취</h2><p>전체 대화를 보존하고 교육 니즈, 제약조건, 과정 제안을 추출합니다.</p></div><button>상담 메모 추가</button></div>{!uploaded?<div className="upload-zone" onClick={()=>setUploaded(true)}><span>↑</span><h3>녹취파일을 놓거나 선택하세요</h3><p>MP3, M4A, WAV · 최대 2GB · 업로드 후 Gemini가 자동으로 전사합니다.</p><button>파일 선택</button></div>:<div className="transcript"><div className="audio-bar"><button>▶</button><div><b>더존비즈온_니즈상담_0812.m4a</b><small>42:18 · 전사 및 화자 분리 완료</small></div><span>분석 완료</span></div><div className="insight-row"><article><small>핵심 니즈</small><b>문서 생산성 향상</b><p>반복 보고서와 제안서 작성 시간을 줄이는 실습 요구</p></article><article><small>교육 대상</small><b>실무자 24명</b><p>기획·영업·지원 직군 혼합, AI 경험은 초급</p></article><article><small>운영 제약</small><b>보안 환경 실습</b><p>개인정보·사내 데이터 입력 금지 원칙 포함 필요</p></article></div><div className="dialogue"><p><b>정예린 책임</b><span>보고서 초안을 만드는 데 팀별로 시간이 꽤 많이 들어요. 단순 이론보다 실제 문서를 가지고 연습했으면 합니다.</span><time>12:42</time></p><p><b>김서윤</b><span>교육 이후 바로 사용할 수 있는 템플릿까지 결과물로 가져가도록 설계해 보겠습니다.</span><time>13:08</time></p></div></div>}</section>}
@@ -194,11 +213,11 @@ function Modal({ type, onClose, onCompanyCreated }: { type: "company" | "instruc
       const result = await logoResponse.json() as { error?: string; companyName?: string; websiteUrl?: string; logoDataUrl?: string | null; logoNeedsDark?: boolean };
       if (!logoResponse.ok) throw new Error(result.error || "홈페이지 기본 정보 수집에 실패했습니다.");
       const normalized = new URL(result.websiteUrl || (/^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`));
-      const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href }) });
-      const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"] };
+      const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href, companyName: result.companyName }) });
+      const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"]; intelligence?: CompanyIntelligence };
       if (!researchResponse.ok || !researchResult.report) throw new Error(researchResult.error || "Gemini 기업 조사에 실패했습니다.");
       const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
-      onCompanyCreated({ name: researchResult.report.companyName || result.companyName || fallbackName, field: researchResult.report.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", logoUrl: result.logoDataUrl || undefined, logoNeedsDark: result.logoNeedsDark, websiteUrl: normalized.href, research: researchResult.report, crawl: researchResult.crawl });
+      onCompanyCreated({ name: researchResult.report.companyName || result.companyName || fallbackName, field: researchResult.report.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", logoUrl: result.logoDataUrl || undefined, logoNeedsDark: result.logoNeedsDark, websiteUrl: normalized.href, research: researchResult.report, intelligence: researchResult.intelligence, crawl: researchResult.crawl });
       onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "회사 정보를 가져오지 못했습니다.");

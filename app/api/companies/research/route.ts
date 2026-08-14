@@ -1,6 +1,8 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { generateWithGemini } from "@/lib/ai/gemini";
+import { researchDart } from "@/lib/company-intelligence/dart";
+import { researchRecruiting } from "@/lib/company-intelligence/recruiting";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -84,7 +86,7 @@ const responseSchema = {
 
 export async function POST(request: Request) {
   try {
-    const { websiteUrl } = await request.json() as { websiteUrl?: string };
+    const { websiteUrl, companyName } = await request.json() as { websiteUrl?: string; companyName?: string };
     if (!websiteUrl) return Response.json({ error: "홈페이지 주소가 필요합니다." }, { status: 400 });
     const start = normalizeUrl(websiteUrl);
     const first = await fetchHtml(start);
@@ -109,12 +111,14 @@ export async function POST(request: Request) {
       } catch { /* 일부 페이지 실패가 전체 조사를 중단하지 않게 합니다. */ }
     }
     if (!documents.length) throw new Error("분석할 홈페이지 본문을 찾지 못했습니다.");
+    const inferredName = companyName || first.html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)/i)?.[1] || first.html.match(/<title[^>]*>([^<]+)/i)?.[1]?.split(/[|·–—-]/)[0]?.trim() || start.hostname.replace(/^www\./, "").split(".")[0];
+    const [dart, recruiting] = await Promise.all([researchDart(inferredName).catch(error => ({ available: false, reason: String(error) })), researchRecruiting(inferredName).catch(error => ({ available: false, reason: String(error) }))]);
     const sources = documents.map((doc, index) => `\n[SOURCE ${index + 1}] ${doc.url}\n${doc.text}`).join("\n");
     const attachments = [...attachmentSet].slice(0, 20);
-    const prompt = `당신은 강원대학교 산학협력단 교육사업팀의 B2B AI 교육 컨설턴트입니다. 아래는 특정 기업의 공식 홈페이지에서 방금 직접 수집한 원문입니다.\n\n규칙:\n1. 기업 사실은 제공된 SOURCE에서만 단정하고 evidence에 정확한 URL을 연결하세요.\n2. 교육 기회는 기업 업무와 AI 교육 설계 관점에서 구체적으로 작성하세요.\n3. competitors는 동일 산업 후보 3곳을 제안하되, 홈페이지 원문에 근거가 없으면 verificationNote에 '외부 검증 필요'라고 명시하세요.\n4. questions는 향후 4시간 단위 AI 교육과정을 설계하기 위해 담당자에게 물을 질문 10개를 작성하세요.\n5. 한국어로 간결하고 사실적으로 답하세요.\n\n발견된 첨부파일 URL:\n${attachments.join("\n") || "없음"}\n\n수집 원문:${sources}`;
+    const prompt = `당신은 강원대학교 산학협력단 교육사업팀의 B2B AI 교육 컨설턴트입니다. 아래는 공식 홈페이지, OpenDART, 공개 채용검색에서 방금 수집한 자료입니다.\n\n규칙:\n1. 기업 사실은 제공된 자료에서만 단정하고 evidence에 정확한 URL을 연결하세요. DART 수치는 OpenDART 출처로 표시하세요.\n2. 채용정보에서 내부 IT 개발·데이터·인프라 인력 신호, 모집 부서와 직무를 해석해 교육 난이도와 교육 기회를 제안하세요. IT 채용 신호가 없다는 것을 IT 인력이 없다는 확정 사실로 표현하지 마세요.\n3. 교육 기회는 기업 업무와 AI 교육 설계 관점에서 구체적으로 작성하세요.\n4. competitors는 동일 산업 후보 3곳을 제안하되 근거가 없으면 verificationNote에 '외부 검증 필요'라고 명시하세요.\n5. questions는 향후 4시간 단위 AI 교육과정을 설계하기 위해 담당자에게 물을 질문 10개를 작성하세요.\n6. 한국어로 간결하고 사실적으로 답하세요.\n\nOpenDART 자료:\n${JSON.stringify(dart)}\n\n공개 채용정보:\n${JSON.stringify(recruiting)}\n\n발견된 첨부파일 URL:\n${attachments.join("\n") || "없음"}\n\n수집 원문:${sources}`;
     const generated = await generateWithGemini({ role: "companyResearch", prompt, responseSchema, temperature: 0.15 });
     const report = JSON.parse(generated.text);
-    return Response.json({ report, crawl: { pageCount: documents.length, attachmentCount: attachments.length, pages: documents.map(doc => doc.url), attachments }, ai: { model: generated.model, usage: generated.usage } });
+    return Response.json({ report, intelligence: { dart, recruiting }, crawl: { pageCount: documents.length, attachmentCount: attachments.length, pages: documents.map(doc => doc.url), attachments }, ai: { model: generated.model, usage: generated.usage } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "기업 조사에 실패했습니다." }, { status: 422 });
   }
