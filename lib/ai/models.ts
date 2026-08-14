@@ -33,7 +33,7 @@ export const AI_ROLE_CONFIG: Record<
   questionnaireDesign: {
     tier: "balanced",
     model: GEMINI_MODELS.balanced,
-    purpose: "기업별 교육 니즈 진단 질문지 설계",
+    purpose: "제조·레거시 산업의 기업별 AI·AX 교육 니즈 질문지 설계",
   },
   consultationTranscription: {
     tier: "balanced",
