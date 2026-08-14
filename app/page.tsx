@@ -83,24 +83,24 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
   </aside>;
 }
 
-function Header({ view, onNew }: { view: View; onNew: () => void }) {
+function Header({ view, onNew, selectedCompany }: { view: View; onNew: () => void; selectedCompany: CompanyItem }) {
   const titles: Record<View, [string, string]> = {
     overview: ["좋은 오후예요, 서윤님", "교육 운영에서 지금 필요한 일만 모았습니다."],
     companies: ["기업과 교육 프로그램", "문의부터 교육 종료까지 한 흐름으로 관리합니다."],
-    company: ["더존비즈온", "기업 조사와 교육 설계를 한곳에서 이어가세요."],
+    company: [selectedCompany.name, "기업 조사와 교육 설계를 한곳에서 이어가세요."],
     instructors: ["강사 풀", "전문분야, 일정, 평가를 기반으로 적합한 강사를 관리합니다."],
     surveys: ["만족도 조사", "수업별 맞춤 문항을 준비하고 응답을 분석합니다."],
   };
   return <header className="topbar"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><div className="header-actions"><button className="icon-button" aria-label="검색"><Icon name="search" /></button><button className="icon-button notification" aria-label="알림"><Icon name="bell" /><i /></button><button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>{view === "instructors" ? "강사 등록" : "새 기업 등록"}</button></div></header>;
 }
 
-function Overview({ setView, companyItems }: { setView: (v: View) => void; companyItems: CompanyItem[] }) {
+function Overview({ setView, companyItems, onSelectCompany }: { setView: (v: View) => void; companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void }) {
   return <>
     <section className="focus-banner">
       <div className="focus-copy"><span className="eyebrow">TODAY’S FOCUS</span><h2>기업 2곳의 다음 단계를<br />오늘 마무리해 보세요.</h2><p>AI가 준비한 조사 결과와 질문지를 검토하면<br />교육 설계까지 더 빠르게 이어갈 수 있습니다.</p><button onClick={() => setView("companies")}>업무 이어가기 <span>→</span></button></div>
       <div className="focus-work">
-        <article><div className="task-icon coral">▤</div><div><small>질문지 검토</small><strong>휴젤 니즈 진단 질문 14개</strong><p>AI 초안이 준비되었습니다</p></div><button onClick={() => setView("company")}>검토</button></article>
-        <article><div className="task-icon mint">⌁</div><div><small>녹취 분석 완료</small><strong>더존비즈온 상담 · 42분</strong><p>추천 교육안 3개가 생성되었습니다</p></div><button onClick={() => setView("company")}>열기</button></article>
+        <article><div className="task-icon coral">▤</div><div><small>질문지 검토</small><strong>휴젤 니즈 진단 질문 14개</strong><p>AI 초안이 준비되었습니다</p></div><button onClick={() => onSelectCompany(companyItems.find(company => company.name === "휴젤") || companyItems[0])}>검토</button></article>
+        <article><div className="task-icon mint">⌁</div><div><small>녹취 분석 완료</small><strong>더존비즈온 상담 · 42분</strong><p>추천 교육안 3개가 생성되었습니다</p></div><button onClick={() => onSelectCompany(companyItems.find(company => company.name === "더존비즈온") || companyItems[0])}>열기</button></article>
       </div>
     </section>
 
@@ -113,7 +113,7 @@ function Overview({ setView, companyItems }: { setView: (v: View) => void; compa
 
     <section className="dashboard-grid">
       <div className="panel pipeline"><div className="panel-head"><div><h3>교육 진행 현황</h3><p>기업별 다음 일정과 준비 상태</p></div><button onClick={() => setView("companies")}>전체 보기 →</button></div>
-        <div className="company-list">{companyItems.slice(0, 4).map((c) => <button className="company-row" key={c.name} onClick={() => setView("company")}><CompanyLogo company={c}/><div className="company-name"><b>{c.name}</b><small>{c.field}</small></div><span className="stage">{c.stage}</span><div className="progress"><i style={{ width: `${c.progress}%` }} /></div><div className="date"><small>다음 일정</small><b>{c.date}</b></div><span className="arrow">›</span></button>)}</div>
+        <div className="company-list">{companyItems.slice(0, 4).map((c) => <button className="company-row" key={c.name} onClick={() => onSelectCompany(c)}><CompanyLogo company={c}/><div className="company-name"><b>{c.name}</b><small>{c.field}</small></div><span className="stage">{c.stage}</span><div className="progress"><i style={{ width: `${c.progress}%` }} /></div><div className="date"><small>다음 일정</small><b>{c.date}</b></div><span className="arrow">›</span></button>)}</div>
       </div>
       <div className="panel schedule"><div className="panel-head"><div><h3>다가오는 일정</h3><p>이번 주 · 8월 14–20일</p></div><button>＋</button></div>
         <div className="calendar-strip"><span><small>목</small><b>14</b></span><span className="selected"><small>금</small><b>15</b><i /></span><span><small>토</small><b>16</b></span><span><small>일</small><b>17</b></span><span><small>월</small><b>18</b></span></div>
@@ -123,13 +123,13 @@ function Overview({ setView, companyItems }: { setView: (v: View) => void; compa
   </>;
 }
 
-function Companies({ setView, companyItems }: { setView: (v: View) => void; companyItems: CompanyItem[] }) {
+function Companies({ companyItems, onSelectCompany }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void }) {
   return <section className="workspace-panel"><div className="toolbar"><div className="searchbox">⌕ <input aria-label="기업 검색" placeholder="기업명, 산업, 담당자로 검색" /></div><div><button className="filter">진행 상태⌄</button><button className="filter">담당자⌄</button></div></div>
-    <div className="company-cards">{companyItems.map((c) => <article key={c.name} onClick={() => setView("company")} tabIndex={0}><div className="card-top"><CompanyLogo company={c} size="large"/><span className="stage">{c.stage}</span></div><h3>{c.name}</h3><p>{c.field}</p><div className="card-progress"><span><i style={{width:`${c.progress}%`}} /></span><small>{c.progress}%</small></div><dl><div><dt>담당자</dt><dd>{c.owner}</dd></div><div><dt>다음 일정</dt><dd>{c.date}</dd></div></dl><button>기업 파일 열기 <span>→</span></button></article>)}</div>
+    <div className="company-cards">{companyItems.map((c) => <article key={c.name} onClick={() => onSelectCompany(c)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onSelectCompany(c); }} tabIndex={0}><div className="card-top"><CompanyLogo company={c} size="large"/><span className="stage">{c.stage}</span></div><h3>{c.name}</h3><p>{c.field}</p><div className="card-progress"><span><i style={{width:`${c.progress}%`}} /></span><small>{c.progress}%</small></div><dl><div><dt>담당자</dt><dd>{c.owner}</dd></div><div><dt>다음 일정</dt><dd>{c.date}</dd></div></dl><button>기업 파일 열기 <span>→</span></button></article>)}</div>
   </section>;
 }
 
-function CompanyDetail() {
+function CompanyDetail({ company }: { company: CompanyItem }) {
   const [tab, setTab] = useState("overview");
   const [questions, setQuestions] = useState([
     "현재 구성원들이 반복적으로 많은 시간을 쓰는 업무는 무엇인가요?",
@@ -138,7 +138,7 @@ function CompanyDetail() {
   ]);
   const addQuestion = () => setQuestions([...questions, "새 질문을 입력해 주세요."]);
   return <section className="company-detail">
-    <div className="company-hero"><div className="company-identity"><span className="company-logo xl blue">더</span><div><div className="title-line"><h2>더존비즈온</h2><span>과정 설계</span></div><p>ICT · 기업용 소프트웨어 <i>·</i> www.douzone.com</p></div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
+    <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p></div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
     <div className="detail-tabs">{[["overview","개요"],["research","기업 조사"],["questions","니즈 질문지"],["consulting","상담 기록"],["courses","교육 과정"],["students","수강생"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>14</em>}</button>)}</div>
     {tab === "overview" && <div className="detail-grid"><div className="detail-main">
       <article className="next-action"><span>✦</span><div><small>AI가 제안하는 다음 단계</small><h3>상담 녹취 분석 결과를 검토해 주세요</h3><p>핵심 니즈 5개와 4시간 특강 3개를 구성했습니다.</p></div><button onClick={()=>setTab("consulting")}>결과 검토 →</button></article>
@@ -192,7 +192,9 @@ export default function Home() {
   const [view, setView] = useState<View>("overview");
   const [modal, setModal] = useState<null | "company" | "instructor">(null);
   const [companyItems, setCompanyItems] = useState<CompanyItem[]>([...companies, { name: "강원랜드", field: "관광 · 서비스", stage: "교육 완료", owner: "이수현", progress: 100, date: "완료", color: "violet" }]);
+  const [selectedCompany, setSelectedCompany] = useState<CompanyItem>(companies[0]);
+  const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
-  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems}/>, companies: <Companies setView={setView} companyItems={companyItems}/>, company: <CompanyDetail/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems]);
-  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(view === "instructors" ? "instructor" : "company")}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id || view === "company" && item.id === "companies" ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label.split(" ")[0]}</button>)}</nav>{modal && <Modal type={modal} onClose={() => setModal(null)} onCompanyCreated={addCompany}/>}</div>;
+  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems} onSelectCompany={selectCompany}/>, companies: <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>, company: <CompanyDetail company={selectedCompany}/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems, selectedCompany]);
+  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(view === "instructors" ? "instructor" : "company")} selectedCompany={selectedCompany}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id || view === "company" && item.id === "companies" ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label.split(" ")[0]}</button>)}</nav>{modal && <Modal type={modal} onClose={() => setModal(null)} onCompanyCreated={addCompany}/>}</div>;
 }
