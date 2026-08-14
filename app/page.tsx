@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 
 const instructors: Array<{ name: string; initials: string; role: string; score: string; sessions: number; state: string; tone: string }> = [];
@@ -30,6 +30,7 @@ type CompanyIntelligence = {
 };
 
 type CompanyItem = {
+  id?: string;
   name: string;
   field: string;
   stage: string;
@@ -111,11 +112,18 @@ function CompanyDetail({ company }: { company: CompanyItem }) {
     "교육 후 3개월 안에 확인하고 싶은 구체적인 업무 변화는 무엇인가요?",
   ]);
   const addQuestion = () => setQuestions([...questions, "새 질문을 입력해 주세요."]);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const saveQuestions = async () => {
+    if (!company.id) return;
+    setSaveState("saving");
+    const response = await fetch(`/api/companies/${company.id}/questions`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ questions }) });
+    setSaveState(response.ok ? "saved" : "error");
+  };
   return <section className="company-detail">
     <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p></div></div></div>
     <div className="detail-tabs">{[["research","기업 조사"],["questions","니즈 질문지"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>{questions.length}</em>}</button>)}</div>
     {tab === "research" && <ResearchTab company={company} />}
-    {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><span className="ai-tag">✦ GEMINI 초안</span><h2>교육 니즈 진단 질문지</h2><p>기업 조사 결과를 바탕으로 교육과정 설계에 필요한 질문을 구성했습니다.</p></div><button onClick={addQuestion}>＋ 질문 추가</button></div>{questions.map((q,i)=><article key={i}><span>{String(i+1).padStart(2,"0")}</span><textarea aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>setQuestions(questions.map((x,j)=>j===i?e.target.value:x))}/><button onClick={()=>setQuestions(questions.filter((_,j)=>j!==i))}>×</button></article>)}<div className="savebar"><span>마지막 자동 저장 · 방금 전</span><button>질문지 확정</button></div></section>}
+    {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><span className="ai-tag">✦ GEMINI 초안</span><h2>교육 니즈 진단 질문지</h2><p>기업 조사 결과를 바탕으로 교육과정 설계에 필요한 질문을 구성했습니다.</p></div><button onClick={addQuestion}>＋ 질문 추가</button></div>{questions.map((q,i)=><article key={i}><span>{String(i+1).padStart(2,"0")}</span><textarea aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>{setQuestions(questions.map((x,j)=>j===i?e.target.value:x));setSaveState("idle");}}/><button onClick={()=>{setQuestions(questions.filter((_,j)=>j!==i));setSaveState("idle");}}>×</button></article>)}<div className="savebar"><span className={saveState === "error" ? "save-error" : ""}>{saveState === "saving" ? "Supabase에 저장 중…" : saveState === "saved" ? "저장 완료" : saveState === "error" ? "저장하지 못했습니다. 다시 시도해 주세요." : "수정 후 저장해 주세요."}</span><button onClick={saveQuestions} disabled={!company.id || saveState === "saving"}>{saveState === "saving" ? "저장 중…" : "질문지 저장"}</button></div></section>}
   </section>;
 }
 
@@ -152,7 +160,11 @@ function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCr
       const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"]; intelligence?: CompanyIntelligence };
       if (!researchResponse.ok || !researchResult.report) throw new Error(researchResult.error || "Gemini 기업 조사에 실패했습니다.");
       const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
-      onCompanyCreated({ name: researchResult.report.companyName || fallbackName, field: researchResult.report.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: normalized.href, research: researchResult.report, intelligence: researchResult.intelligence, crawl: researchResult.crawl });
+      const draft = { name: researchResult.report.companyName || fallbackName, websiteUrl: normalized.href, industry: researchResult.report.industry, research: researchResult.report, intelligence: researchResult.intelligence, crawl: researchResult.crawl, questions: researchResult.report.questions };
+      const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
+      const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
+      if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
+      onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
       onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "회사 정보를 가져오지 못했습니다.");
@@ -165,10 +177,18 @@ export default function Home() {
   const [view, setView] = useState<View>("companies");
   const [modal, setModal] = useState(false);
   const [companyItems, setCompanyItems] = useState<CompanyItem[]>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<CompanyItem | null>(null);
   const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
+  useEffect(() => {
+    fetch("/api/companies").then(async response => {
+      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
+      if (!response.ok) throw new Error("기업 목록 조회 실패");
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: { ...item.research, questions: item.questions }, intelligence: item.intelligence, crawl: item.crawl })));
+    }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
+  }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };
-  const content = view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.name} company={selectedCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>;
+  const content = loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업을 불러오는 중입니다</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>;
   return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className="active" onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }
