@@ -67,3 +67,4 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .company-discovery .input-panel{height:124px;min-height:124px;box-sizing:border-box;overflow:hidden}
 .company-discovery .input-panel>label{display:block;height:100%;box-sizing:border-box}
 @media(max-width:600px){.company-discovery .input-panel{height:132px;min-height:132px}}
+.company-discovery .auto-preview:not(.is-loading){display:none}
