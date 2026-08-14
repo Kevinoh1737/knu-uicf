@@ -91,7 +91,8 @@ function pageMetadata(html: string, base: URL) {
   }
   for (const match of html.matchAll(/["']logo["']\s*:\s*["']([^"']+)["']/gi)) candidates.unshift(match[1]);
   if (!companyName) companyName = unescapeHtml(html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.split(/[|·–—-]/)[0]?.trim() || "");
-  const urls = [...candidates, ...socialImages].flatMap((source) => {
+  const conventionalPaths = ["/logo.png", "/images/logo.png", "/img/logo.png", "/assets/images/logo.png", "/theme/responsive/img/main/logo_hv.png", "/theme/responsive/img/main/logo.png"];
+  const urls = [...candidates, ...socialImages, ...conventionalPaths].flatMap((source) => {
     try { return [new URL(unescapeHtml(source), base)]; } catch { return []; }
   });
   return { companyName, candidates: [...new Map(urls.map((url) => [url.href, url])).values()].slice(0, 10) };
