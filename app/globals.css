@@ -35,3 +35,14 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .sidebar .brand{height:168px;justify-content:center;flex-direction:column;gap:10px;padding:6px 12px 0}.official-logo{display:block;width:96px!important;height:auto!important;object-fit:contain;flex:none}.team-name{display:block;color:#fff;font-size:15px;font-weight:700;line-height:1.2;letter-spacing:-.02em;white-space:nowrap}.sidebar nav{margin-top:14px}
 @media(max-height:760px) and (min-width:761px){.sidebar .brand{height:122px;gap:6px;padding-top:0}.official-logo{width:68px!important}.team-name{font-size:13px}.sidebar nav{margin-top:8px}.nav-label.second{margin-top:16px}}
 .sidebar .profile{margin-top:auto}
+
+/* Captured company identities */
+.company-logo.has-image{overflow:hidden;background:#fff!important;border:1px solid #e1e7ee;color:transparent;padding:5px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+.company-logo.has-image img{display:block;width:100%;height:100%;object-fit:contain}
+.company-logo.large.has-image{padding:6px}
+.company-logo.xl.has-image{padding:7px}
+.auto-preview.is-loading{background:#f4f7fb;border:1px solid #dbe4ee}
+.spinner{display:block;width:17px;height:17px;border:2px solid #bfd0e0;border-top-color:#2563eb;border-radius:50%;animation:logo-spin .8s linear infinite}
+.modal-error{margin:10px 0 0;padding:10px 12px;border-radius:8px;background:#fef2f2;color:#b42318;font-size:12px;line-height:1.45}
+.modal button:disabled,.modal input:disabled{cursor:wait;opacity:.66}
+@keyframes logo-spin{to{transform:rotate(360deg)}}

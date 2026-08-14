@@ -5,6 +5,18 @@ import Image from "next/image";
 
 type View = "overview" | "companies" | "company" | "instructors" | "surveys";
 
+type CompanyItem = {
+  name: string;
+  field: string;
+  stage: string;
+  owner: string;
+  progress: number;
+  date: string;
+  color: string;
+  logoUrl?: string;
+  websiteUrl?: string;
+};
+
 type IconName = "home" | "building" | "person" | "survey" | "spark" | "settings" | "search" | "bell" | "plus" | "document" | "audio" | "calendar" | "chart" | "clock" | "upload";
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -35,12 +47,18 @@ const nav = [
   { id: "surveys" as View, icon: "survey" as IconName, label: "만족도 조사" },
 ];
 
-const companies = [
+const companies: CompanyItem[] = [
   { name: "더존비즈온", field: "ICT · 기업용 소프트웨어", stage: "과정 설계", owner: "김서윤", progress: 72, date: "08. 19", color: "coral" },
   { name: "휴젤", field: "바이오 · 의료기기", stage: "니즈 진단", owner: "박정민", progress: 46, date: "08. 22", color: "blue" },
   { name: "바디텍메드", field: "의료 · 진단기기", stage: "강사 배정", owner: "이수현", progress: 88, date: "08. 27", color: "green" },
   { name: "일동후디스", field: "식품 · 제조", stage: "기업 조사", owner: "김서윤", progress: 24, date: "09. 03", color: "amber" },
 ];
+
+function CompanyLogo({ company, size = "" }: { company: CompanyItem; size?: "large" | "xl" | "" }) {
+  return <span className={`company-logo ${size} ${company.color} ${company.logoUrl ? "has-image" : ""}`}>
+    {company.logoUrl ? <Image src={company.logoUrl} alt={`${company.name} 로고`} width={96} height={96} unoptimized /> : company.name[0]}
+  </span>;
+}
 
 const instructors = [
   { name: "한지우", initials: "HJ", role: "생성형 AI · 업무자동화", score: "4.86", sessions: 18, state: "진행 가능", tone: "mint" },
@@ -76,7 +94,7 @@ function Header({ view, onNew }: { view: View; onNew: () => void }) {
   return <header className="topbar"><div><h1>{titles[view][0]}</h1><p>{titles[view][1]}</p></div><div className="header-actions"><button className="icon-button" aria-label="검색"><Icon name="search" /></button><button className="icon-button notification" aria-label="알림"><Icon name="bell" /><i /></button><button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>{view === "instructors" ? "강사 등록" : "새 기업 등록"}</button></div></header>;
 }
 
-function Overview({ setView }: { setView: (v: View) => void }) {
+function Overview({ setView, companyItems }: { setView: (v: View) => void; companyItems: CompanyItem[] }) {
   return <>
     <section className="focus-banner">
       <div className="focus-copy"><span className="eyebrow">TODAY’S FOCUS</span><h2>기업 2곳의 다음 단계를<br />오늘 마무리해 보세요.</h2><p>AI가 준비한 조사 결과와 질문지를 검토하면<br />교육 설계까지 더 빠르게 이어갈 수 있습니다.</p><button onClick={() => setView("companies")}>업무 이어가기 <span>→</span></button></div>
@@ -95,7 +113,7 @@ function Overview({ setView }: { setView: (v: View) => void }) {
 
     <section className="dashboard-grid">
       <div className="panel pipeline"><div className="panel-head"><div><h3>교육 진행 현황</h3><p>기업별 다음 일정과 준비 상태</p></div><button onClick={() => setView("companies")}>전체 보기 →</button></div>
-        <div className="company-list">{companies.map((c) => <button className="company-row" key={c.name} onClick={() => setView("company")}><span className={`company-logo ${c.color}`}>{c.name[0]}</span><div className="company-name"><b>{c.name}</b><small>{c.field}</small></div><span className="stage">{c.stage}</span><div className="progress"><i style={{ width: `${c.progress}%` }} /></div><div className="date"><small>다음 일정</small><b>{c.date}</b></div><span className="arrow">›</span></button>)}</div>
+        <div className="company-list">{companyItems.slice(0, 4).map((c) => <button className="company-row" key={c.name} onClick={() => setView("company")}><CompanyLogo company={c}/><div className="company-name"><b>{c.name}</b><small>{c.field}</small></div><span className="stage">{c.stage}</span><div className="progress"><i style={{ width: `${c.progress}%` }} /></div><div className="date"><small>다음 일정</small><b>{c.date}</b></div><span className="arrow">›</span></button>)}</div>
       </div>
       <div className="panel schedule"><div className="panel-head"><div><h3>다가오는 일정</h3><p>이번 주 · 8월 14–20일</p></div><button>＋</button></div>
         <div className="calendar-strip"><span><small>목</small><b>14</b></span><span className="selected"><small>금</small><b>15</b><i /></span><span><small>토</small><b>16</b></span><span><small>일</small><b>17</b></span><span><small>월</small><b>18</b></span></div>
@@ -105,9 +123,9 @@ function Overview({ setView }: { setView: (v: View) => void }) {
   </>;
 }
 
-function Companies({ setView }: { setView: (v: View) => void }) {
+function Companies({ setView, companyItems }: { setView: (v: View) => void; companyItems: CompanyItem[] }) {
   return <section className="workspace-panel"><div className="toolbar"><div className="searchbox">⌕ <input aria-label="기업 검색" placeholder="기업명, 산업, 담당자로 검색" /></div><div><button className="filter">진행 상태⌄</button><button className="filter">담당자⌄</button></div></div>
-    <div className="company-cards">{companies.concat([{ name: "강원랜드", field: "관광 · 서비스", stage: "교육 완료", owner: "이수현", progress: 100, date: "완료", color: "violet" }]).map((c) => <article key={c.name} onClick={() => setView("company")} tabIndex={0}><div className="card-top"><span className={`company-logo large ${c.color}`}>{c.name[0]}</span><span className="stage">{c.stage}</span></div><h3>{c.name}</h3><p>{c.field}</p><div className="card-progress"><span><i style={{width:`${c.progress}%`}} /></span><small>{c.progress}%</small></div><dl><div><dt>담당자</dt><dd>{c.owner}</dd></div><div><dt>다음 일정</dt><dd>{c.date}</dd></div></dl><button>기업 파일 열기 <span>→</span></button></article>)}</div>
+    <div className="company-cards">{companyItems.map((c) => <article key={c.name} onClick={() => setView("company")} tabIndex={0}><div className="card-top"><CompanyLogo company={c} size="large"/><span className="stage">{c.stage}</span></div><h3>{c.name}</h3><p>{c.field}</p><div className="card-progress"><span><i style={{width:`${c.progress}%`}} /></span><small>{c.progress}%</small></div><dl><div><dt>담당자</dt><dd>{c.owner}</dd></div><div><dt>다음 일정</dt><dd>{c.date}</dd></div></dl><button>기업 파일 열기 <span>→</span></button></article>)}</div>
   </section>;
 }
 
@@ -147,6 +165,34 @@ function Instructors(){return <section className="workspace-panel"><div classNam
 
 function Surveys(){return <section className="workspace-panel surveys-page"><div className="survey-hero"><div><span>✦ AI 설문 설계</span><h2>수업 내용에 맞춘 질문을<br/>미리 준비했습니다.</h2><p>관리자가 검토·승인하면 예약한 시간에 수강생에게 자동 발송됩니다.</p></div><div className="donut"><b>78%</b><span>평균 응답률</span></div></div><div className="survey-columns"><div><div className="section-title"><h3>검토 대기</h3><span>3</span></div>{["더존비즈온 · 생성형 AI 업무 적용","휴젤 · 의료 데이터 AI 활용","바디텍메드 · 보고서 자동화"].map((x,i)=><article key={x}><span className="survey-icon">◎</span><div><b>{x}</b><p>맞춤 문항 {12+i}개 · 필수 문항 8개</p><small>{["08. 27 교육","08. 30 교육","09. 03 교육"][i]}</small></div><button>검토 →</button></article>)}</div><div><div className="section-title"><h3>발송 예정</h3><span>2</span></div>{["강원랜드 · 현장 실무 AI","한국수자원공사 · 데이터 분석"].map((x,i)=><article key={x}><span className="survey-icon approved">✓</span><div><b>{x}</b><p>승인 완료 · 수강생 {[24,18][i]}명</p><small>{["08. 21 17:00 발송","08. 25 16:30 발송"][i]}</small></div><button>일정 →</button></article>)}</div></div></section>}
 
-function Modal({ type, onClose }: { type: "company"|"instructor"; onClose:()=>void }){return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal" onMouseDown={e=>e.stopPropagation()} onSubmit={e=>{e.preventDefault();onClose();}}><div className="modal-head"><div><span>{type==="company"?"NEW COMPANY":"NEW INSTRUCTOR"}</span><h2>{type==="company"?"새 기업 등록":"새 강사 등록"}</h2><p>{type==="company"?"이름이나 URL 하나만 입력하면 나머지는 AI가 채웁니다.":"프로필 파일을 올리면 경력과 전문분야를 자동으로 정리합니다."}</p></div><button type="button" onClick={onClose}>×</button></div>{type==="company"?<><label>기업명 또는 홈페이지 URL<input autoFocus placeholder="예: https://company.co.kr" required/></label><div className="auto-preview"><span>✦</span><div><b>자동으로 준비할 정보</b><p>사업자 정보 · 산업 분류 · 담당 연락처 · 회사 소개 · 첨부 브로슈어 · 경쟁사 후보</p></div></div></>:<><label>강사 이름<input autoFocus placeholder="이름을 입력하세요" required/></label><div className="drop-mini">프로필 파일을 여기에 놓으세요 <small>PDF, DOCX, HWP, XLSX</small></div></>}<div className="modal-actions"><button type="button" onClick={onClose}>취소</button><button className="primary-small">{type==="company"?"기업 조사 시작":"강사 등록"}</button></div></form></div>}
+function Modal({ type, onClose, onCompanyCreated }: { type: "company" | "instructor"; onClose: () => void; onCompanyCreated: (company: CompanyItem) => void }) {
+  const [websiteUrl, setWebsiteUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (type === "instructor") { onClose(); return; }
+    setLoading(true); setError("");
+    try {
+      const response = await fetch("/api/companies/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl }) });
+      const result = await response.json() as { error?: string; companyName?: string; websiteUrl?: string; logoDataUrl?: string | null };
+      if (!response.ok) throw new Error(result.error || "홈페이지 조사에 실패했습니다.");
+      const normalized = new URL(result.websiteUrl || (/^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`));
+      const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
+      onCompanyCreated({ name: result.companyName || fallbackName, field: "AI 기업 조사 진행 중", stage: "기업 조사", owner: "김서윤", progress: 12, date: "방금 등록", color: "blue", logoUrl: result.logoDataUrl || undefined, websiteUrl: normalized.href });
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "회사 정보를 가져오지 못했습니다.");
+    } finally { setLoading(false); }
+  };
+  return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal" onMouseDown={event => event.stopPropagation()} onSubmit={submit}><div className="modal-head"><div><span>{type === "company" ? "NEW COMPANY" : "NEW INSTRUCTOR"}</span><h2>{type === "company" ? "새 기업 등록" : "새 강사 등록"}</h2><p>{type === "company" ? "홈페이지를 조사해 기업 정보와 투명 배경 로고를 함께 준비합니다." : "프로필 파일을 올리면 경력과 전문분야를 자동으로 정리합니다."}</p></div><button type="button" onClick={onClose} aria-label="닫기">×</button></div>{type === "company" ? <><label>회사 홈페이지 URL<input autoFocus type="text" inputMode="url" value={websiteUrl} onChange={event => setWebsiteUrl(event.target.value)} placeholder="예: https://company.co.kr" required disabled={loading}/></label><div className={`auto-preview ${loading ? "is-loading" : ""}`}><span>{loading ? <i className="spinner"/> : "✦"}</span><div><b>{loading ? "홈페이지에서 공식 로고를 찾는 중" : "자동으로 준비할 정보"}</b><p>{loading ? "로고 후보를 확인하고 배경을 투명하게 처리하고 있습니다." : "회사 정보 · 산업 분류 · 첨부 브로슈어 · 경쟁사 후보 · 투명 배경 로고"}</p></div></div>{error && <p className="modal-error" role="alert">{error}</p>}</> : <><label>강사 이름<input autoFocus placeholder="이름을 입력하세요" required/></label><div className="drop-mini">프로필 파일을 여기에 놓으세요 <small>PDF, DOCX, HWP, XLSX</small></div></>}<div className="modal-actions"><button type="button" onClick={onClose} disabled={loading}>취소</button><button className="primary-small" disabled={loading}>{type === "company" ? loading ? "로고 처리 중…" : "기업 조사 시작" : "강사 등록"}</button></div></form></div>;
+}
 
-export default function Home(){const [view,setView]=useState<View>("overview");const [modal,setModal]=useState<null|"company"|"instructor">(null);const content=useMemo(()=>({overview:<Overview setView={setView}/>,companies:<Companies setView={setView}/>,company:<CompanyDetail/>,instructors:<Instructors/>,surveys:<Surveys/>})[view],[view]);return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={()=>setModal(view==="instructors"?"instructor":"company")}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(x=><button key={x.id} className={view===x.id||view==="company"&&x.id==="companies"?"active":""} onClick={()=>setView(x.id)}><span><Icon name={x.icon}/></span>{x.label.split(" ")[0]}</button>)}</nav>{modal&&<Modal type={modal} onClose={()=>setModal(null)}/>}</div>}
+export default function Home() {
+  const [view, setView] = useState<View>("overview");
+  const [modal, setModal] = useState<null | "company" | "instructor">(null);
+  const [companyItems, setCompanyItems] = useState<CompanyItem[]>([...companies, { name: "강원랜드", field: "관광 · 서비스", stage: "교육 완료", owner: "이수현", progress: 100, date: "완료", color: "violet" }]);
+  const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
+  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems}/>, companies: <Companies setView={setView} companyItems={companyItems}/>, company: <CompanyDetail/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems]);
+  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(view === "instructors" ? "instructor" : "company")}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id || view === "company" && item.id === "companies" ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label.split(" ")[0]}</button>)}</nav>{modal && <Modal type={modal} onClose={() => setModal(null)} onCompanyCreated={addCompany}/>}</div>;
+}
