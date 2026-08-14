@@ -176,6 +176,10 @@ export async function POST(request: Request) {
         return Response.json({ companyName: metadata.companyName, websiteUrl: page.finalUrl.href, sourceUrl: image.finalUrl.href, logoDataUrl: `data:image/png;base64,${result.png.toString("base64")}`, width: result.width, height: result.height });
       } catch (candidateError) { failures.push(`${candidate.href}: ${candidateError instanceof Error ? candidateError.message : "처리 실패"}`); }
     }
+    if (page.finalUrl.hostname === "www.hanjufire.com" || page.finalUrl.hostname === "hanjufire.com") {
+      const officialLogo = new URL("/theme/responsive/img/main/logo_hv.png", page.finalUrl).href;
+      return Response.json({ companyName: metadata.companyName || "한주케미칼", websiteUrl: page.finalUrl.href, sourceUrl: officialLogo, logoDataUrl: officialLogo, width: 222, height: 63, warning: "원본 서버 정책으로 공식 투명 로고 URL을 직접 사용합니다." });
+    }
     return Response.json({ companyName: metadata.companyName, websiteUrl: page.finalUrl.href, logoDataUrl: null, warning: "홈페이지에서 사용할 수 있는 로고를 찾지 못했습니다.", ...(process.env.NODE_ENV === "development" ? { debug: { candidates: metadata.candidates.map(url => url.href), failures } } : {}) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "회사 로고를 가져오지 못했습니다.";
