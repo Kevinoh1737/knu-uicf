@@ -34,3 +34,4 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 /* Official KNU UICF identity */
 .sidebar .brand{height:168px;justify-content:center;flex-direction:column;gap:10px;padding:6px 12px 0}.official-logo{display:block;width:96px!important;height:auto!important;object-fit:contain;flex:none}.team-name{display:block;color:#fff;font-size:15px;font-weight:700;line-height:1.2;letter-spacing:-.02em;white-space:nowrap}.sidebar nav{margin-top:14px}
 @media(max-height:760px) and (min-width:761px){.sidebar .brand{height:122px;gap:6px;padding-top:0}.official-logo{width:68px!important}.team-name{font-size:13px}.sidebar nav{margin-top:8px}.nav-label.second{margin-top:16px}}
+.sidebar .profile{margin-top:auto}

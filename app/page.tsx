@@ -59,10 +59,8 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
       <p className="nav-label">WORKSPACE</p>
       {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}{item.id === "surveys" && <em>3</em>}</button>)}
       <p className="nav-label second">SYSTEM</p>
-      <button className="nav-item"><span><Icon name="spark" /></span>AI 작업 센터</button>
       <button className="nav-item"><span><Icon name="settings" /></span>설정</button>
     </nav>
-    <div className="ai-credit"><span className="spark"><Icon name="spark" size={17}/></span><div><b>AI 자동화 준비됨</b><small>Gemini 연결 후 활성화</small></div><i>→</i></div>
     <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><button aria-label="프로필 메뉴">•••</button></div>
   </aside>;
 }
