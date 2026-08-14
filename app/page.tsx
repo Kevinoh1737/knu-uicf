@@ -5,6 +5,14 @@ import Image from "next/image";
 
 type View = "overview" | "companies" | "company" | "instructors" | "surveys";
 
+type ResearchReport = {
+  companyName: string; industry: string; headline: string; summary: string; keywords: string[];
+  opportunities: Array<{ title: string; detail: string }>;
+  competitors: Array<{ name: string; reason: string; verificationNote: string }>;
+  questions: string[];
+  evidence: Array<{ claim: string; url: string }>;
+};
+
 type CompanyItem = {
   name: string;
   field: string;
@@ -15,6 +23,9 @@ type CompanyItem = {
   color: string;
   logoUrl?: string;
   websiteUrl?: string;
+  research?: ResearchReport;
+  crawl?: { pageCount: number; attachmentCount: number; pages: string[]; attachments: string[] };
+  researchError?: string;
 };
 
 type IconName = "home" | "building" | "person" | "survey" | "spark" | "settings" | "search" | "bell" | "plus" | "document" | "audio" | "calendar" | "chart" | "clock" | "upload";
@@ -131,7 +142,7 @@ function Companies({ companyItems, onSelectCompany }: { companyItems: CompanyIte
 
 function CompanyDetail({ company }: { company: CompanyItem }) {
   const [tab, setTab] = useState("overview");
-  const [questions, setQuestions] = useState([
+  const [questions, setQuestions] = useState(company.research?.questions?.length ? company.research.questions : [
     "현재 구성원들이 반복적으로 많은 시간을 쓰는 업무는 무엇인가요?",
     "생성형 AI 도입을 검토하거나 시범 적용한 사례가 있나요?",
     "교육 후 3개월 안에 확인하고 싶은 구체적인 업무 변화는 무엇인가요?",
@@ -139,13 +150,13 @@ function CompanyDetail({ company }: { company: CompanyItem }) {
   const addQuestion = () => setQuestions([...questions, "새 질문을 입력해 주세요."]);
   return <section className="company-detail">
     <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{company.name}</h2><span>{company.stage}</span></div><p>{company.field}{company.websiteUrl && <><i>·</i>{new URL(company.websiteUrl).hostname}</>}</p></div></div><div className="hero-actions"><button>공유</button><button className="primary-small">＋ 교육 추가</button></div></div>
-    <div className="detail-tabs">{[["overview","개요"],["research","기업 조사"],["questions","니즈 질문지"],["consulting","상담 기록"],["courses","교육 과정"],["students","수강생"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>14</em>}</button>)}</div>
+    <div className="detail-tabs">{[["overview","개요"],["research","기업 조사"],["questions","니즈 질문지"],["consulting","상담 기록"],["courses","교육 과정"],["students","수강생"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>{questions.length}</em>}</button>)}</div>
     {tab === "overview" && <div className="detail-grid"><div className="detail-main">
       <article className="next-action"><span>✦</span><div><small>AI가 제안하는 다음 단계</small><h3>상담 녹취 분석 결과를 검토해 주세요</h3><p>핵심 니즈 5개와 4시간 특강 3개를 구성했습니다.</p></div><button onClick={()=>setTab("consulting")}>결과 검토 →</button></article>
       <article className="process"><div className="panel-head"><div><h3>진행 여정</h3><p>문의부터 교육 운영까지의 준비 상태</p></div></div><div className="steps">{[["01","기업 조사","완료"],["02","니즈 진단","완료"],["03","과정 설계","진행 중"],["04","강사 배정","대기"],["05","교육 운영","대기"]].map((s,i)=><div className={i<2?"done":i===2?"current":""} key={s[0]}><span>{i<2?"✓":s[0]}</span><b>{s[1]}</b><small>{s[2]}</small></div>)}</div></article>
       <article className="course-preview"><div className="panel-head"><div><h3>제안 교육 구성</h3><p>상담 분석을 기반으로 생성한 4시간 단위 특강</p></div><button onClick={()=>setTab("courses")}>과정 편집 →</button></div>{["생성형 AI 업무 적용의 시작","문서·보고서 작성 자동화","사내 데이터 기반 AI 활용"].map((x,i)=><div className="course-line" key={x}><span>0{i+1}</span><div><b>{x}</b><small>4시간 · 실습 중심</small></div><em>{i===0?"강사 배정됨":"강사 필요"}</em></div>)}</article>
     </div><aside className="info-panel"><h3>기업 정보</h3><dl><div><dt>담당자</dt><dd>정예린 책임</dd></div><div><dt>연락처</dt><dd>033-250-7814</dd></div><div><dt>이메일</dt><dd>yerin.j@douzone.com</dd></div><div><dt>예상 인원</dt><dd>24명</dd></div><div><dt>교육 희망일</dt><dd>2026. 08. 27</dd></div></dl><button>정보 수정</button><hr/><h3>첨부 파일</h3><div className="file"><span>PDF</span><div><b>회사소개서_2026.pdf</b><small>AI 분석 완료 · 8.2MB</small></div></div><div className="file"><span>DOC</span><div><b>교육문의_요청사항.docx</b><small>정보 추출 완료 · 142KB</small></div></div></aside></div>}
-    {tab === "research" && <ResearchTab />}
+    {tab === "research" && <ResearchTab company={company} />}
     {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><span className="ai-tag">✦ GEMINI 초안</span><h2>교육 니즈 진단 질문지</h2><p>기업 조사 결과를 바탕으로 교육과정 설계에 필요한 질문을 구성했습니다.</p></div><button onClick={addQuestion}>＋ 질문 추가</button></div>{questions.map((q,i)=><article key={i}><span>{String(i+1).padStart(2,"0")}</span><textarea aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>setQuestions(questions.map((x,j)=>j===i?e.target.value:x))}/><button onClick={()=>setQuestions(questions.filter((_,j)=>j!==i))}>×</button></article>)}<div className="savebar"><span>마지막 자동 저장 · 방금 전</span><button>질문지 확정</button></div></section>}
     {tab === "consulting" && <ConsultingTab />}
     {tab === "courses" && <CoursesTab />}
@@ -153,7 +164,11 @@ function CompanyDetail({ company }: { company: CompanyItem }) {
   </section>;
 }
 
-function ResearchTab(){return <section className="tab-content research"><div className="content-title"><div><span className="ai-tag">✦ 웹 · 첨부파일 분석 완료</span><h2>기업 인텔리전스 리포트</h2><p>홈페이지 38개 페이지와 첨부파일 3개, 동종업계 5개사를 분석했습니다.</p></div><button>다시 조사</button></div><div className="research-grid"><article><small>기업 한눈에 보기</small><h3>ERP 시장을 이끄는<br/>AI 전환 추진 기업</h3><p>기업용 소프트웨어와 클라우드 플랫폼을 기반으로 중소·중견기업의 디지털 전환을 지원합니다. 최근 AI 기반 업무 자동화 제품군을 확대하고 있습니다.</p><div className="chips"><span>ERP</span><span>클라우드</span><span>AI 자동화</span></div></article><article><small>AI 교육 기회</small><ul><li><b>부서별 활용 편차</b><span>실무 공통 활용법과 직무별 사례 필요</span></li><li><b>데이터 보안 우려</b><span>사내 정보 취급 원칙을 포함한 교육 필요</span></li><li><b>도입 성과 측정</b><span>교육 전후 생산성 지표 정의 필요</span></li></ul></article><article className="competitor"><small>동종업계 벤치마크</small><h3>경쟁사 AI 활용 신호</h3>{["영림원소프트랩","SAP Korea","한글과컴퓨터"].map((x,i)=><div key={x}><span>{i+1}</span><b>{x}</b><em>{["업무 AI 어시스턴트","기업용 AI 플랫폼","문서 생산성 AI"][i]}</em></div>)}</article></div><div className="source-note">출처와 원문 링크는 각 분석 문장에 연결됩니다. 관리자가 사실 여부를 검토한 뒤 질문지에 반영할 수 있습니다.</div></section>}
+function ResearchTab({ company }: { company: CompanyItem }) {
+  if (!company.research) return <section className="tab-content research"><div className="research-empty"><span>!</span><h2>조사 결과가 없습니다</h2><p>{company.researchError || "이 기업은 실제 조사 기능 연결 전에 등록되었습니다. 새 기업 등록에서 홈페이지를 다시 입력해 주세요."}</p></div></section>;
+  const report = company.research;
+  return <section className="tab-content research"><div className="content-title"><div><span className="ai-tag">✦ 실제 웹 수집 · GEMINI 분석 완료</span><h2>기업 인텔리전스 리포트</h2><p>홈페이지 {company.crawl?.pageCount || 0}개 페이지와 첨부파일 링크 {company.crawl?.attachmentCount || 0}개를 확인했습니다.</p></div></div><div className="research-grid"><article><small>기업 한눈에 보기</small><h3>{report.headline}</h3><p>{report.summary}</p><div className="chips">{report.keywords.map(keyword => <span key={keyword}>{keyword}</span>)}</div></article><article><small>AI 교육 기회</small><ul>{report.opportunities.map(item => <li key={item.title}><b>{item.title}</b><span>{item.detail}</span></li>)}</ul></article><article className="competitor"><small>동종업계 후보</small><h3>경쟁사 검토 대상</h3>{report.competitors.map((item, index) => <div key={item.name}><span>{index + 1}</span><b>{item.name}</b><em>{item.reason} · {item.verificationNote}</em></div>)}</article></div><div className="evidence-list"><b>근거 출처</b>{report.evidence.map((item, index) => <a href={item.url} target="_blank" rel="noreferrer" key={`${item.url}-${index}`}>{item.claim}<span>{new URL(item.url).hostname} ↗</span></a>)}</div></section>;
+}
 
 function ConsultingTab(){const [uploaded,setUploaded]=useState(false);return <section className="tab-content consulting"><div className="content-title"><div><span className="ai-tag">✦ 상담 분석</span><h2>상담 기록과 녹취</h2><p>전체 대화를 보존하고 교육 니즈, 제약조건, 과정 제안을 추출합니다.</p></div><button>상담 메모 추가</button></div>{!uploaded?<div className="upload-zone" onClick={()=>setUploaded(true)}><span>↑</span><h3>녹취파일을 놓거나 선택하세요</h3><p>MP3, M4A, WAV · 최대 2GB · 업로드 후 Gemini가 자동으로 전사합니다.</p><button>파일 선택</button></div>:<div className="transcript"><div className="audio-bar"><button>▶</button><div><b>더존비즈온_니즈상담_0812.m4a</b><small>42:18 · 전사 및 화자 분리 완료</small></div><span>분석 완료</span></div><div className="insight-row"><article><small>핵심 니즈</small><b>문서 생산성 향상</b><p>반복 보고서와 제안서 작성 시간을 줄이는 실습 요구</p></article><article><small>교육 대상</small><b>실무자 24명</b><p>기획·영업·지원 직군 혼합, AI 경험은 초급</p></article><article><small>운영 제약</small><b>보안 환경 실습</b><p>개인정보·사내 데이터 입력 금지 원칙 포함 필요</p></article></div><div className="dialogue"><p><b>정예린 책임</b><span>보고서 초안을 만드는 데 팀별로 시간이 꽤 많이 들어요. 단순 이론보다 실제 문서를 가지고 연습했으면 합니다.</span><time>12:42</time></p><p><b>김서윤</b><span>교육 이후 바로 사용할 수 있는 템플릿까지 결과물로 가져가도록 설계해 보겠습니다.</span><time>13:08</time></p></div></div>}</section>}
 
@@ -174,18 +189,21 @@ function Modal({ type, onClose, onCompanyCreated }: { type: "company" | "instruc
     if (type === "instructor") { onClose(); return; }
     setLoading(true); setError("");
     try {
-      const response = await fetch("/api/companies/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl }) });
-      const result = await response.json() as { error?: string; companyName?: string; websiteUrl?: string; logoDataUrl?: string | null };
-      if (!response.ok) throw new Error(result.error || "홈페이지 조사에 실패했습니다.");
+      const logoResponse = await fetch("/api/companies/logo", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl }) });
+      const result = await logoResponse.json() as { error?: string; companyName?: string; websiteUrl?: string; logoDataUrl?: string | null };
+      if (!logoResponse.ok) throw new Error(result.error || "홈페이지 기본 정보 수집에 실패했습니다.");
       const normalized = new URL(result.websiteUrl || (/^https?:\/\//i.test(websiteUrl) ? websiteUrl : `https://${websiteUrl}`));
+      const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href }) });
+      const researchResult = await researchResponse.json() as { error?: string; report?: ResearchReport; crawl?: CompanyItem["crawl"] };
+      if (!researchResponse.ok || !researchResult.report) throw new Error(researchResult.error || "Gemini 기업 조사에 실패했습니다.");
       const fallbackName = normalized.hostname.replace(/^www\./, "").split(".")[0];
-      onCompanyCreated({ name: result.companyName || fallbackName, field: "AI 기업 조사 진행 중", stage: "기업 조사", owner: "김서윤", progress: 12, date: "방금 등록", color: "blue", logoUrl: result.logoDataUrl || undefined, websiteUrl: normalized.href });
+      onCompanyCreated({ name: researchResult.report.companyName || result.companyName || fallbackName, field: researchResult.report.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", logoUrl: result.logoDataUrl || undefined, websiteUrl: normalized.href, research: researchResult.report, crawl: researchResult.crawl });
       onClose();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "회사 정보를 가져오지 못했습니다.");
     } finally { setLoading(false); }
   };
-  return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal" onMouseDown={event => event.stopPropagation()} onSubmit={submit}><div className="modal-head"><div><span>{type === "company" ? "NEW COMPANY" : "NEW INSTRUCTOR"}</span><h2>{type === "company" ? "새 기업 등록" : "새 강사 등록"}</h2><p>{type === "company" ? "홈페이지를 조사해 기업 정보와 투명 배경 로고를 함께 준비합니다." : "프로필 파일을 올리면 경력과 전문분야를 자동으로 정리합니다."}</p></div><button type="button" onClick={onClose} aria-label="닫기">×</button></div>{type === "company" ? <><label>회사 홈페이지 URL<input autoFocus type="text" inputMode="url" value={websiteUrl} onChange={event => setWebsiteUrl(event.target.value)} placeholder="예: https://company.co.kr" required disabled={loading}/></label><div className={`auto-preview ${loading ? "is-loading" : ""}`}><span>{loading ? <i className="spinner"/> : "✦"}</span><div><b>{loading ? "홈페이지에서 공식 로고를 찾는 중" : "자동으로 준비할 정보"}</b><p>{loading ? "로고 후보를 확인하고 배경을 투명하게 처리하고 있습니다." : "회사 정보 · 산업 분류 · 첨부 브로슈어 · 경쟁사 후보 · 투명 배경 로고"}</p></div></div>{error && <p className="modal-error" role="alert">{error}</p>}</> : <><label>강사 이름<input autoFocus placeholder="이름을 입력하세요" required/></label><div className="drop-mini">프로필 파일을 여기에 놓으세요 <small>PDF, DOCX, HWP, XLSX</small></div></>}<div className="modal-actions"><button type="button" onClick={onClose} disabled={loading}>취소</button><button className="primary-small" disabled={loading}>{type === "company" ? loading ? "로고 처리 중…" : "기업 조사 시작" : "강사 등록"}</button></div></form></div>;
+  return <div className="modal-backdrop" onMouseDown={onClose}><form className="modal" onMouseDown={event => event.stopPropagation()} onSubmit={submit}><div className="modal-head"><div><span>{type === "company" ? "NEW COMPANY" : "NEW INSTRUCTOR"}</span><h2>{type === "company" ? "새 기업 등록" : "새 강사 등록"}</h2><p>{type === "company" ? "홈페이지 원문을 수집하고 Gemini가 교육 관점의 기업 조사를 수행합니다." : "프로필 파일을 올리면 경력과 전문분야를 자동으로 정리합니다."}</p></div><button type="button" onClick={onClose} aria-label="닫기">×</button></div>{type === "company" ? <><label>회사 홈페이지 URL<input autoFocus type="text" inputMode="url" value={websiteUrl} onChange={event => setWebsiteUrl(event.target.value)} placeholder="예: https://company.co.kr" required disabled={loading}/></label><div className={`auto-preview ${loading ? "is-loading" : ""}`}><span>{loading ? <i className="spinner"/> : "✦"}</span><div><b>{loading ? "홈페이지 수집 및 Gemini 분석 중" : "실제로 조사할 정보"}</b><p>{loading ? "내부 페이지와 첨부파일 링크를 수집하고 교육 니즈·경쟁사·질문지를 생성합니다. 최대 1분 정도 걸릴 수 있습니다." : "회사 개요 · 산업 · AI 교육 기회 · 경쟁사 후보 · 근거 URL · 니즈 질문지 · 투명 배경 로고"}</p></div></div>{error && <p className="modal-error" role="alert">{error}</p>}</> : <><label>강사 이름<input autoFocus placeholder="이름을 입력하세요" required/></label><div className="drop-mini">프로필 파일을 여기에 놓으세요 <small>PDF, DOCX, HWP, XLSX</small></div></>}<div className="modal-actions"><button type="button" onClick={onClose} disabled={loading}>취소</button><button className="primary-small" disabled={loading}>{type === "company" ? loading ? "실제 조사 중…" : "기업 조사 시작" : "강사 등록"}</button></div></form></div>;
 }
 
 export default function Home() {
@@ -195,6 +213,6 @@ export default function Home() {
   const [selectedCompany, setSelectedCompany] = useState<CompanyItem>(companies[0]);
   const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
-  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems} onSelectCompany={selectCompany}/>, companies: <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>, company: <CompanyDetail company={selectedCompany}/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems, selectedCompany]);
+  const content = useMemo(() => ({ overview: <Overview setView={setView} companyItems={companyItems} onSelectCompany={selectCompany}/>, companies: <Companies companyItems={companyItems} onSelectCompany={selectCompany}/>, company: <CompanyDetail key={selectedCompany.name} company={selectedCompany}/>, instructors: <Instructors/>, surveys: <Surveys/> })[view], [view, companyItems, selectedCompany]);
   return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(view === "instructors" ? "instructor" : "company")} selectedCompany={selectedCompany}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id || view === "company" && item.id === "companies" ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label.split(" ")[0]}</button>)}</nav>{modal && <Modal type={modal} onClose={() => setModal(null)} onCompanyCreated={addCompany}/>}</div>;
 }
