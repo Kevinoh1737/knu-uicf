@@ -62,3 +62,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 
 .company-discovery .modal-close .ui-icon{display:none}
 .company-discovery .modal-close::before{content:"×";font-size:27px;font-weight:300;line-height:1}
+
+/* Keep the modal frame stable while switching between URL, name, and PDF. */
+.company-discovery .input-panel{height:124px;min-height:124px;box-sizing:border-box;overflow:hidden}
+.company-discovery .input-panel>label{display:block;height:100%;box-sizing:border-box}
+@media(max-width:600px){.company-discovery .input-panel{height:132px;min-height:132px}}
