@@ -180,3 +180,78 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 @media(max-width:760px){.briefing{padding:18px 15px}.briefing-head h3{font-size:17px}.need-list{padding:17px 15px}.insight-row.two{grid-template-columns:1fr}}
 /* The counter occupies column 1; both title and detail belong in column 2. */
 .need-list li>b,.need-list li>p{grid-column:2}
+
+/* ─── 강사 풀 ─────────────────────────────────────────────────────────────── */
+.instructor-empty{padding:44px 0;text-align:center;color:#8b9590;font-size:13px}
+.link-button{border:0;background:transparent;color:#3b6a5b;font-size:12px;padding:6px 0}
+.link-button:hover{text-decoration:underline}
+.instructor-hero{display:flex;align-items:center;gap:16px;background:linear-gradient(120deg,#173452,#214f72);color:#fff;border-radius:12px;padding:22px 24px;margin:10px 0 20px}
+.instructor-hero .avatar{width:52px;height:52px;font-size:14px}
+.instructor-hero>div:nth-child(2){flex:1}
+.instructor-hero h2{font-size:20px;margin:0}
+.instructor-hero p{font-size:12px;color:#c2d4e3;margin:6px 0 0}
+.instructor-hero p.contact{font-size:11px;color:#9db6cc}
+.instructor-counts{display:flex;gap:26px}
+.instructor-counts span{display:block;font-size:11px;color:#c2d4e3}
+.instructor-counts b{display:block;font:600 20px var(--font-geist-mono);margin-top:4px}
+.instructor-columns{display:grid;grid-template-columns:320px 1fr;gap:16px;align-items:start}
+.instructor-columns>article{background:#fff;border:1px solid var(--line);border-radius:11px;padding:20px}
+.instructor-columns h3{font-size:13px;margin:0 0 12px}
+.instructor-columns h3:not(:first-child){margin-top:22px}
+.instructor-columns h4{font-size:12px;margin:14px 0 6px}
+.expertise-row{margin-bottom:12px}
+.expertise-row small{display:block;font-size:11px;color:#8b9590;margin-bottom:6px}
+.expertise-row .chips{flex-wrap:wrap;gap:5px}
+.chips span.muted{background:transparent;color:#a3aaa7;padding-left:0}
+.body-text{font-size:12px;line-height:1.7;color:#5e6a65;margin:0}
+.footnote{display:block;font-size:11px;color:#939b97;margin-top:8px}
+/* 강의 이력 */
+.session{border-top:1px solid #edf0ee}
+.session:first-child{border-top:0}
+.session>button{width:100%;display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;background:transparent;text-align:left;padding:14px 4px}
+.session>button:hover{background:#f8faf8}
+.session b{display:block;font-size:13px}
+.session p{font-size:11px;color:#89928e;margin:5px 0 0}
+.session-meta{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.session-meta small{font:500 11px var(--font-geist-mono);color:#8b9590}
+.session-body{padding:4px 4px 18px}
+.session-body dl{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:0 0 14px;background:#f7f9f8;border-radius:8px;padding:12px}
+.session-body dt{font-size:11px;color:#8b9590}
+.session-body dd{font-size:12px;margin:5px 0 0}
+.module-list{list-style:none;padding:0;margin:0}
+.module-list li{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #f0f3f1}
+.module-list span{font:500 11px var(--font-geist-mono);color:#8b9590}
+.module-list b{font-size:12px;font-weight:500}
+.module-list em{font-style:normal;background:#eef3f0;color:#4b6e62;border-radius:4px;padding:4px 7px;font-size:11px}
+.case-ratio{font-size:12px;color:#4b6e62;background:#eef4f1;border-radius:8px;padding:11px 13px;margin:14px 0 10px}
+.case-ratio.warn{color:#8a4f38;background:#fbf0e9}
+.survey-slot{font-size:11px;color:#a3aaa7;margin:12px 0 0}
+/* 등록 모달 */
+.instructor-modal{width:min(560px,100%);max-height:86dvh;overflow:auto}
+.modal-notice{font-size:12px;color:#8a5a33;background:#fbf1e7;border-radius:8px;padding:11px 13px;margin:14px 0 0}
+.profile-form{margin-top:6px}
+.profile-form label{margin-top:16px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.extracted-lists{display:grid;gap:10px;margin-top:20px;background:#f5f7f6;border-radius:9px;padding:14px}
+.extracted-lists b{font-size:12px}
+.extracted-lists p{font-size:11px;color:#7c8681;margin:5px 0 0;line-height:1.6}
+@media(max-width:760px){.instructor-columns{grid-template-columns:1fr}.instructor-hero{flex-wrap:wrap}.instructor-counts{gap:18px}.session-body dl{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}}
+.modal-scrim{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:default}
+.instructor-modal{position:relative;z-index:1}
+/* 원래 규칙은 .company-discovery 안으로 한정돼 있었다. 파일 입력을 감추는 것은 어느 화면에서나
+   같은 요구라 전역 유틸리티로 둔다 — 새 화면마다 선택자를 하나씩 늘리면 매번 빠뜨린다. */
+.pdf-file-input{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.drop-mini{cursor:pointer;padding:20px 15px}
+.drop-mini:hover{border-color:#7ea597;background:#eaf2ee}
+.section-head{display:flex;justify-content:space-between;align-items:baseline}
+.section-head h3{margin:0}
+.session-form{background:#f7f9f8;border:1px solid var(--line);border-radius:10px;padding:16px;margin:12px 0 16px}
+.session-form label{display:block;font-size:11px;font-weight:600;margin-top:12px}
+.session-form label:first-child{margin-top:0}
+.session-form input,.session-form select{display:block;width:100%;height:40px;border:1px solid var(--line);border-radius:8px;margin-top:6px;padding:0 11px;font-size:12px;outline:0;background:#fff}
+.session-form input:focus,.session-form select:focus{border-color:#6b9485;box-shadow:0 0 0 3px #e8f1ed}
+.session-form .modal-actions{margin-top:16px}
+.session-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+.upload-chip{display:inline-flex;align-items:center;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 12px;font-size:11px;color:#3b6a5b;cursor:pointer;text-decoration:none}
+.upload-chip:hover{border-color:#7ea597;background:#f2f8f5}
+.upload-chip:disabled{opacity:.5;cursor:wait}

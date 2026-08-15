@@ -16,10 +16,9 @@ import {
   resolveConsultationAudio,
 } from "@/lib/consultations";
 import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, readAudioDuration } from "@/lib/audio/compress";
+import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructors-panel";
 
-const instructors: Array<{ name: string; initials: string; role: string; score: string; sessions: number; state: string; tone: string }> = [];
-
-type View = "companies" | "company";
+type View = "companies" | "company" | "instructors" | "instructor";
 
 type ResearchReport = {
   companyName: string; industry: string; headline: string; summary: string; keywords: string[]; comparisonTags?: string[];
@@ -207,6 +206,7 @@ function findSimilarCompanies(company: CompanyItem, companies: CompanyItem[] = [
 
 const nav = [
   { id: "companies" as View, icon: "building" as IconName, label: "기업 조사" },
+  { id: "instructors" as View, icon: "person" as IconName, label: "강사 풀" },
 ];
 
 function CompanyLogo({ company, size = "" }: { company: CompanyItem; size?: "large" | "xl" | "" }) {
@@ -232,18 +232,22 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
     <Brand />
     <nav aria-label="주 메뉴">
       <p className="nav-label">WORKSPACE</p>
-      {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}
+      {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") || (view === "instructor" && item.id === "instructors") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}
     </nav>
     <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><SignOutButton /></div>
   </aside>;
 }
 
-function Header({ view, onNew, selectedCompany }: { view: View; onNew: () => void; selectedCompany: CompanyItem }) {
+function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string }) {
   const titles: Record<View, [string, string]> = {
     companies: ["기업 조사", "기업 정보와 교육 수요 조사"],
     company: [displayCompanyName(selectedCompany.name), ""],
+    instructors: ["강사 풀", "강사 프로필과 강의 이력"],
+    instructor: [selectedInstructorName || "강사", ""],
   };
-  return <header className="topbar"><div><h1>{titles[view][0]}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions"><button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button></div></header>;
+  // 새 기업 조사는 기업 화면의 동작이다. 강사 화면에서 누르면 맥락이 어긋난다.
+  const showNew = view === "companies" || view === "company";
+  return <header className="topbar"><div><h1>{titles[view][0]}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
 }
 
 function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onCompanyDeleted: (id: string) => void }) {
@@ -690,8 +694,6 @@ function CoursesTab(){return <section className="tab-content courses"><div class
 
 function StudentsTab(){return <section className="tab-content students"><div className="content-title"><div><h2>수강생 관리</h2><p>직접 등록하거나 엑셀·PDF·한글 명단에서 정보를 추출합니다.</p></div><div><button>파일로 가져오기</button><button className="primary-small">＋ 수강생 추가</button></div></div><div className="student-summary"><span><b>24</b>신청</span><span><b>21</b>참석 예정</span><span><b>3</b>확인 필요</span></div><table><thead><tr><th>이름</th><th>부서 · 직급</th><th>이메일</th><th>참석 상태</th></tr></thead><tbody>{[["박지훈","AX전략팀 · 과장","jh.park@douzone.com","참석"],["윤하늘","서비스기획팀 · 대리","hn.yoon@douzone.com","참석"],["송민재","영업지원팀 · 책임","mj.song@douzone.com","확인 필요"]].map(x=><tr key={x[0]}><td><b>{x[0]}</b></td><td>{x[1]}</td><td>{x[2]}</td><td><span className={x[3]==="참석"?"attend":"check"}>{x[3]}</span></td></tr>)}</tbody></table></section>}
 
-function Instructors(){return <section className="workspace-panel"><div className="instructor-summary"><div><span>등록 강사</span><b>32명</b></div><div><span>이번 달 진행</span><b>11명</b></div><div><span>평균 평가</span><b>4.76</b></div><div className="expertise"><span>주요 전문분야</span><p><i>생성형 AI</i><i>데이터 분석</i><i>업무자동화</i></p></div></div><div className="toolbar"><div className="searchbox">⌕ <input placeholder="강사명 또는 전문분야 검색" aria-label="강사 검색" /></div><button className="filter">진행 가능⌄</button></div><div className="instructor-list">{instructors.map((x)=><article key={x.name}><span className={`avatar ${x.tone}`}>{x.initials}</span><div className="instructor-name"><h3>{x.name}</h3><p>{x.role}</p></div><div className="rating"><span>★</span><b>{x.score}</b><small>완료 {x.sessions}회</small></div><span className={x.state==="진행 가능"?"available":"pending"}>{x.state}</span><button>프로필 보기 →</button></article>)}</div><div className="import-callout"><span>↥</span><div><b>기존 강사 명단을 한 번에 가져오세요</b><p>엑셀 또는 강사 프로필 파일을 올리면 AI가 개인정보와 경력을 자동 분류합니다.</p></div><button>파일 가져오기</button></div></section>}
-
 function Surveys(){return <section className="workspace-panel surveys-page"><div className="survey-hero"><div><span>✦ AI 설문 설계</span><h2>수업 내용에 맞춘 질문을<br/>미리 준비했습니다.</h2><p>관리자가 검토·승인하면 예약한 시간에 수강생에게 자동 발송됩니다.</p></div><div className="donut"><b>78%</b><span>평균 응답률</span></div></div><div className="survey-columns"><div><div className="section-title"><h3>검토 대기</h3><span>3</span></div>{["더존비즈온 · 생성형 AI 업무 적용","휴젤 · 의료 데이터 AI 활용","바디텍메드 · 보고서 자동화"].map((x,i)=><article key={x}><span className="survey-icon">◎</span><div><b>{x}</b><p>맞춤 문항 {12+i}개 · 필수 문항 8개</p><small>{["08. 27 교육","08. 30 교육","09. 03 교육"][i]}</small></div><button>검토 →</button></article>)}</div><div><div className="section-title"><h3>발송 예정</h3><span>2</span></div>{["강원랜드 · 현장 실무 AI","한국수자원공사 · 데이터 분석"].map((x,i)=><article key={x}><span className="survey-icon approved">✓</span><div><b>{x}</b><p>승인 완료 · 수강생 {[24,18][i]}명</p><small>{["08. 21 17:00 발송","08. 25 16:30 발송"][i]}</small></div><button>일정 →</button></article>)}</div></div></section>}
 
 function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCreated: (company: CompanyItem) => void }) {
@@ -763,7 +765,9 @@ export default function Home() {
   const [companyItems, setCompanyItems] = useState<CompanyItem[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<CompanyItem | null>(null);
+  const [selectedInstructor, setSelectedInstructor] = useState<InstructorItem | null>(null);
   const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
+  const selectInstructor = (instructor: InstructorItem) => { setSelectedInstructor(instructor); setView("instructor"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
@@ -774,6 +778,10 @@ export default function Home() {
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };
-  const content = loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
-  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className="active" onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
+  const content = view === "instructor" && selectedInstructor
+    ? <InstructorDetail key={selectedInstructor.id} instructor={selectedInstructor} onBack={() => setView("instructors")}/>
+    : view === "instructors"
+      ? <InstructorsPanel onSelect={selectInstructor}/>
+      : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
+  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }

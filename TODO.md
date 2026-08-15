@@ -27,7 +27,17 @@
 강원랜드(`kangwonland.co.kr`). 현재는 `fetch failed`만 표시돼 담당자가 원인을 알 수 없다.
 "홈페이지 보안인증서 문제로 접속할 수 없음. 다른 주소나 회사소개 PDF로 시도" 수준의 안내가 필요하다.
 
-## 3. Turbopack dev 가 CSS 를 갱신하지 않을 때 (환경)
+## 3. Turbopack dev 가 CSS 를 갱신하지 않을 때 (환경) — 원인 규명됨
+
+> **2026-08-15: 3번과 4번은 같은 원인이었다.** CSS 가 안 바뀌던 날 `.next` 안에
+> `dev 2`, `dev 3`, `server/app 3`, `static/chunks 3` 이 함께 있었다. iCloud 가 `.next` 를
+> 동기화하면서 만든 충돌 사본이 Turbopack 워처를 망가뜨린다. 증상은 "중간부터 갱신이 멈춤"으로,
+> 초반 수정은 반영되고 이후 수정만 조용히 무시된다 — 가장 헷갈리는 형태다.
+>
+> 처방: `rm -rf .next` 후 재시작. `.next/dev` 만 지우는 것으로는 부족했다.
+> 근본 해결은 4번(저장소를 iCloud 밖으로)이다.
+
+
 
 `app/globals.css` 에 규칙을 덧붙였는데 화면에 반영되지 않으면, 파일이 아니라 dev 서버의 CSS
 청크가 고착된 것이다. 이번 작업에서 두 번 발생했다. 확인·해결:
@@ -38,7 +48,16 @@ curl -s "http://localhost:3000/$(curl -s http://localhost:3000/login | grep -o '
 
 0이 나오면 `rm -rf .next/dev` 후 dev 서버 재시작.
 
-## 4. iCloud 동기화가 만드는 중복 파일 (환경)
+## 4. iCloud 동기화가 만드는 중복 파일 (환경) — 완화됨
+
+> **2026-08-15 처방:** `.next` 를 `.next.nosync` 심볼릭 링크로 바꿨다. iCloud 는 `.nosync` 로
+> 끝나는 항목을 동기화하지 않으므로 빌드 산출물이 더 이상 충돌 사본을 만들지 않는다.
+> `npm run lint` 의 무시 경로에 `.next.nosync` 를 추가했다 (안 하면 빌드 산출물까지 훑어
+> 오류가 8천 건으로 늘어난다).
+>
+> 소스 파일(`README 2.md` 등)의 중복은 그대로다. 근본 해결은 아래대로 저장소를 옮기는 것이다.
+
+
 
 프로젝트가 `~/Documents` 아래에 있어 iCloud가 충돌 시 `" 2"` 사본을 만든다.
 `README 2.md`, `package 2.json`, `public/favicon 2.svg`의 정체가 이것이다.
@@ -87,9 +106,11 @@ curl -s "http://localhost:3000/$(curl -s http://localhost:3000/login | grep -o '
 
 ## 8. 미사용 화면 컴포넌트 정리 (정리)
 
-`app/page.tsx`에 `CoursesTab`, `StudentsTab`, `Instructors`, `Surveys`가 목데이터와 함께 남아 있으나
-네비게이션에 연결되어 있지 않다. 교육과정 설계와 강사 배정을 실제로 만들 때 이 스케치를 되살릴지
-버릴지 정한다. 현재 lint 오류 11건 중 4건이 이 미사용 컴포넌트다.
+`app/page.tsx`에 `CoursesTab`, `StudentsTab`, `Surveys`가 목데이터와 함께 남아 있으나
+네비게이션에 연결되어 있지 않다. 교육과정 설계를 실제로 만들 때 이 스케치를 되살릴지 버릴지 정한다.
+
+> 2026-08-15: `Instructors` 스케치와 목데이터는 제거했다. 실제 강사 풀 화면
+> (`app/instructors-panel.tsx`)이 그 자리를 대신한다. 남은 lint 오류는 10건.
 
 `tests/rendered-html.test.mjs`는 존재하지 않는 `dist/server/index.js`를 테스트하는 Codex 템플릿
 잔재라 실행하면 실패한다.
