@@ -15,7 +15,10 @@ function apiKey() {
   return value;
 }
 
-export async function uploadGeminiFile(bytes: Buffer, fileName: string, mimeType: string) {
+const DEFAULT_UPLOAD_BUDGET_MS = 150_000;
+
+export async function uploadGeminiFile(bytes: Buffer, fileName: string, mimeType: string, budgetMs = DEFAULT_UPLOAD_BUDGET_MS) {
+  const deadline = Date.now() + budgetMs;
   const start = await fetch(FILES_UPLOAD_API, {
     method: "POST",
     headers: {
@@ -48,12 +51,12 @@ export async function uploadGeminiFile(bytes: Buffer, fileName: string, mimeType
   if (!upload.ok) throw new Error(`녹취파일 전송 실패 (${upload.status})`);
   const result = await upload.json() as { file?: GeminiFile };
   if (!result.file?.name || !result.file.uri) throw new Error("전송된 녹취파일 정보를 확인하지 못했습니다.");
-  return waitForGeminiFile(result.file);
+  return waitForGeminiFile(result.file, deadline);
 }
 
-async function waitForGeminiFile(file: GeminiFile) {
+async function waitForGeminiFile(file: GeminiFile, deadline: number) {
   let current = file;
-  for (let attempt = 0; attempt < 60; attempt += 1) {
+  for (let attempt = 0; attempt < 60 && Date.now() < deadline; attempt += 1) {
     if (!current.state || current.state === "ACTIVE") return current;
     if (current.state === "FAILED") throw new Error(current.error?.message || "녹취파일을 처리하지 못했습니다.");
     await new Promise((resolve) => setTimeout(resolve, 2_000));

@@ -6,7 +6,11 @@ import { generateWithGemini } from "@/lib/ai/gemini";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
+
+/** A 50MB company PDF goes to Gemini inline, so the extraction call needs room without outliving the route. */
+const PDF_EXTRACTION_CALL_MS = 90_000;
+const PDF_EXTRACTION_BUDGET_MS = 200_000;
 
 const PDF_BUCKET = "company-source-documents";
 const PDF_PATH = /^company-intake\/[0-9a-f-]{36}\.pdf$/i;
@@ -181,6 +185,8 @@ export async function POST(request: Request) {
         media: [{ inlineData: { mimeType: "application/pdf", data: Buffer.from(await file.arrayBuffer()).toString("base64") } }],
         responseSchema: pdfSchema,
         temperature: 0,
+        timeoutMs: PDF_EXTRACTION_CALL_MS,
+        budgetMs: PDF_EXTRACTION_BUDGET_MS,
       });
       const extracted = JSON.parse(generated.text) as { companyName: string; websiteUrls: string[]; summary: string };
       companyName = extracted.companyName || companyName;

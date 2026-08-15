@@ -46,6 +46,9 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+/** Bounds the year x consolidation search, which is otherwise eight sequential retrying calls. */
+const FINANCIALS_DEADLINE_MS = 25_000;
+
 export async function researchDart(companyName: string) {
   if (!process.env.OPENDART_API_KEY) return { available: false, reason: "OPENDART_API_KEY 미설정" };
   const target = normalizeName(companyName);
@@ -56,8 +59,10 @@ export async function researchDart(companyName: string) {
   let financials: Record<string, unknown>[] = [];
   let financialYear: number | null = null;
   const currentYear = new Date().getFullYear();
-  for (let year = currentYear; year >= currentYear - 3; year -= 1) {
+  const financialsDeadline = Date.now() + FINANCIALS_DEADLINE_MS;
+  for (let year = currentYear; year >= currentYear - 3 && Date.now() < financialsDeadline; year -= 1) {
     for (const fsDiv of ["CFS", "OFS"]) {
+      if (Date.now() >= financialsDeadline) break;
       const body = await dartJson("fnlttSinglAcntAll.json", { corp_code: match.corpCode, bsns_year: String(year), reprt_code: "11011", fs_div: fsDiv }) as { status?: string; list?: Record<string, unknown>[] } | null;
       if (body?.status === "000" && body.list?.length) { financials = body.list; financialYear = year; break; }
     }

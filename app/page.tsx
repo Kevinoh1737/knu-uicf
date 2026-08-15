@@ -6,10 +6,16 @@ import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { AX_FOUNDATION_QUESTIONS } from "@/lib/ai/ax-questionnaire";
 import {
   CONSULTATION_AUDIO_ACCEPT,
+  CONSULTATION_FORMAT_LABEL,
+  ConsultationBriefing,
   ConsultationRecord,
   MAX_CONSULTATION_AUDIO_SIZE,
+  MAX_CONSULTATION_MINUTES,
+  MAX_CONSULTATION_SECONDS,
+  MAX_CONSULTATION_SOURCE_SIZE,
   resolveConsultationAudio,
 } from "@/lib/consultations";
+import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, readAudioDuration } from "@/lib/audio/compress";
 
 const instructors: Array<{ name: string; initials: string; role: string; score: string; sessions: number; state: string; tone: string }> = [];
 
@@ -79,6 +85,15 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     grip: <><circle cx="9" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="1" fill="currentColor" stroke="none"/></>,
   };
   return <svg className="ui-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
+function formatDuration(seconds: number) {
+  const total = Math.round(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.round((total % 3600) / 60);
+  if (hours && minutes) return `${hours}시간 ${minutes}분`;
+  if (hours) return `${hours}시간`;
+  return `${Math.max(1, minutes)}분`;
 }
 
 function formatFileSize(bytes: number) {
@@ -448,25 +463,67 @@ function ResearchTab({ company, companies, onSelectCompany }: { company: Company
   </section>;
 }
 
+/**
+ * What no single consultation can show: how the picture moved between sessions. `changes` leads
+ * because a headcount or schedule that shifted since the first call is what silently breaks a plan.
+ */
+function BriefingPanel({ briefing, building, sessionCount }: { briefing: ConsultationBriefing | null; building: boolean; sessionCount: number }) {
+  if (building && !briefing) return <section className="briefing building" role="status" aria-live="polite"><i className="spinner" aria-hidden="true"/><span>상담 {sessionCount}건을 합쳐 정리하는 중</span></section>;
+  if (!briefing) return null;
+  return <section className={`briefing${building ? " building" : ""}`}>
+    <div className="briefing-head">
+      <div><small>통합 브리핑</small><h3>상담 {briefing.sourceIds.length}건을 합친 결과</h3></div>
+      {building && <span className="briefing-refresh"><i className="spinner" aria-hidden="true"/>갱신 중</span>}
+    </div>
+    {briefing.overview && <p className="briefing-overview">{briefing.overview}</p>}
+    {briefing.changes.length > 0 && <div className="briefing-changes"><b>상담 사이에 달라진 점</b><ul>{briefing.changes.map((item) => <li key={item}>{item}</li>)}</ul></div>}
+    <NeedList title="핵심 니즈" needs={briefing.keyNeeds} />
+    <div className="insight-row two">
+      <article><small>교육 대상</small><b>{briefing.audience.headline}</b><p>{briefing.audience.detail}</p></article>
+      <article><small>운영 제약</small><b>{briefing.constraints[0] || "확인 필요"}</b><p>{briefing.constraints.slice(1).join(" · ") || "추가 제약 없음"}</p></article>
+    </div>
+    <div className="consultation-details">
+      <article><h3>회차별 요점</h3>{briefing.sessions.length ? <ul>{briefing.sessions.map((item) => <li key={item.label}><b>{item.label}</b> {item.gist}</li>)}</ul> : <p>회차별 요점 없음</p>}</article>
+      <article><h3>합의사항</h3>{briefing.decisions.length ? <ul>{briefing.decisions.map((item) => <li key={item}>{item}</li>)}</ul> : <p>확인된 합의사항 없음</p>}</article>
+      <article><h3>다음 상담에서 확인</h3>{briefing.openQuestions.length ? <ul>{briefing.openQuestions.map((item) => <li key={item}>{item}</li>)}</ul> : <p>추가 질문 없음</p>}</article>
+    </div>
+  </section>;
+}
+
+/** Every need, not just the first: the analysis routinely returns three and only one used to be shown. */
+function NeedList({ title, needs }: { title: string; needs?: Array<{ title: string; detail: string }> }) {
+  if (!needs?.length) return <article className="need-list empty"><small>{title}</small><p>상담 내용에서 확인되지 않음</p></article>;
+  return <article className="need-list">
+    <small>{title}</small>
+    <ol>{needs.map((need, index) => <li key={`${need.title}-${index}`}><b>{need.title}</b><p>{need.detail}</p></li>)}</ol>
+  </article>;
+}
+
 function ConsultingTab({ company }: { company: CompanyItem }) {
-  type ProcessState = "idle" | "uploading" | "transcribing" | "summarizing";
+  type ProcessState = "idle" | "compressing" | "uploading" | "transcribing";
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [records, setRecords] = useState<ConsultationRecord[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [dragging, setDragging] = useState(false);
   const [processState, setProcessState] = useState<ProcessState>("idle");
+  const [compressRatio, setCompressRatio] = useState(0);
+  const [durationSeconds, setDurationSeconds] = useState(0);
   const [error, setError] = useState("");
+  const [briefing, setBriefing] = useState<ConsultationBriefing | null>(null);
+  const [briefingState, setBriefingState] = useState<"idle" | "building">("idle");
+  const [deletingId, setDeletingId] = useState("");
 
   useEffect(() => {
     if (!company.id) return;
     const controller = new AbortController();
     fetch(`/api/companies/${company.id}/consultations`, { signal: controller.signal })
       .then(async (response) => {
-        const result = await response.json() as { consultations?: ConsultationRecord[]; error?: string };
+        const result = await response.json() as { consultations?: ConsultationRecord[]; briefing?: ConsultationBriefing | null; error?: string };
         if (!response.ok) throw new Error(result.error || "상담 기록을 불러오지 못했습니다.");
         const next = result.consultations || [];
         setRecords(next);
+        setBriefing(result.briefing || null);
         setSelectedId((current) => current || next[0]?.id || "");
       })
       .catch((caught) => {
@@ -479,66 +536,149 @@ function ConsultingTab({ company }: { company: CompanyItem }) {
 
   const processFile = async (file?: File) => {
     if (!file || !company.id || processState !== "idle") return;
+    // Release the input before anything can fail. A file input fires no change event when the same
+    // file is picked again, so a selection left behind by a failed attempt makes the next attempt on
+    // that file do nothing at all — no request, no error, no sign that the click registered.
+    if (fileInputRef.current) fileInputRef.current.value = "";
     const audio = resolveConsultationAudio(file.name, file.type);
-    if (!audio) { setError("MP3, WAV, M4A, AAC, OGG, FLAC 파일을 선택해 주세요."); return; }
-    if (file.size > MAX_CONSULTATION_AUDIO_SIZE) { setError("녹취파일은 최대 50MB까지 업로드할 수 있습니다."); return; }
+    if (!audio) { setError(`${CONSULTATION_FORMAT_LABEL} 파일을 선택해 주세요.`); return; }
+    if (file.size > MAX_CONSULTATION_SOURCE_SIZE) { setError("녹취파일은 최대 300MB까지 올릴 수 있습니다. 녹음 앱에서 음질을 낮춰 저장한 뒤 다시 시도해 주세요."); return; }
+    // Checked for every file, not just the ones that get converted: a small but very long recording
+    // still has to be transcribed inside the route's time budget.
+    const seconds = await readAudioDuration(file);
+    if (seconds > MAX_CONSULTATION_SECONDS) {
+      setError(`녹취가 ${formatDuration(seconds)}입니다. 한 번에 올릴 수 있는 길이는 ${MAX_CONSULTATION_MINUTES}분까지이니 나눠서 올려 주세요.`);
+      return;
+    }
+    setDurationSeconds(seconds);
     setError("");
-    setProcessState("uploading");
-    let phaseTimer: number | undefined;
     try {
+      // Gemini downsamples to 16 Kbps mono anyway, so a long recording is converted here instead of
+      // being pushed through the 50MB storage cap at a bitrate nothing downstream can use.
+      let payload: Blob = file;
+      let payloadName = file.name;
+      let payloadMime = audio.mimeType;
+      if (needsCompression(file, MAX_CONSULTATION_AUDIO_SIZE)) {
+        setProcessState("compressing");
+        setCompressRatio(0);
+        const compressed = await compressConsultationAudio(file, setCompressRatio);
+        payload = compressed.blob;
+        payloadName = compressed.fileName;
+        payloadMime = COMPRESSED_MIME_TYPE;
+      }
+      if (payload.size > MAX_CONSULTATION_AUDIO_SIZE) {
+        throw new Error("변환 후에도 파일이 너무 큽니다. 녹취를 나눠서 올려 주세요.");
+      }
+
+      setProcessState("uploading");
       const tokenResponse = await fetch("/api/uploads/consultation-audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id, fileName: file.name, fileSize: file.size, mimeType: audio.mimeType }),
+        body: JSON.stringify({ companyId: company.id, fileName: payloadName, fileSize: payload.size, mimeType: payloadMime }),
       });
       const tokenResult = await tokenResponse.json() as { error?: string; bucket?: string; path?: string; token?: string; mimeType?: string };
       if (!tokenResponse.ok || !tokenResult.bucket || !tokenResult.path || !tokenResult.token) throw new Error(tokenResult.error || "파일 업로드를 준비하지 못했습니다.");
       const { error: uploadError } = await createSupabaseBrowser().storage
         .from(tokenResult.bucket)
-        .uploadToSignedUrl(tokenResult.path, tokenResult.token, file, { contentType: tokenResult.mimeType || audio.mimeType });
+        .uploadToSignedUrl(tokenResult.path, tokenResult.token, payload, { contentType: tokenResult.mimeType || payloadMime });
       if (uploadError) throw new Error(uploadError.message || "녹취파일을 업로드하지 못했습니다.");
 
       setProcessState("transcribing");
-      phaseTimer = window.setTimeout(() => setProcessState("summarizing"), 12_000);
       const processResponse = await fetch(`/api/companies/${company.id}/consultations`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storagePath: tokenResult.path, fileName: file.name, fileSize: file.size, mimeType: audio.mimeType }),
+        body: JSON.stringify({ storagePath: tokenResult.path, fileName: payloadName, fileSize: payload.size, mimeType: payloadMime }),
       });
       const processResult = await processResponse.json() as { consultation?: ConsultationRecord; error?: string };
       if (!processResponse.ok || !processResult.consultation) throw new Error(processResult.error || "녹취를 처리하지 못했습니다.");
-      setRecords((current) => [processResult.consultation!, ...current.filter((item) => item.id !== processResult.consultation!.id)]);
-      setSelectedId(processResult.consultation.id);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      const saved = processResult.consultation;
+      const next = [saved, ...records.filter((item) => item.id !== saved.id)];
+      setRecords(next);
+      setSelectedId(saved.id);
+      setProcessState("idle");
+      await refreshBriefing(next.filter((item) => item.status === "completed").map((item) => item.id));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "녹취를 처리하지 못했습니다.");
     } finally {
-      if (phaseTimer) window.clearTimeout(phaseTimer);
       setProcessState("idle");
+      setCompressRatio(0);
+      setDurationSeconds(0);
+    }
+  };
+
+  const completedIds = records.filter((record) => record.status === "completed").map((record) => record.id);
+
+  /** Rebuilt whenever the set of completed recordings changes, so it can never quietly go out of date. */
+  const refreshBriefing = async (ids: string[]) => {
+    if (!company.id) return;
+    // Called even when fewer than two remain, so the server can clear a briefing that outlived its
+    // sources rather than leaving it to reappear on the next load.
+    if (ids.length < 2) setBriefing(null);
+    setBriefingState("building");
+    try {
+      const response = await fetch(`/api/companies/${company.id}/consultation-briefing`, { method: "POST" });
+      const result = await response.json() as { briefing?: ConsultationBriefing | null; error?: string };
+      if (!response.ok) throw new Error(result.error || "통합 브리핑을 만들지 못했습니다.");
+      setBriefing(result.briefing || null);
+      if (result.error) setError(result.error);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "통합 브리핑을 만들지 못했습니다.");
+    } finally {
+      setBriefingState("idle");
+    }
+  };
+
+  const deleteRecord = async (record: ConsultationRecord) => {
+    if (!company.id || !window.confirm(`‘${record.file_name}’ 녹취와 정리된 내용을 삭제할까요?`)) return;
+    setDeletingId(record.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/companies/${company.id}/consultations/${record.id}`, { method: "DELETE" });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "상담 기록을 삭제하지 못했습니다.");
+      const remaining = records.filter((item) => item.id !== record.id);
+      setRecords(remaining);
+      if (selectedId === record.id) setSelectedId(remaining[0]?.id || "");
+      await refreshBriefing(remaining.filter((item) => item.status === "completed").map((item) => item.id));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "상담 기록을 삭제하지 못했습니다.");
+    } finally {
+      setDeletingId("");
     }
   };
 
   const selected = records.find((item) => item.id === selectedId) || records[0];
   const summary = selected?.summary;
-  const firstNeed = summary?.keyNeeds?.[0];
   const firstConstraint = summary?.constraints?.[0];
-  const processLabel = processState === "uploading" ? "녹취파일 업로드 중" : processState === "transcribing" ? "대화 내용을 텍스트로 변환 중" : "중요 내용을 정리 중";
+  const processLabel = processState === "compressing" ? `녹취파일 준비 중 ${Math.round(compressRatio * 100)}%`
+    : processState === "uploading" ? "녹취파일 업로드 중"
+    : "대화 내용을 옮겨 적고 정리하는 중";
+  // Measured: 3.8s of processing per minute of audio, plus about a minute for upload and analysis.
+  const estimatedMinutes = Math.max(1, Math.round((durationSeconds * 3.8 / 60 + 60) / 60));
+  const processHint = [
+    durationSeconds > 0 ? `녹취 ${formatDuration(durationSeconds)}` : "",
+    processState === "compressing" ? "업로드 전에 크기를 줄이는 중"
+      : processState === "transcribing" && durationSeconds > 0 ? `약 ${estimatedMinutes}분 예상 · 창을 닫지 마세요`
+      : "잠시만 기다려 주세요.",
+  ].filter(Boolean).join(" · ");
   const createdDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
   return <section className="tab-content consulting">
     <div className="content-title"><div><h2>상담 기록과 녹취</h2><p>녹취를 올리면 전체 대화와 교육 준비에 필요한 내용을 정리합니다.</p></div>{records.length > 0 && <button type="button" onClick={() => fileInputRef.current?.click()} disabled={processState !== "idle"}>＋ 녹취 추가</button>}</div>
     <input ref={fileInputRef} className="sr-only" type="file" accept={CONSULTATION_AUDIO_ACCEPT} onChange={(event) => processFile(event.target.files?.[0])} />
-    {processState !== "idle" && <div className="consultation-processing" role="status" aria-live="polite"><i aria-hidden="true"/><div><b>{processLabel}</b><span>파일 크기와 녹취 길이에 따라 몇 분 걸릴 수 있습니다.</span></div><em aria-hidden="true"><span/></em></div>}
+    {processState !== "idle" && <div className="consultation-processing" role="status" aria-live="polite"><i aria-hidden="true"/><div><b>{processLabel}</b><span>{processHint}</span></div><em aria-hidden="true" className={processState === "compressing" ? "determinate" : ""}><span style={processState === "compressing" ? { width: `${Math.max(2, Math.round(compressRatio * 100))}%` } : undefined}/></em></div>}
     {error && <p className="consultation-error" role="alert">{error}</p>}
     {!selected && !loading && processState === "idle" && <div className={`upload-zone${dragging ? " dragging" : ""}`} onDragEnter={(event)=>{event.preventDefault();setDragging(true);}} onDragOver={(event)=>event.preventDefault()} onDragLeave={(event)=>{if(!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false);}} onDrop={(event)=>{event.preventDefault();setDragging(false);processFile(event.dataTransfer.files?.[0]);}}>
-      <span><Icon name="upload" size={22}/></span><h3>녹취파일을 놓거나 선택하세요</h3><p>MP3, WAV, M4A, AAC, OGG, FLAC · 최대 50MB</p><button type="button" onClick={() => fileInputRef.current?.click()}>파일 선택</button>
+      <span><Icon name="upload" size={22}/></span><h3>녹취파일을 놓거나 선택하세요</h3><p>한 번에 최대 {MAX_CONSULTATION_MINUTES}분 · 더 긴 상담은 나눠서 올려 주세요<br/>{CONSULTATION_FORMAT_LABEL} · 용량은 신경 쓰지 않아도 됩니다</p><button type="button" onClick={() => fileInputRef.current?.click()}>파일 선택</button>
     </div>}
     {loading && <div className="consultation-loading"><i className="spinner" aria-hidden="true"/><span>상담 기록 불러오는 중</span></div>}
+    {(briefing || briefingState === "building") && <BriefingPanel briefing={briefing} building={briefingState === "building"} sessionCount={completedIds.length} />}
     {selected && <div className="transcript">
       {records.length > 1 && <div className="consultation-history" aria-label="상담 기록 목록">{records.map((record) => <button type="button" className={record.id === selected.id ? "active" : ""} key={record.id} onClick={() => setSelectedId(record.id)}><b>{record.file_name}</b><span>{createdDate(record.created_at)}</span></button>)}</div>}
-      <div className="audio-bar">{/* eslint-disable-next-line jsx-a11y/media-has-caption -- The complete transcript is displayed directly below. */}<audio controls preload="metadata" src={selected.audio_url}/><div><b>{selected.file_name}</b><small>{formatFileSize(selected.file_size)} · {createdDate(selected.created_at)}</small></div><span>{selected.status === "completed" ? "정리 완료" : selected.status === "failed" ? "처리 실패" : "처리 중"}</span></div>
+      <div className="audio-bar">{/* eslint-disable-next-line jsx-a11y/media-has-caption -- The complete transcript is displayed directly below. */}<audio controls preload="metadata" src={selected.audio_url}/><div><b>{selected.file_name}</b><small>{formatFileSize(selected.file_size)} · {createdDate(selected.created_at)}</small></div><span>{selected.status === "completed" ? "정리 완료" : selected.status === "failed" ? "처리 실패" : "처리 중"}</span><button type="button" className="record-delete" onClick={() => deleteRecord(selected)} disabled={deletingId === selected.id} aria-label={`${selected.file_name} 삭제`} title="이 녹취 삭제">{deletingId === selected.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}</button></div>
       {summary?.overview && <article className="consultation-overview"><small>상담 요약</small><p>{summary.overview}</p></article>}
-      <div className="insight-row"><article><small>핵심 니즈</small><b>{firstNeed?.title || "확인 필요"}</b><p>{firstNeed?.detail || "상담 내용에서 확인되지 않음"}</p></article><article><small>교육 대상</small><b>{summary?.audience?.headline || "확인 필요"}</b><p>{summary?.audience?.detail || "상담 내용에서 확인되지 않음"}</p></article><article><small>운영 제약</small><b>{firstConstraint || "확인 필요"}</b><p>{summary?.constraints?.slice(1).join(" · ") || "추가 제약 없음"}</p></article></div>
+      <NeedList title="핵심 니즈" needs={summary?.keyNeeds} />
+      <div className="insight-row two"><article><small>교육 대상</small><b>{summary?.audience?.headline || "확인 필요"}</b><p>{summary?.audience?.detail || "상담 내용에서 확인되지 않음"}</p></article><article><small>운영 제약</small><b>{firstConstraint || "확인 필요"}</b><p>{summary?.constraints?.slice(1).join(" · ") || "추가 제약 없음"}</p></article></div>
       {summary && <div className="consultation-details"><article><h3>합의사항</h3>{summary.decisions?.length ? <ul>{summary.decisions.map((item)=><li key={item}>{item}</li>)}</ul> : <p>확인된 합의사항 없음</p>}</article><article><h3>강사 전달사항</h3>{summary.instructorNotes?.length ? <ul>{summary.instructorNotes.map((item)=><li key={item}>{item}</li>)}</ul> : <p>추가 전달사항 없음</p>}</article><article><h3>추가 확인</h3>{summary.followUpQuestions?.length ? <ul>{summary.followUpQuestions.map((item)=><li key={item}>{item}</li>)}</ul> : <p>추가 질문 없음</p>}</article></div>}
       <div className="dialogue-head"><div><h3>전체 대화</h3><span>{selected.transcript?.segments?.length || 0}개 발화</span></div></div>
       <div className="dialogue">{selected.transcript?.segments?.map((segment,index)=><p key={`${segment.timestamp}-${index}`}><b>{segment.speaker}</b><span>{segment.text}</span><time>{segment.timestamp}</time></p>)}</div>

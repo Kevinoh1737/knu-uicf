@@ -2,6 +2,7 @@ import { requireTeamSession } from "@/lib/auth/guard";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   CONSULTATION_AUDIO_BUCKET,
+  CONSULTATION_FORMAT_LABEL,
   MAX_CONSULTATION_AUDIO_SIZE,
   resolveConsultationAudio,
 } from "@/lib/consultations";
@@ -25,7 +26,7 @@ export async function POST(request: Request) {
     const audio = resolveConsultationAudio(fileName, body.mimeType);
 
     if (!UUID.test(companyId)) return Response.json({ error: "기업 정보를 확인하지 못했습니다." }, { status: 400 });
-    if (!audio) return Response.json({ error: "MP3, WAV, M4A, AAC, OGG, FLAC 파일을 선택해 주세요." }, { status: 400 });
+    if (!audio) return Response.json({ error: `${CONSULTATION_FORMAT_LABEL} 파일을 선택해 주세요.` }, { status: 400 });
     if (!body.fileSize || body.fileSize > MAX_CONSULTATION_AUDIO_SIZE) {
       return Response.json({ error: "녹취파일은 최대 50MB까지 업로드할 수 있습니다." }, { status: 400 });
     }

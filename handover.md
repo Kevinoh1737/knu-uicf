@@ -100,7 +100,35 @@ Defined in `lib/ai/models.ts`:
 - `surveyDesign`: balanced, later satisfaction survey design
 - `instructorMatching`: balanced, later instructor recommendation
 
-Gemini calls use `lib/ai/gemini.ts`. It retries HTTP 429 and 503 with delays of 2s, 5s, and 10s, then returns a friendly Korean error if demand is high.
+Gemini calls use `lib/ai/gemini.ts`. It retries HTTP 429 and 503 with delays of 5s, 15s, and 30s.
+
+Those delays used to be 2s/5s/10s, and 17s of total waiting was not enough. A real 45-minute upload on
+2026-08-15 exhausted all four attempts in 64s and was recorded as failed. Reproducing it with the same
+file and the same code showed why: the model returns `503 UNAVAILABLE — "This model is currently
+experiencing high demand"`, twice in a row, then succeeds on the third attempt. Nothing was wrong with
+the file, the key, or the quota.
+
+The error handling was also hiding the cause. It threw one message for both 429 and 503 and discarded
+the API's explanation, so a quota problem and a temporary overload looked identical. Now each failed
+attempt logs `[gemini] <role> <model> HTTP <status> attempt n/4: <reason>`, and the thrown message
+distinguishes "AI 사용량 한도에 걸렸습니다 (429)" from "AI 서버가 혼잡합니다 (503)".
+
+The ladder is now exponential and bounded by two knobs rather than a fixed list of three delays.
+`maxRetryWaitMs` caps the total time spent waiting (default 50s; transcription passes 240s) and
+`budgetMs` still truncates it when the caller has less time. Measured against an always-503 endpoint:
+the default runs 4 attempts over 35s, transcription's allowance runs 7 attempts over 195s, and a 45s
+budget correctly falls back to 4 attempts. A rejected attempt consumes no tokens, so waiting is cheap.
+
+**Model fallback.** Overload is per model, not per key. Measured within the same minute on one
+58-minute recording: `gemini-3.6-flash` and `gemini-3.7-flash` both returned 503 while
+`gemini-3.5-flash` accepted the identical request. When the primary model stays overloaded for its
+share of the retry allowance (`PRIMARY_RETRY_SHARE`, 35%), the call switches to the tier's fallback
+from `FALLBACK_MODELS` in `lib/ai/models.ts` and spends the remaining allowance there. Waiting longer
+on one model is worse than switching, because these spikes last minutes rather than seconds.
+
+Note: the fallback path is typechecked and its trigger conditions are measured, but it has not yet
+been observed firing during a real end-to-end upload — the successful run recovered on the primary
+after one 503. Treat it as untested-in-anger insurance.
 
 ## Supabase
 
@@ -148,6 +176,30 @@ requests to `/login?next=…` and answers `/api/*` with 401. Each route handler 
 Verified locally: unauthenticated page 307 → `/login`, unauthenticated API 401, wrong passcode 401,
 correct passcode 200 with cookie, session grants page and API access, logout clears it, forged cookie
 rejected, `npm run build` registers the proxy.
+
+### Time Budgets
+
+Each long route used to declare a `maxDuration` smaller than its own worst case, so a slow site or a
+retrying Gemini call could be killed by the platform mid-flight. Crawling, OpenDART, and the Gemini
+calls now draw from one budget per route that ends before the platform limit.
+
+- `generateWithGemini` accepts `budgetMs` covering all attempts and retry waits, alongside the
+  per-attempt `timeoutMs`. Retries still run when the budget allows (measured: no budget and a 180s
+  budget both make all 4 attempts; 20s makes 3; 10s makes 2; 1s fails immediately without calling out).
+- `uploadGeminiFile` takes a budget so the ACTIVE-state polling loop cannot run for its full 120s.
+- `research` route: `maxDuration` 60 → 300, with 70s for crawling, 35s for OpenDART/recruiting, and the
+  remainder split across the three Gemini calls. The questionnaire review is skipped when time runs
+  short, which only means the draft questions survive untrimmed; the response reports
+  `ai.questionnaireReview.skippedForTime` and `ai.elapsedMs`.
+- `discover` route: `maxDuration` 60 → 300, since a 50MB PDF goes to Gemini inline.
+- `consultations` route: budgets added under the existing 300s. This one matters most — a platform kill
+  skips the catch block that marks the row failed, so the record would sit on "처리 중" forever. It now
+  fails in-process and writes `status = failed`.
+- OpenDART's year x consolidation search has its own 25s deadline; it was otherwise eight sequential
+  retrying calls.
+
+Measured after the change: a real research run against douzone.com finished in 39 seconds (10 pages
+crawled), and a bad hostname still fails in under a second.
 
 ### Company Intake
 
@@ -279,13 +331,43 @@ Implemented:
 - Company detail third tab: `상담 기록`.
 - Upload consultation audio/video file.
 - Direct signed upload to private Supabase bucket `consultation-audio`.
-- Supported extensions: `.mp3`, `.wav`, `.m4a`, `.aac`, `.ogg`, `.oga`, `.flac`, `.mp4`.
-- Max file size: 50 MiB.
+- Supported extensions: `.mp3`, `.m4a`, `.wav`, `.aac`, `.ogg`, `.oga`, `.flac`, `.mp4`.
+- The limit shown to the operator is **time, not size**: 60 minutes per upload. Size is handled by the
+  browser conversion below, so operators no longer have to think about megabytes.
 - Server downloads from Supabase, uploads temporary file to Gemini Files API, requests transcript, then analysis summary.
 - Saves transcript and summary to `company_consultations`.
 - Displays full transcript and education-focused summary.
 - Creates signed audio URL for playback/download display.
 - Cleans temporary Gemini file after processing.
+
+#### Combined briefing across consultations
+
+A company is rarely understood in one call. Each recording still gets its own summary, and on top of
+that `POST /api/companies/[id]/consultation-briefing` reads **every completed transcript** for the
+company and produces one cross-session briefing, stored on `company_research.consultation_briefing`.
+
+It is rebuilt automatically whenever the set of completed recordings changes — after an upload
+finishes and after a delete — so it cannot quietly go stale. `sourceIds` records exactly which
+consultations it covers, and `isBriefingStale()` compares that against what exists. Fewer than two
+completed recordings returns nothing: a briefing only earns its cost from the second session onward.
+
+The field that justifies the whole feature is `changes`. Reading two summaries side by side does not
+tell you that something moved; this does. Verified on two deliberately conflicting sessions, it caught
+all three shifts unprompted — headcount 20 to 15, schedule September to October, and priority from
+quote automation to drawing review — and reordered `keyNeeds` to match the new priority. Oldest
+sessions are trimmed first if the transcripts exceed the prompt budget, so the most recent picture
+always survives.
+
+**This needs a migration.** `supabase/migrations/20260815020000_add_consultation_briefing.sql` adds the
+column. Until it is applied the briefing is still generated and returned, but not stored, and the
+consultation list logs the missing column and carries on — verified, the screen keeps working.
+
+#### Deleting a recording
+
+`DELETE /api/companies/[id]/consultations/[consultationId]` removes the row and its audio object. The
+delete is scoped by company as well as id, so a record id alone cannot reach another company's data
+(verified: 401 unauthenticated, 404 with a mismatched company, 200 on the correct pair, with both row
+and storage object gone). The trash control sits in the audio bar of the selected recording.
 
 Consultation summary fields:
 
@@ -309,6 +391,83 @@ Test performed:
 - Transcript had speaker/timestamp segments and summary behaved correctly.
 - Important limitation: English sample was translated/cleaned into Korean and somewhat condensed despite the “full transcript” prompt. Korean real consultations may be better, but for truly verbatim archive-quality transcription, consider 10-15 minute chunked transcription or a dedicated STT service later.
 - Test DB record and audio object were deleted afterward to avoid polluting company data.
+
+#### Recording size (solved by compressing in the browser)
+
+A 30-60 minute consultation regularly exceeds the 50MB cap, and that cap cannot simply be raised:
+**50MB is the Supabase project's global ceiling on the current plan.** Asking the API to raise the
+bucket's own limit to 200MB is rejected with `413 EntityTooLarge`, so the bucket cannot exceed it.
+
+The other half of the picture is that **Gemini downsamples every audio input to 16 Kbps and folds
+multi-channel down to one channel** (`ai.google.dev/gemini-api/docs/audio`). A 128 kbps stereo
+recording therefore costs storage, upload time, and nothing but waste — the model never sees the
+extra data. Gemini itself is not a constraint: the Files API takes 2GB per file and 9.5 hours of
+audio per prompt.
+
+So `lib/audio/compress.ts` converts the recording to 16 kHz mono MP3 at 32 kbps before it is uploaded.
+The browser's own decoder handles every format and does the resampling — `decodeAudioData` resamples
+to the sample rate of the context it is called on — so no wasm codec bundle is needed. Only
+`@breezystack/lamejs` (471KB) is added.
+
+- Conversion runs when the file is lossless (wav/flac/aiff) or larger than 80% of the cap. Smaller
+  compressed files upload untouched.
+- Encoding runs in `lib/audio/mp3-encoder.worker.ts`, **not** a chunked loop on the page. Hidden tabs
+  clamp `setTimeout` to over 1.5s per call here, so a cooperative loop stalled for minutes the moment
+  the tab lost focus — the first implementation did exactly that and was rewritten.
+- Duration is read from a media element before decoding and rejected past 3 hours. Peak memory tracks
+  playing time, not file size (10 minutes of stereo decodes to 73MB of samples, so an hour is ~440MB).
+- The source cap is 300MB (`MAX_CONSULTATION_SOURCE_SIZE`); the 50MB cap still applies to what is
+  actually stored, enforced again on the server.
+- `.mp4` always converts too. Handed to Gemini as video it bills 258 tokens per second instead of the
+  32 it charges for audio, so a small screen recording would have cost eight times what it should.
+
+#### Why the ceiling is 90 minutes, and how it was measured
+
+Storage is not what binds. At 32 kbps the 50MB cap holds about 3.6 hours and Gemini accepts 9.5 hours
+per prompt. What binds is the transcription route finishing inside `maxDuration`.
+
+Two real uploads failed here before the numbers were measured rather than guessed:
+
+1. The first failed after 64s with "현재 녹취 처리 요청이 많습니다". Cause: Gemini returned
+   `503 UNAVAILABLE — high demand` on all four attempts, and the 2/5/10s backoff gave up after 17s.
+2. The second failed after 186s with "The operation was aborted due to timeout". Cause: our own
+   `TRANSCRIPTION_CALL_MS` of 150s aborted an attempt that needed far longer.
+
+Measured directly on that 58-minute recording: **221s of transcription API time** (plus 50s of 503
+backoff, so 271s wall clock), producing a complete transcript — 33,080 characters, 18,855 output
+tokens, 291 timestamps running from 00:00 to 58:06, nothing truncated. That is about **3.8s of
+processing per minute of audio**.
+
+The project is on Vercel Pro, so `maxDuration` moved from 300s to **800s** (Hobby cannot go above 300s;
+Pro reaches 800s, and 1800s in beta). With a 780s budget, 90 minutes of audio needs roughly 340s of
+transcription and lands near 470s including upload, backoff, and analysis. The output-token cap
+(65,536) is also far away — an hour used 18,855.
+
+Beyond 90 minutes the next wall is browser memory during conversion, roughly 440MB per hour of audio,
+which is why lifting the limit further means chunking rather than a bigger number (see TODO.md).
+
+The upload screen no longer flips its label on a 12-second timer, which claimed "정리 중" while four
+minutes of transcription were still running. It now shows one honest label plus an estimate derived
+from the measured rate (58 minutes reads "약 5분 예상", against 4.5 minutes actual).
+
+Duration is read from a media element on selection, before any upload or decoding — measured at 76ms
+for a 56MB file — and applies to **every** file, not only the ones that get converted: a small but
+very long recording would otherwise sail past the size checks and time out during transcription.
+
+#### Format list, checked end to end
+
+Every extension offered in the picker was traced through all four gates (picker → client validation →
+Supabase `allowed_mime_types` → Gemini), and all eight pass. Two problems were found and fixed this way:
+
+- **AIFF was offered but could never be uploaded.** `audio/aiff` is not in the bucket's allowed MIME
+  list, and Chromium reports `canPlayType("audio/aiff") === "no"`, so conversion would have failed too.
+  Removed from `MIME_BY_EXTENSION`.
+- The upload screen listed six formats while the picker accepted ten. The visible list, the picker,
+  and both "wrong format" error messages now come from one constant, `CONSULTATION_FORMAT_LABEL`.
+
+Measured in-browser, tab hidden: a 100.9MB 10-minute stereo WAV became a 2.29MB MP3 in 7.3 seconds, a
+44x reduction, and decoded back to exactly 600.1 seconds at 16 kHz mono. An hour of audio lands around
+13.7MB, roughly a quarter of the cap.
 
 File size guidance from test:
 

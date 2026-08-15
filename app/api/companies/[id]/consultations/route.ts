@@ -11,7 +11,26 @@ import {
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 300;
+/** 800s is the Vercel Pro ceiling. Transcribing an hour of audio genuinely needs minutes, not seconds. */
+export const maxDuration = 800;
+
+/**
+ * Upload, transcription, and analysis each retry, and together they can outrun `maxDuration`.
+ * A platform kill skips the catch block that marks the row failed, which would leave the record
+ * stuck on "처리 중" forever, so every phase draws from one budget that ends before the kill.
+ *
+ * The per-attempt transcription cap was 150s and that was simply too small: a measured 58-minute
+ * recording takes about 221s of API time (plus up to 50s of 503 backoff) and returns a complete
+ * 33,000-character transcript. The old cap aborted it mid-flight and recorded a timeout.
+ */
+const ROUTE_BUDGET_MS = 780_000;
+const UPLOAD_BUDGET_MS = 90_000;
+const ANALYSIS_RESERVE_MS = 90_000;
+const TRANSCRIPTION_CALL_MS = 420_000;
+const ANALYSIS_CALL_MS = 90_000;
+/** 503 spikes on this model have lasted through four straight attempts; the budget can absorb waiting them out. */
+const TRANSCRIPTION_RETRY_WAIT_MS = 240_000;
+const ANALYSIS_RETRY_WAIT_MS = 60_000;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -108,7 +127,21 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       const { data: signed } = await supabase.storage.from(CONSULTATION_AUDIO_BUCKET).createSignedUrl(item.storage_path, 60 * 60);
       return { ...item, audio_url: signed?.signedUrl || undefined };
     }));
-    return Response.json({ consultations });
+
+    // Tolerated rather than required: the column arrives with a migration, and the per-consultation
+    // view has to keep working on a database that has not had it applied yet.
+    let briefing = null;
+    const { data: companyRow, error: briefingError } = await supabase
+      .from("company_research")
+      .select("consultation_briefing")
+      .eq("id", id)
+      .maybeSingle();
+    if (briefingError) console.error(`[consultations] 통합 브리핑 조회 실패: ${briefingError.message}`);
+    else if (companyRow?.consultation_briefing && Object.keys(companyRow.consultation_briefing).length) {
+      briefing = companyRow.consultation_briefing;
+    }
+
+    return Response.json({ consultations, briefing });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "상담 기록을 불러오지 못했습니다." }, { status: 500 });
   }
@@ -117,6 +150,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireTeamSession();
   if (unauthorized) return unauthorized;
+  const startedAt = Date.now();
+  const remainingMs = () => ROUTE_BUDGET_MS - (Date.now() - startedAt);
   let consultationId = "";
   let geminiFileName = "";
   try {
@@ -158,7 +193,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const { data: storedFile, error: downloadError } = await supabase.storage.from(CONSULTATION_AUDIO_BUCKET).download(storagePath);
     if (downloadError || !storedFile) throw downloadError || new Error("녹취파일을 불러오지 못했습니다.");
-    const uploadedFile = await uploadGeminiFile(Buffer.from(await storedFile.arrayBuffer()), fileName, audio.mimeType);
+    const uploadedFile = await uploadGeminiFile(Buffer.from(await storedFile.arrayBuffer()), fileName, audio.mimeType, Math.min(UPLOAD_BUDGET_MS, remainingMs()));
     geminiFileName = uploadedFile.name;
 
     const transcriptionResult = await generateWithGemini({
@@ -168,7 +203,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       responseSchema: transcriptSchema,
       temperature: 0,
       maxOutputTokens: 65_536,
-      timeoutMs: 240_000,
+      timeoutMs: TRANSCRIPTION_CALL_MS,
+      budgetMs: remainingMs() - ANALYSIS_RESERVE_MS,
+      maxRetryWaitMs: TRANSCRIPTION_RETRY_WAIT_MS,
     });
     const transcript = cleanTranscript(JSON.parse(transcriptionResult.text) as ConsultationTranscript);
     if (!transcript.segments.length) throw new Error("녹취에서 대화 내용을 확인하지 못했습니다.");
@@ -182,7 +219,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       responseSchema: summarySchema,
       temperature: 0.1,
       maxOutputTokens: 16_384,
-      timeoutMs: 180_000,
+      timeoutMs: ANALYSIS_CALL_MS,
+      budgetMs: remainingMs(),
+      maxRetryWaitMs: ANALYSIS_RETRY_WAIT_MS,
     });
     const summary = cleanSummary(JSON.parse(analysisResult.text) as ConsultationSummary);
 

@@ -12,6 +12,7 @@
     "lint": "eslint . --ignore-pattern .next"
   },
   "dependencies": {
+    "@breezystack/lamejs": "^1.2.7",
     "@pdf-lib/fontkit": "^1.1.1",
     "@supabase/ssr": "0.7.0",
     "@supabase/supabase-js": "2.57.4",

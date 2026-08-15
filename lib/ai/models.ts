@@ -62,6 +62,23 @@ export const AI_ROLE_CONFIG: Record<
   },
 };
 
+/**
+ * Used when the primary model answers 503 for a whole retry window. Overload is per model, not per
+ * key: measured 2026-08-15 on one 58-minute recording within the same minute, gemini-3.6-flash and
+ * gemini-3.7-flash both returned 503 while gemini-3.5-flash accepted the identical request.
+ */
+export const FALLBACK_MODELS: Record<ModelTier, string> = {
+  fast: process.env.GEMINI_MODEL_FAST_FALLBACK || "gemini-3.1-flash-lite",
+  balanced: process.env.GEMINI_MODEL_BALANCED_FALLBACK || "gemini-3.5-flash",
+  deep: process.env.GEMINI_MODEL_DEEP_FALLBACK || "gemini-3.6-flash",
+};
+
 export function getModelForRole(role: AIRole) {
   return AI_ROLE_CONFIG[role].model;
+}
+
+/** Null when the fallback would just be the primary again. */
+export function getFallbackModelForRole(role: AIRole) {
+  const fallback = FALLBACK_MODELS[AI_ROLE_CONFIG[role].tier];
+  return fallback && fallback !== getModelForRole(role) ? fallback : null;
 }
