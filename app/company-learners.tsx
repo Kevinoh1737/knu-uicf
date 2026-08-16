@@ -136,7 +136,6 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
     <div className="content-title">
       <div>
         <h2>수강생</h2>
-        <p>고객사가 보내 준 명단 엑셀을 올리거나 직접 입력합니다. 여기 등록한 사람은 수강생 메뉴에서도 보입니다.</p>
       </div>
       <div className="title-actions">
         <label className="upload-chip">
@@ -182,7 +181,7 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
     {loading
       ? <p className="body-text">불러오는 중</p>
       : learners.length === 0
-        ? <p className="body-text">등록된 수강생이 없습니다. {companyName}에서 받은 명단 엑셀을 올려 보세요.</p>
+        ? <p className="body-text">등록된 수강생이 없습니다. {companyName} 명단 엑셀을 올려 보세요.</p>
         : <div className="learner-table">
             <table>
               <thead><tr><th>이름</th><th>부서 · 직급</th><th>이메일</th><th>수강</th><th /></tr></thead>

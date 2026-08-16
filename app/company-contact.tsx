@@ -127,7 +127,6 @@ export function CompanyContactPanel({ companyId, initial, onSaved, openSignal }:
           <div>
             <span>COMPANY CONTACT</span>
             <h2>담당자 정보</h2>
-            <p>명함 사진이나 리멤버 텍스트를 넣으면 자동으로 채워집니다.</p>
           </div>
           <button className="modal-close" type="button" onClick={() => setOpen(false)} aria-label="닫기" disabled={busy}>×</button>
         </div>

@@ -98,7 +98,7 @@ export function LearnersPanel() {
       ? <p className="instructor-empty">수강생 목록 불러오는 중</p>
       : visible.length === 0
         ? <p className="instructor-empty">
-            {learners.length ? "검색 결과가 없습니다." : "등록된 수강생이 없습니다. 참석자 명단 PDF를 올리면 표에서 사람을 뽑아 정리합니다."}
+            {learners.length ? "검색 결과가 없습니다." : "등록된 수강생이 없습니다. 명단 PDF를 올리면 사람을 뽑아 정리합니다."}
           </p>
         : <div className="learner-table">
             <table>
@@ -217,7 +217,7 @@ function RosterModal({ companies, onClose, onSaved }: {
           <h2>{phase === "review" ? "확인 후 등록" : "수강생 명단 등록"}</h2>
           <p>{phase === "review"
             ? `${rows.length}명을 찾았습니다. 잘못 읽힌 줄은 지우고 등록하세요.`
-            : "참석자 명단 PDF를 올리면 표에서 사람을 뽑아 정리합니다."}</p>
+            : "명단 PDF에서 사람을 뽑아 정리합니다."}</p>
         </div>
         <button className="modal-close" type="button" onClick={onClose} aria-label="닫기" disabled={busy}>×</button>
       </div>

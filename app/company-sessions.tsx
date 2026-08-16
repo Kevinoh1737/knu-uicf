@@ -82,9 +82,9 @@ function SessionSurvey({ session, busy, onSend, onCreate }: {
         </button>
         <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer">설문지 PDF</a>
       </div>
-      <p className="survey-hint">문항 편집과 응답 상세는 왼쪽 메뉴의 만족도에서 볼 수 있습니다.</p>
+      <p className="survey-hint">문항 편집·응답 상세는 만족도 메뉴에서</p>
     </> : <>
-      <p className="body-text">아직 설문지가 없습니다. 만들고 나면 만족도 메뉴에서 문항을 다듬을 수 있습니다.</p>
+      <p className="body-text">아직 설문지가 없습니다.</p>
       <div className="session-actions">
         <button type="button" className="upload-chip" disabled={busy} onClick={onCreate}>설문지 만들기</button>
       </div>
@@ -487,7 +487,6 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
     <div className="content-title">
       <div>
         <h2>교육 진행</h2>
-        <p>교육과정을 만들고, 강사를 배정하고, 브리프를 전달하고, 받은 자료를 등록합니다.</p>
       </div>
       <div className="title-actions">
         {/* 교육 완료·취소는 사람이 정한다(일정이 지났다고 자동으로 넘어가지 않는다). 다만

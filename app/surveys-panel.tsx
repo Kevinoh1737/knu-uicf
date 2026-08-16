@@ -80,7 +80,6 @@ export function SurveysPanel() {
     <div className="content-title">
       <div>
         <h2>만족도 설문</h2>
-        <p>교육과정마다 설문지를 한 장씩 만듭니다. 초안은 AI 가 강의 내용을 보고 작성하고, 최종 문항은 담당자가 정합니다.</p>
       </div>
     </div>
 
@@ -90,7 +89,7 @@ export function SurveysPanel() {
       : items.length === 0
         ? <div className="company-empty"><span><Icon name="survey" size={26}/></span>
             <h2>교육과정이 아직 없습니다</h2>
-            <p>기업 화면에서 교육과정을 만들면<br/>여기에서 만족도 설문지를 붙일 수 있습니다.</p></div>
+            <p>기업 화면에서 교육과정을 만들면<br/>여기에 설문지를 붙일 수 있습니다.</p></div>
         : <div className="survey-list">
             {items.map((item) => <article key={item.sessionId} className="survey-row">
               <div className="survey-row-main">
@@ -249,7 +248,6 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     <div className="content-title">
       <div>
         <h2>{title || "만족도 설문지"}</h2>
-        <p>문항을 고치고 저장하면 바로 반영됩니다. 이미 응답이 있으면 문항 삭제는 막힙니다.</p>
       </div>
       <div className="title-actions">
         <button type="button" className="upload-chip" onClick={() => void draft()} disabled={Boolean(busy)}>
@@ -291,7 +289,7 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
           onChange={(event) => { setTitle(event.target.value); setDirty(true); }} />
       </label>
       <label>안내 문구
-        <textarea rows={2} value={intro} disabled={Boolean(busy)} placeholder="수강생이 설문 첫 화면에서 읽는 안내입니다."
+        <textarea rows={2} value={intro} disabled={Boolean(busy)} placeholder="수강생이 처음 보는 안내"
           onChange={(event) => { setIntro(event.target.value); setDirty(true); }} />
       </label>
     </div>

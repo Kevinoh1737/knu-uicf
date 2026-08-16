@@ -148,7 +148,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
     {loading
       ? <p className="instructor-empty">강사 목록 불러오는 중</p>
       : visible.length === 0
-        ? <p className="instructor-empty">{instructors.length ? "검색 결과가 없습니다." : "등록된 강사가 없습니다. 강사가 제출한 프로필 PDF를 올리면 양식이 자동으로 채워집니다."}</p>
+        ? <p className="instructor-empty">{instructors.length ? "검색 결과가 없습니다." : "등록된 강사가 없습니다. 프로필 PDF를 올리면 양식이 채워집니다."}</p>
         : <div className="instructor-list">
             {visible.map((instructor) => <article key={instructor.id}>
               <span className={`avatar ${toneFor(instructor.name)}`}>{surname(instructor.name)}</span>
@@ -280,11 +280,7 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
         <div>
           <span>NEW INSTRUCTOR</span>
           <h2>{phase === "review" ? "확인 후 저장" : "강사 등록"}</h2>
-          <p>{phase === "review"
-            ? "추출한 내용을 확인하고 고칠 수 있습니다."
-            : mode === "file"
-              ? "강사가 제출한 프로필 파일을 올리면 양식이 채워집니다."
-              : "필요한 항목만 채우면 됩니다. 나중에 프로필 파일을 올려 보완할 수 있습니다."}</p>
+          <p>{phase === "review" ? "확인하고 고친 뒤 저장" : mode === "file" ? "프로필 PDF를 올리면 양식이 채워집니다" : "필요한 항목만"}</p>
         </div>
         <button className="modal-close" type="button" onClick={onClose} aria-label="닫기" disabled={busy}>×</button>
       </div>
@@ -533,7 +529,7 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
         <p className="body-text">
           집계·패턴 활용 {instructor.reuse_aggregate ? "동의" : "미동의"} · 원본 제공 {instructor.reuse_share_original ? "동의" : "미동의"}
         </p>
-        <small className="footnote">계약서에서 합의한 결과입니다.</small>
+        <small className="footnote">계약서에서 합의한 내용</small>
       </article>
 
       <article>
