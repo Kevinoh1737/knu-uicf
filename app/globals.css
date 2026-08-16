@@ -255,3 +255,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 /* 공용 .input-tabs 는 3열 고정(!important)이라 두 갈래인 이 모달에서는 열 수를 맞춰 준다. */
 .instructor-modal .input-tabs{grid-template-columns:repeat(2,minmax(0,1fr))!important}
 .instructor-modal .input-panel{height:auto;min-height:0;padding-top:18px}
+.company-sessions{background:#fff;border:1px solid var(--line);border-radius:11px;padding:4px 18px 8px}
+.company-sessions .session-meta{gap:12px}
+.tab-content .session-form{background:#fff}
