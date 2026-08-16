@@ -181,6 +181,7 @@ type Phase = "pick" | "uploading" | "extracting" | "review" | "saving";
 
 function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCreated: (instructor: InstructorItem) => void }) {
   const [phase, setPhase] = useState<Phase>("pick");
+  const [mode, setMode] = useState<"file" | "manual">("file");
   const [profile, setProfile] = useState<InstructorProfile>(EMPTY_PROFILE);
   const [source, setSource] = useState<{ storagePath: string; fileName: string; mimeType: string; fileSize: number; parsed: boolean } | null>(null);
   const [notice, setNotice] = useState("");
@@ -188,6 +189,8 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const busy = phase === "uploading" || phase === "extracting" || phase === "saving";
+  // 직접 입력을 고른 순간부터 양식을 보여준다. 파일 경로에서는 추출이 끝난 뒤에 나온다.
+  const showForm = phase === "review" || (phase === "pick" && mode === "manual");
 
   const handleFile = async (file: File) => {
     // 실패한 파일을 다시 고를 수 있도록 무엇보다 먼저 입력을 비운다. 같은 파일 재선택은
@@ -279,29 +282,31 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
         <div>
           <span>NEW INSTRUCTOR</span>
           <h2>{phase === "review" ? "확인 후 저장" : "강사 등록"}</h2>
-          <p>{phase === "review" ? "추출한 내용을 확인하고 고칠 수 있습니다." : "프로필 파일을 올리면 양식이 채워집니다. 직접 입력해도 됩니다."}</p>
+          <p>{phase === "review"
+            ? "추출한 내용을 확인하고 고칠 수 있습니다."
+            : mode === "file"
+              ? "강사가 제출한 프로필 파일을 올리면 양식이 채워집니다."
+              : "필요한 항목만 채우면 됩니다. 나중에 프로필 파일을 올려 보완할 수 있습니다."}</p>
         </div>
         <button className="modal-close" type="button" onClick={onClose} aria-label="닫기" disabled={busy}>×</button>
       </div>
 
-      {phase !== "review" && <>
-        <label className="drop-mini">
-          <input ref={fileInputRef} className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busy}
-            onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} />
-          프로필 파일 선택
-          <small>{INSTRUCTOR_FORMAT_LABEL} · 최대 50MB · 자동 추출은 PDF</small>
-        </label>
-        <div className="auto-preview">
-          <span>✦</span>
-          <div>
-            <b>주민등록번호·계좌번호는 추출하지 않습니다</b>
-            <p>이름, 소속, 연락처, 전문분야, 경력, 학력, 강의 이력만 우리 양식으로 정리합니다.</p>
-          </div>
-        </div>
-        <button type="button" className="link-button" onClick={() => setPhase("review")} disabled={busy}>파일 없이 직접 입력</button>
-      </>}
+      {phase === "pick" && <div className="input-tabs" role="tablist" aria-label="강사 등록 방법">
+        {([["file", "01", "프로필 파일"], ["manual", "02", "직접 입력"]] as const).map(([id, number, label]) =>
+          <button type="button" role="tab" key={id} aria-selected={mode === id} className={mode === id ? "active" : ""}
+            onClick={() => { setMode(id); setError(""); setNotice(""); }} disabled={busy}>
+            <span>{number}</span>{label}
+          </button>)}
+      </div>}
 
-      {phase === "review" && <div className="profile-form">
+      {phase === "pick" && mode === "file" && <label className="drop-mini">
+        <input ref={fileInputRef} className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busy}
+          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} />
+        프로필 파일 선택
+        <small>{INSTRUCTOR_FORMAT_LABEL} · 최대 50MB · 자동 추출은 PDF</small>
+      </label>}
+
+      {showForm && <div className="profile-form">
         {field("이름", "name", "홍길동")}
         <div className="form-row">{field("소속", "affiliation", "○○컨설팅")}{field("직함", "jobTitle", "대표 강사")}</div>
         <div className="form-row">{field("업무 이메일", "email", "name@example.com")}{field("연락처", "phone", "010-0000-0000")}</div>
@@ -329,7 +334,7 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
 
       <div className="modal-actions">
         <button type="button" onClick={onClose} disabled={busy}>취소</button>
-        {phase === "review" && <button type="button" className="primary-small" onClick={save} disabled={busy}>강사 저장</button>}
+        {showForm && <button type="button" className="primary-small" onClick={save} disabled={busy}>강사 저장</button>}
       </div>
     </div>
   </div>;

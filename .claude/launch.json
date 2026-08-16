@@ -5,7 +5,8 @@
       "name": "knu-uicf",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3000
+      "env": { "PORT": "3100" },
+      "port": 3100
     }
   ]
 }
