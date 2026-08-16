@@ -6,10 +6,11 @@
  * '교육 취소'는 사람이 판단하는 것이라 저장한다. 일정이 지났다고 자동으로 넘기지 않는다.
  */
 export type StoredStage = "research_complete" | "training_complete" | "cancelled";
-export type CompanyStage = StoredStage | "instructor_assigned";
+export type CompanyStage = StoredStage | "course_created" | "instructor_assigned";
 
 export const STAGE_LABEL: Record<CompanyStage, string> = {
   research_complete: "조사 완료",
+  course_created: "교육과정 생성",
   instructor_assigned: "강사 배정 완료",
   training_complete: "교육 완료",
   cancelled: "교육 취소",
@@ -18,6 +19,7 @@ export const STAGE_LABEL: Record<CompanyStage, string> = {
 /** 배지 색. 진행 중 · 끝남 · 멈춤을 구분한다. */
 export const STAGE_TONE: Record<CompanyStage, string> = {
   research_complete: "neutral",
+  course_created: "progress",
   instructor_assigned: "progress",
   training_complete: "done",
   cancelled: "stopped",
@@ -30,16 +32,19 @@ export function isStoredStage(value: unknown): value is StoredStage {
 }
 
 /**
- * 저장된 값이 사람의 판단이면 그것을 따르고, 아니면 강의 유무로 정한다.
- * 스키마 기본값이 'research_complete' 라 예전 행도 그대로 지나간다.
+ * 저장된 값이 사람의 판단이면 그것을 따르고, 아니면 진행 상황에서 읽는다.
+ *
+ * 교육과정을 만든 것과 강사를 배정한 것은 다른 단계다. 과정 수만 세면 강사가 없는데도
+ * '강사 배정 완료'로 보인다 — 실제 순서가 과정 생성 → 강사 배정이므로 둘을 가른다.
  */
-export function resolveStage(stored: unknown, sessionCount: number): CompanyStage {
+export function resolveStage(stored: unknown, sessionCount: number, assignedCount = sessionCount): CompanyStage {
   if (stored === "training_complete" || stored === "cancelled") return stored;
-  return sessionCount > 0 ? "instructor_assigned" : "research_complete";
+  if (assignedCount > 0) return "instructor_assigned";
+  return sessionCount > 0 ? "course_created" : "research_complete";
 }
 
-export function stageLabel(stored: unknown, sessionCount: number) {
-  return STAGE_LABEL[resolveStage(stored, sessionCount)];
+export function stageLabel(stored: unknown, sessionCount: number, assignedCount = sessionCount) {
+  return STAGE_LABEL[resolveStage(stored, sessionCount, assignedCount)];
 }
 
 /**

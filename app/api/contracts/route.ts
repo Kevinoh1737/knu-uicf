@@ -29,6 +29,10 @@ export async function POST(request: Request) {
       .eq("id", body.courseSessionId)
       .single();
     if (sessionError || !session) throw sessionError || new Error("강의를 찾지 못했습니다.");
+    // 계약은 강사와 맺는 것이라 배정 전에는 만들 수 없다.
+    if (!session.instructor_id) {
+      return Response.json({ error: "강사를 먼저 배정해 주세요." }, { status: 409 });
+    }
 
     // 한 강의에 살아 있는 계약은 하나다. 철회·반려된 것만 남아 있으면 새로 만들 수 있다.
     const { data: existing } = await supabase

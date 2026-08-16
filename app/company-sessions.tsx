@@ -49,7 +49,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
-  const [form, setForm] = useState({ instructorId: "", title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
+  const [form, setForm] = useState({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
   const [stage, setStage] = useState<StoredStage>((storedStage as StoredStage) || "research_complete");
 
   const reload = () => fetch(`/api/companies/${companyId}/sessions`)
@@ -87,26 +87,44 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
 
   const createSession = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.instructorId) return setFeedback({ message: "강사를 선택해 주세요.", error: true });
     if (!form.title.trim()) return setFeedback({ message: "과정명을 입력해 주세요.", error: true });
     setBusyId("new"); setFeedback(null);
     try {
       const response = await fetch("/api/course-sessions", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId, instructorId: form.instructorId, title: form.title, heldOn: form.heldOn,
+          companyId, title: form.title, heldOn: form.heldOn,
           location: form.location, headcount: Number(form.headcount) || undefined,
           durationHours: Number(form.durationHours) || 4,
         }),
       });
       const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || "강의를 등록하지 못했습니다.");
+      if (!response.ok) throw new Error(result.error || "교육과정을 만들지 못했습니다.");
       await reload();
       setAdding(false);
-      setForm({ instructorId: "", title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
-      setFeedback({ message: "강사를 배정했습니다. 브리프를 내려받아 전달하세요.", error: false });
+      setForm({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
+      setFeedback({ message: "교육과정을 만들었습니다. 이어서 강사를 배정하세요.", error: false });
     } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "강의를 등록하지 못했습니다.", error: true });
+      setFeedback({ message: caught instanceof Error ? caught.message : "교육과정을 만들지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  const assignInstructor = async (sessionId: string, instructorId: string) => {
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${sessionId}/assign`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instructorId: instructorId || null }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "강사를 배정하지 못했습니다.");
+      await reload();
+      setFeedback({
+        message: instructorId ? "강사를 배정했습니다. 브리프를 내려받아 전달하세요." : "강사 배정을 해제했습니다.",
+        error: false,
+      });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "강사를 배정하지 못했습니다.", error: true });
     } finally { setBusyId(""); }
   };
 
@@ -168,10 +186,10 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
     <div className="content-title">
       <div>
         <h2>교육 진행</h2>
-        <p>강사를 배정하고, 브리프를 전달하고, 받은 자료를 등록합니다.</p>
+        <p>교육과정을 만들고, 강사를 배정하고, 브리프를 전달하고, 받은 자료를 등록합니다.</p>
       </div>
-      <button type="button" onClick={() => setAdding((current) => !current)} disabled={!instructors.length}>
-        {adding ? "닫기" : "＋ 강사 배정"}
+      <button type="button" onClick={() => setAdding((current) => !current)}>
+        {adding ? "닫기" : "＋ 교육과정 생성"}
       </button>
     </div>
 
@@ -192,18 +210,10 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
     </div>
 
     {!loading && !instructors.length && <p className="body-text">
-      등록된 강사가 없습니다. 강사 풀에서 먼저 강사를 등록해 주세요.
+      등록된 강사가 없습니다. 교육과정은 만들 수 있지만 배정하려면 강사 메뉴에서 먼저 등록해 주세요.
     </p>}
 
     {adding && <form className="session-form" onSubmit={createSession} aria-busy={busyId === "new"}>
-      <label>강사
-        <select value={form.instructorId} onChange={set("instructorId")} required disabled={busyId === "new"}>
-          <option value="">선택하세요</option>
-          {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
-            {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
-          </option>)}
-        </select>
-      </label>
       <label>과정명<input value={form.title} onChange={set("title")} placeholder="생성형 AI 업무 적용" required disabled={busyId === "new"} /></label>
       <div className="form-row">
         <label>교육 일자<input type="date" value={form.heldOn} onChange={set("heldOn")} disabled={busyId === "new"} /></label>
@@ -215,7 +225,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
       </div>
       <div className="modal-actions">
         <button type="submit" className="primary-small" disabled={busyId === "new"}>
-          {busyId === "new" ? "배정 중" : "강사 배정"}
+          {busyId === "new" ? "생성 중" : "교육과정 생성"}
         </button>
       </div>
     </form>}
@@ -225,7 +235,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
     {loading
       ? <p className="body-text">불러오는 중</p>
       : sessions.length === 0
-        ? <p className="body-text">아직 배정된 강의가 없습니다.</p>
+        ? <p className="body-text">아직 만든 교육과정이 없습니다.</p>
         : <div className="session-list company-sessions">
             {sessions.map((session) => {
               const open = openId === session.id;
@@ -235,8 +245,8 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
               return <div className={open ? "session open" : "session"} key={session.id}>
                 <button type="button" onClick={() => setOpenId(open ? null : session.id)}>
                   <div>
-                    <b>{session.instructors?.name || "강사 미상"}</b>
-                    <p>{session.title}</p>
+                    <b>{session.title}</b>
+                    <p>{session.instructors?.name ? `${session.instructors.name} 강사` : "강사 미배정"}</p>
                   </div>
                   <div className="session-meta">
                     {/* 준비 상태가 목록에서 바로 보여야 "누구를 재촉할지"가 눈에 들어온다. */}
@@ -249,7 +259,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                 </button>
                 {open && <div className="session-body">
                   <dl>
-                    <div><dt>소속</dt><dd>{session.instructors?.affiliation || "미입력"}</dd></div>
+                    <div><dt>강사</dt><dd>{session.instructors?.name || "미배정"}</dd></div>
                     <div><dt>인원</dt><dd>{session.headcount ? `${session.headcount}명` : "미정"}</dd></div>
                     <div><dt>시간</dt><dd>{session.duration_hours}시간</dd></div>
                     <div><dt>계약</dt><dd>{session.contract ? `${CONTRACT_STATUS_LABEL[session.contract.status]} · ${session.contract.contract_no}` : "미작성"}</dd></div>
@@ -265,6 +275,18 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                     맞춤 사례 {ratio}% · 사용 사례 {session.materials.caseExamples.length}건
                     {ratio < 50 && " — 일반 사례 비중이 높습니다"}
                   </p>}
+
+                  <div className="assign-row">
+                    <label>담당 강사
+                      <select value={session.instructor_id || ""} disabled={busyId === session.id}
+                        onChange={(event) => void assignInstructor(session.id, event.target.value)}>
+                        <option value="">미배정</option>
+                        {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
+                          {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
+                        </option>)}
+                      </select>
+                    </label>
+                  </div>
 
                   <div className="session-actions">
                     <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer">
@@ -283,7 +305,9 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                     </label>)}
                     {session.contract
                       ? <a className="upload-chip" href={`/api/contracts/${session.contract.id}/pdf`} target="_blank" rel="noreferrer">계약서 열기</a>
-                      : <button type="button" className="upload-chip" disabled={busyId === session.id} onClick={() => void createContract(session.id)}>
+                      : <button type="button" className="upload-chip" disabled={busyId === session.id || !session.instructor_id}
+                          title={session.instructor_id ? undefined : "강사를 배정하면 만들 수 있습니다"}
+                          onClick={() => void createContract(session.id)}>
                           계약서 만들기
                         </button>}
                   </div>

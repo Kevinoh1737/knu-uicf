@@ -55,6 +55,7 @@ type CompanyItem = {
   stage: string;
   storedStage?: string;
   sessionCount?: number;
+  assignedCount?: number;
   owner: string;
   progress: number;
   date: string;
@@ -261,7 +262,7 @@ function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { compan
       setDeletingId("");
     }
   };
-  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위의 <b>새 기업 조사</b>에서 홈페이지를 입력하면<br/>웹사이트·OpenDART·공개 채용정보를 함께 분석합니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <article className="company-card" key={c.id || c.name}><button type="button" className="company-card-open" onClick={() => onSelectCompany(c)} aria-label={`${displayCompanyName(c.name)} 조사 결과 열기`}><div className="company-card-heading"><h3>{displayCompanyName(c.name)}</h3><span className={`stage ${STAGE_TONE[resolveStage(c.storedStage, c.sessionCount || 0)]}`}>{stageLabel(c.storedStage, c.sessionCount || 0)}</span></div><p>{c.field}</p></button><button type="button" className="company-card-delete" onClick={() => deleteCompany(c)} aria-label={`${displayCompanyName(c.name)} 삭제`} title="삭제" disabled={!c.id || deletingId === c.id}>{deletingId === c.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}</button></article>)}</div></>}
+  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위의 <b>새 기업 조사</b>에서 홈페이지를 입력하면<br/>웹사이트·OpenDART·공개 채용정보를 함께 분석합니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <article className="company-card" key={c.id || c.name}><button type="button" className="company-card-open" onClick={() => onSelectCompany(c)} aria-label={`${displayCompanyName(c.name)} 조사 결과 열기`}><div className="company-card-heading"><h3>{displayCompanyName(c.name)}</h3><span className={`stage ${STAGE_TONE[resolveStage(c.storedStage, c.sessionCount || 0, c.assignedCount || 0)]}`}>{stageLabel(c.storedStage, c.sessionCount || 0, c.assignedCount || 0)}</span></div><p>{c.field}</p></button><button type="button" className="company-card-delete" onClick={() => deleteCompany(c)} aria-label={`${displayCompanyName(c.name)} 삭제`} title="삭제" disabled={!c.id || deletingId === c.id}>{deletingId === c.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}</button></article>)}</div></>}
   </section>;
 }
 
@@ -709,7 +710,7 @@ function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCr
     const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
     const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
     if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
-    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0), storedStage: "research_complete", sessionCount: 0, owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
+    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0, 0), storedStage: "research_complete", sessionCount: 0, assignedCount: 0, owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
     onClose();
   };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -764,13 +765,13 @@ export default function Home() {
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
   // 상세에서 바꾼 상태를 목록 카드에도 즉시 반영한다. 다시 불러오지 않으면 배지가 옛값으로 남는다.
   const updateStage = (id: string, stage: string) => setCompanyItems(current => current.map(item =>
-    item.id === id ? { ...item, storedStage: stage, stage: stageLabel(stage, item.sessionCount || 0) } : item));
+    item.id === id ? { ...item, storedStage: stage, stage: stageLabel(stage, item.sessionCount || 0, item.assignedCount || 0) } : item));
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
     fetch("/api/companies").then(async response => {
-      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
+      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
       if (!response.ok) throw new Error("기업 목록 조회 실패");
-      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };

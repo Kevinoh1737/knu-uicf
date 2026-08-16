@@ -14,24 +14,27 @@ export async function GET() {
       .order("updated_at", { ascending: false });
     if (error) throw error;
 
-    // '강사 배정 완료'는 저장하지 않고 강의 유무로 정한다 — lib/company-stage.ts 참고.
+    // 교육과정 생성과 강사 배정은 다른 단계라 따로 센다 — lib/company-stage.ts 참고.
     const { data: sessions, error: sessionsError } = await supabase
       .from("course_sessions")
-      .select("company_id,status");
+      .select("company_id,status,instructor_id");
     if (sessionsError) throw sessionsError;
 
-    const counts = new Map<string, number>();
+    const counts = new Map<string, { total: number; assigned: number }>();
     (sessions || []).forEach((session) => {
       if (session.status === "cancelled") return;
       const key = session.company_id as string;
-      counts.set(key, (counts.get(key) || 0) + 1);
+      const current = counts.get(key) || { total: 0, assigned: 0 };
+      current.total += 1;
+      if (session.instructor_id) current.assigned += 1;
+      counts.set(key, current);
     });
 
     return Response.json({
-      companies: (data || []).map((company) => ({
-        ...company,
-        sessionCount: counts.get(company.id as string) || 0,
-      })),
+      companies: (data || []).map((company) => {
+        const count = counts.get(company.id as string) || { total: 0, assigned: 0 };
+        return { ...company, sessionCount: count.total, assignedCount: count.assigned };
+      }),
     });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "기업 목록을 불러오지 못했습니다." }, { status: 500 });
