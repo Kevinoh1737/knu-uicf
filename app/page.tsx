@@ -18,9 +18,10 @@ import {
 import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, readAudioDuration } from "@/lib/audio/compress";
 import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructors-panel";
 import { CompanySessionsTab } from "./company-sessions";
+import { LearnersPanel } from "./learners-panel";
 import { Icon, IconName, formatFileSize } from "./ui";
 
-type View = "companies" | "company" | "instructors" | "instructor";
+type View = "companies" | "company" | "instructors" | "instructor" | "learners";
 
 type ResearchReport = {
   companyName: string; industry: string; headline: string; summary: string; keywords: string[]; comparisonTags?: string[];
@@ -176,8 +177,9 @@ function findSimilarCompanies(company: CompanyItem, companies: CompanyItem[] = [
 }
 
 const nav = [
-  { id: "companies" as View, icon: "building" as IconName, label: "기업 조사" },
-  { id: "instructors" as View, icon: "person" as IconName, label: "강사 풀" },
+  { id: "companies" as View, icon: "building" as IconName, label: "기업" },
+  { id: "instructors" as View, icon: "person" as IconName, label: "강사" },
+  { id: "learners" as View, icon: "survey" as IconName, label: "수강생" },
 ];
 
 function CompanyLogo({ company, size = "" }: { company: CompanyItem; size?: "large" | "xl" | "" }) {
@@ -211,10 +213,11 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
 
 function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string }) {
   const titles: Record<View, [string, string]> = {
-    companies: ["기업 조사", "기업 정보와 교육 수요 조사"],
+    companies: ["기업", "기업 정보와 교육 수요 조사"],
     company: [displayCompanyName(selectedCompany.name), ""],
-    instructors: ["강사 풀", "강사 프로필과 강의 이력"],
+    instructors: ["강사", "강사 프로필과 강의 이력"],
     instructor: [selectedInstructorName || "강사", ""],
+    learners: ["수강생", "참석자 명단과 수강 이력"],
   };
   // 새 기업 조사는 기업 화면의 동작이다. 강사 화면에서 누르면 맥락이 어긋난다.
   const showNew = view === "companies" || view === "company";
@@ -750,7 +753,9 @@ export default function Home() {
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };
-  const content = view === "instructor" && selectedInstructor
+  const content = view === "learners"
+    ? <LearnersPanel/>
+    : view === "instructor" && selectedInstructor
     ? <InstructorDetail key={selectedInstructor.id} instructor={selectedInstructor} onBack={() => setView("instructors")}/>
     : view === "instructors"
       ? <InstructorsPanel onSelect={selectInstructor}/>

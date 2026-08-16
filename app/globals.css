@@ -258,3 +258,14 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .company-sessions{background:#fff;border:1px solid var(--line);border-radius:11px;padding:4px 18px 8px}
 .company-sessions .session-meta{gap:12px}
 .tab-content .session-form{background:#fff}
+/* ─── 수강생 ─────────────────────────────────────────────────────────────── */
+.learner-table{overflow:auto}
+.learner-table table,.roster-review table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
+.learner-table th,.learner-table td,.roster-review th,.roster-review td{text-align:left;border-bottom:1px solid #edf0ee;padding:12px 14px;font-size:12px}
+.learner-table th,.roster-review th{color:#8c9591;font-weight:500;background:#f3f5f4;font-size:11px}
+.learner-table td .muted,.roster-review td .muted{color:#a3aaa7}
+.row-delete{border:0;background:transparent;color:#a3aaa7;font-size:11px;padding:4px 6px}
+.row-delete:hover:not(:disabled){color:#b4462f}
+.roster-review{max-height:320px;overflow:auto;margin-top:18px;border:1px solid var(--line);border-radius:10px}
+.toolbar select.filter{min-width:150px}
+.instructor-modal label>select{display:block;width:100%;height:44px;border:1px solid var(--line);border-radius:8px;margin-top:8px;padding:0 12px;font-size:11px;outline:0;background:#fff}

@@ -8,7 +8,9 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 
-const KINDS = new Set(["profile", "outline", "materials", "signed_contract"]);
+// roster 는 수강생 명단이다. 추출에만 쓰고 instructor_documents 행으로 남기지 않으므로
+// 그 테이블의 kind 제약과는 무관하다 — 저장 경로만 나눈다.
+const KINDS = new Set(["profile", "outline", "materials", "signed_contract", "roster"]);
 
 export async function POST(request: Request) {
   const unauthorized = await requireTeamSession();
