@@ -98,6 +98,31 @@ function formatDate(session: { held_on: string | null; start_time?: string | nul
   return formatHeldOn(session.held_on, session.start_time, session.duration_hours) || "일자 미정";
 }
 
+/**
+ * 그 자리에서 고치는 숫자 칸. 값이 바뀐 채로 칸을 벗어날 때만 저장한다 — 타이핑 도중에
+ * 보내면 '2'를 지우고 '25'를 치는 사이에 2명짜리 교육이 잠깐 저장된다.
+ *
+ * 서버 값이 바뀌면 부모가 key 를 갈아 이 컴포넌트를 다시 만든다. effect 로 값을 되돌리는
+ * 것보다 단순하고, 저장 중에 화면이 앞서 나가지 않는다.
+ */
+function NumberField({ label, suffix, value, min, step, disabled, onSave }: {
+  label: string; suffix: string; value: number | null | undefined;
+  min: number; step: number; disabled: boolean; onSave: (next: string) => void;
+}) {
+  const initial = value === null || value === undefined ? "" : String(value);
+  const [draft, setDraft] = useState(initial);
+  const commit = () => { if (draft !== initial) onSave(draft); };
+  return <label className="number-field">{label}
+    <span>
+      <input type="number" min={min} step={step} value={draft} disabled={disabled}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
+      <em>{suffix}</em>
+    </span>
+  </label>;
+}
+
 /** 교육과정별 수강생. 사람은 기업 수강생 목록에서 고르고, 여기서는 연결과 출결만 다룬다. */
 function SessionRoster({ roster, busy, onEnroll, onChange }: {
   roster: { enrolled: EnrolledRow[]; available: PoolRow[] } | null;
@@ -183,6 +208,23 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     // reload 는 companyId 만 참조한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  /** 카드에서 바로 고친 값 하나를 저장한다. 수정 폼과 같은 라우트를 쓴다. */
+  const patchSession = async (session: SessionRow, body: Record<string, unknown>, label: string) => {
+    setBusyId(session.id); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${session.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || `${label}을 저장하지 못했습니다.`);
+      await reload();
+      onDataChanged?.();
+      setFeedback({ message: `${label}을 바꿨습니다.`, error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : `${label}을 저장하지 못했습니다.`, error: true });
+    } finally { setBusyId(""); }
+  };
 
   /**
    * 교육과정 상태. 예정 → 교육 완료·취소는 사람이 판단한다(일정이 지났다고 자동으로 넘어가지
@@ -540,18 +582,32 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     <p>{session.instructors?.name ? `${session.instructors.name} 강사` : "강사 미배정"}</p>
                   </div>
                   <div className="session-meta">
-                    {/* 진행이 목록에서 바로 보여야 "무엇이 밀렸는지"가 눈에 들어온다. */}
+                    {/* 무엇이 밀렸는지 목록에서 바로 보여야 한다. 강사는 제목 아래에 이름으로
+                        적히므로 여기서 또 세지 않는다. */}
                     <span className="course-progress">
-                      {([["강사", Boolean(session.instructor_id)], ["구성", hasOutline], ["자료", hasMaterials],
+                      {([["구성", hasOutline], ["자료", hasMaterials],
                          ["수강생", (session.learners?.total || 0) > 0]] as Array<[string, boolean]>)
                         .map(([label, complete]) => <i key={label} className={complete ? "done" : ""}>{label}</i>)}
                     </span>
                     <small>{formatDate(session)}</small>
-                    <span className={`stage ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
-                      {SESSION_STATUS_LABEL[session.status] || session.status}
-                    </span>
                   </div>
                 </button>
+                {/* 상태는 카드를 열지 않고도 바꿀 수 있어야 한다 — 교육이 끝난 날 하는 일이
+                    '완료로 바꾸기' 하나뿐인데 그것 때문에 카드를 펼치게 할 이유가 없다. */}
+                <label className={`stage-pick head ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
+                  <i className="stage-dot" aria-hidden="true" />
+                  <select value={session.status} disabled={busyId === session.id} aria-label={`${session.title} 진행 상태`}
+                    onChange={(event) => void changeSessionStatus(session, event.target.value)}>
+                    {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
+                      {SESSION_STATUS_LABEL[value]}
+                    </option>)}
+                    {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
+                      <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
+                  </select>
+                  <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+                    <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </label>
                 <button type="button" className="session-delete" disabled={busyId === session.id}
                   onClick={() => void deleteSession(session)} aria-label={`${session.title} 삭제`} title="교육과정 삭제">
                   {busyId === session.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}
@@ -585,9 +641,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                       </form>
                     : null}
                   <dl>
-                    <div><dt>강사</dt><dd>{session.instructors?.name || "미배정"}</dd></div>
-                    <div><dt>인원</dt><dd>{session.headcount ? `${session.headcount}명` : "미정"}</dd></div>
-                    <div><dt>시간</dt><dd>{session.duration_hours}시간</dd></div>
+                    <div><dt>장소</dt><dd>{session.location || "미정"}</dd></div>
                     <div><dt>수강생</dt><dd>{session.learners?.total ? `${session.learners.total}명${session.learners.attended ? ` · 참석 ${session.learners.attended}` : ""}` : "미등록"}</dd></div>
                     <div><dt>계약</dt><dd>{session.contract ? `${CONTRACT_STATUS_LABEL[session.contract.status]} · ${session.contract.contract_no}` : "미작성"}</dd></div>
                   </dl>
@@ -613,26 +667,16 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                         </option>)}
                       </select>
                     </label>
-                    {/* 상태는 과정마다 다르다. 회사 단위로 하나만 두면 과정 2개 중 하나만
-                        끝났을 때 나머지가 목록에서 사라진다. */}
-                    <div className="assign-status">
-                      <span>진행 상태</span>
-                      <label className={`stage-pick ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
-                        <i className="stage-dot" aria-hidden="true" />
-                        <select value={session.status} disabled={busyId === session.id} aria-label="교육 상태"
-                          onChange={(event) => void changeSessionStatus(session, event.target.value)}>
-                          {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
-                            {SESSION_STATUS_LABEL[value]}
-                          </option>)}
-                          {/* 예전 값(계약 완료)이 들어 있으면 고를 수는 없어도 보이기는 해야 한다. */}
-                          {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
-                            <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
-                        </select>
-                        <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
-                          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </label>
-                    </div>
+                    {/* 인원과 시간은 확정되기까지 몇 번씩 바뀐다. 볼 수만 있고 고치려면 수정 폼을
+                        열어야 하는 값이라면, 읽는 자리와 고치는 자리가 갈라진다. */}
+                    <NumberField key={`headcount-${session.id}-${session.headcount ?? ""}`}
+                      label="인원" suffix="명" min={1} step={1} value={session.headcount}
+                      disabled={busyId === session.id}
+                      onSave={(next) => void patchSession(session, { headcount: next }, "인원")} />
+                    <NumberField key={`duration-${session.id}-${session.duration_hours}`}
+                      label="교육 시간" suffix="시간" min={0.5} step={0.5} value={session.duration_hours}
+                      disabled={busyId === session.id}
+                      onSave={(next) => void patchSession(session, { durationHours: next }, "교육 시간")} />
                   </div>
 
                   <div className="session-actions">
