@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LearnerInput, sanitizeLearner } from "@/lib/learners";
-import { Feedback, Icon } from "./ui";
+import { Feedback, Icon, useConfirm } from "./ui";
 
 type LearnerRow = {
   id: string; name: string; department: string; job_title: string; email: string;
@@ -25,6 +25,7 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
   const [draft, setDraft] = useState<LearnerInput>(EMPTY_ROW);
   const [preview, setPreview] = useState<LearnerInput[] | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { ask, confirmDialog } = useConfirm();
 
   const reload = () => fetch(`/api/learners?companyId=${companyId}`)
     .then(async (response) => {
@@ -93,10 +94,14 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
   };
 
   const remove = async (learner: LearnerRow) => {
-    const warning = learner.stats?.total
-      ? `‘${learner.name}’ 수강생을 삭제할까요? 교육과정 ${learner.stats.total}건의 참석 이력도 함께 사라집니다.`
-      : `‘${learner.name}’ 수강생을 삭제할까요?`;
-    if (!window.confirm(warning)) return;
+    const agreed = await ask({
+      title: `‘${learner.name}’ 수강생을 삭제할까요?`,
+      message: learner.stats?.total
+        ? `교육과정 ${learner.stats.total}건의 참석 이력도 함께 사라집니다.`
+        : "되돌릴 수 없습니다.",
+      confirmLabel: "삭제", danger: true,
+    });
+    if (!agreed) return;
     setBusy(true); setFeedback(null);
     try {
       const response = await fetch(`/api/learners/${learner.id}`, { method: "DELETE" });
@@ -133,6 +138,7 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
   </div>;
 
   return <section className="tab-content">
+    {confirmDialog}
     <div className="content-title">
       <div>
         <h2>수강생</h2>

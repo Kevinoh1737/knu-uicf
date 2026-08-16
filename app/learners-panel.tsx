@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { INSTRUCTOR_DOCUMENTS_BUCKET, MAX_INSTRUCTOR_DOCUMENT_SIZE } from "@/lib/instructors";
 import { LearnerInput } from "@/lib/learners";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Feedback, Icon, formatFileSize, useEscapeClose } from "./ui";
+import { Feedback, Icon, formatFileSize, useConfirm, useEscapeClose } from "./ui";
 
 type LearnerRow = {
   id: string;
@@ -28,6 +28,7 @@ export function LearnersPanel() {
   const [companyFilter, setCompanyFilter] = useState("");
   const [modal, setModal] = useState(false);
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const { ask, confirmDialog } = useConfirm();
 
   const reload = () => fetch("/api/learners")
     .then(async (response) => {
@@ -61,7 +62,12 @@ export function LearnersPanel() {
   const repeat = visible.filter((learner) => (learner.stats?.total || 0) > 1).length;
 
   const remove = async (learner: LearnerRow) => {
-    if (!window.confirm(`‘${learner.name}’ 수강생과 참석 이력을 삭제할까요?`)) return;
+    const agreed = await ask({
+      title: `‘${learner.name}’ 수강생을 삭제할까요?`,
+      message: "참석 이력도 함께 사라집니다.",
+      confirmLabel: "삭제", danger: true,
+    });
+    if (!agreed) return;
     setFeedback(null);
     try {
       const response = await fetch(`/api/learners/${learner.id}`, { method: "DELETE" });
@@ -74,6 +80,7 @@ export function LearnersPanel() {
   };
 
   return <section className="workspace-panel">
+    {confirmDialog}
     <div className="instructor-summary">
       <div><span>등록 수강생</span><b>{visible.length}명</b></div>
       <div><span>참석 이력 있음</span><b>{attended}명</b></div>

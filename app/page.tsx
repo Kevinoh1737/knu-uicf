@@ -24,7 +24,7 @@ import { CompanyContactPanel } from "./company-contact";
 import { CompanyLearnersTab } from "./company-learners";
 import { CompanyContact } from "@/lib/contacts";
 import { STAGE_TONE, STALE_AFTER_DAYS, daysSince, heldOnLabel, nextAction, resolveStage, stageLabel } from "@/lib/company-stage";
-import { Icon, IconName, formatFileSize, useEscapeClose } from "./ui";
+import { Icon, IconName, formatFileSize, useConfirm, useEscapeClose } from "./ui";
 
 type View = "companies" | "company" | "instructors" | "instructor" | "learners" | "surveys";
 
@@ -323,8 +323,15 @@ function CompanyCard({ company, onOpen, onDelete, deleting }: { company: Company
 function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem, intent?: "contact") => void; onCompanyDeleted: (id: string) => void }) {
   const [deletingId, setDeletingId] = useState("");
   const [deleteFeedback, setDeleteFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const { ask, confirmDialog } = useConfirm();
   const deleteCompany = async (company: CompanyItem) => {
-    if (!company.id || !window.confirm(`‘${displayCompanyName(company.name)}’ 기업과 저장된 조사 결과를 삭제할까요?`)) return;
+    if (!company.id) return;
+    const agreed = await ask({
+      title: `‘${displayCompanyName(company.name)}’ 기업을 삭제할까요?`,
+      message: "저장된 조사 결과도 함께 사라집니다.",
+      confirmLabel: "삭제", danger: true,
+    });
+    if (!agreed) return;
     setDeletingId(company.id); setDeleteFeedback(null);
     try {
       const response = await fetch(`/api/companies/${encodeURIComponent(company.id)}`, { method: "DELETE" });
@@ -339,7 +346,7 @@ function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { compan
       setDeletingId("");
     }
   };
-  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위 <b>새 기업 조사</b>에서 홈페이지를 넣으면<br/>웹사이트·공시·채용정보를 함께 읽습니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <CompanyCard key={c.id || c.name} company={c} onOpen={onSelectCompany} onDelete={deleteCompany} deleting={deletingId === c.id}/>)}</div></>}
+  return <section className="workspace-panel">{confirmDialog}{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위 <b>새 기업 조사</b>에서 홈페이지를 넣으면<br/>웹사이트·공시·채용정보를 함께 읽습니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <CompanyCard key={c.id || c.name} company={c} onOpen={onSelectCompany} onDelete={deleteCompany} deleting={deletingId === c.id}/>)}</div></>}
   </section>;
 }
 
@@ -636,6 +643,7 @@ function ConsultingTab({ company }: { company: CompanyItem }) {
   const [briefing, setBriefing] = useState<ConsultationBriefing | null>(null);
   const [briefingState, setBriefingState] = useState<"idle" | "building">("idle");
   const [deletingId, setDeletingId] = useState("");
+  const { ask, confirmDialog } = useConfirm();
 
   useEffect(() => {
     if (!company.id) return;
@@ -752,7 +760,13 @@ function ConsultingTab({ company }: { company: CompanyItem }) {
   };
 
   const deleteRecord = async (record: ConsultationRecord) => {
-    if (!company.id || !window.confirm(`‘${record.file_name}’ 녹취와 정리된 내용을 삭제할까요?`)) return;
+    if (!company.id) return;
+    const agreed = await ask({
+      title: `‘${record.file_name}’ 녹취를 삭제할까요?`,
+      message: "정리된 내용도 함께 사라집니다.",
+      confirmLabel: "삭제", danger: true,
+    });
+    if (!agreed) return;
     setDeletingId(record.id);
     setError("");
     try {
@@ -787,6 +801,7 @@ function ConsultingTab({ company }: { company: CompanyItem }) {
   const createdDate = (value: string) => new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value));
 
   return <section className="tab-content consulting">
+    {confirmDialog}
     <div className="content-title"><div><h2>상담 기록과 녹취</h2><p>녹취를 올리면 전사와 요약을 만듭니다</p></div>{records.length > 0 && <button type="button" onClick={() => fileInputRef.current?.click()} disabled={processState !== "idle"}>＋ 녹취 추가</button>}</div>
     <input ref={fileInputRef} className="sr-only" type="file" accept={CONSULTATION_AUDIO_ACCEPT} onChange={(event) => processFile(event.target.files?.[0])} />
     {processState !== "idle" && <div className="consultation-processing" role="status" aria-live="polite"><i aria-hidden="true"/><div><b>{processLabel}</b><span>{processHint}</span></div><em aria-hidden="true" className={processState === "compressing" ? "determinate" : ""}><span style={processState === "compressing" ? { width: `${Math.max(2, Math.round(compressRatio * 100))}%` } : undefined}/></em></div>}

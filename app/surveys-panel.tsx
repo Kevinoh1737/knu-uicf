@@ -9,7 +9,7 @@ import {
   SurveySummary,
 } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
-import { Feedback, Icon } from "./ui";
+import { Feedback, Icon, useConfirm } from "./ui";
 
 type SurveyBrief = {
   id: string; title: string; status: SurveyStatus; questionCount: number;
@@ -130,6 +130,7 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
   const [busy, setBusy] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { ask, confirmDialog } = useConfirm();
 
   const load = () => fetch(`/api/surveys/${surveyId}`)
     .then(async (response) => {
@@ -187,10 +188,12 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
 
   const send = async (resend: boolean) => {
     const target = detail?.summary.invited || 0;
-    const confirmMessage = resend
-      ? "이미 보낸 사람에게도 다시 보냅니다. 계속할까요?"
-      : `배정된 수강생에게 설문 링크를 보냅니다.${target ? ` 이미 ${target}명에게 보냈습니다.` : ""} 계속할까요?`;
-    if (!window.confirm(confirmMessage)) return;
+    const agreed = await ask({
+      title: resend ? "이미 보낸 사람에게도 다시 보낼까요?" : "배정된 수강생에게 설문 링크를 보낼까요?",
+      message: !resend && target ? `이미 ${target}명에게 보냈습니다.` : undefined,
+      confirmLabel: "보내기",
+    });
+    if (!agreed) return;
 
     setBusy("send"); setFeedback(null);
     try {
@@ -243,6 +246,7 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
   const status = detail.survey.status;
 
   return <section className="workspace-panel survey-editor">
+    {confirmDialog}
     <button type="button" className="backbar" onClick={onBack}>← 만족도 목록</button>
 
     <div className="content-title">

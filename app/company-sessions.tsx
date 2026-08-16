@@ -19,7 +19,7 @@ import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Feedback, Icon } from "./ui";
+import { Feedback, Icon, useConfirm } from "./ui";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
 
@@ -167,6 +167,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
   const [form, setForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
   const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
   const [rosterFor, setRosterFor] = useState<string | null>(null);
+  const { ask, confirmDialog } = useConfirm();
 
   const reload = () => fetch(`/api/companies/${companyId}/sessions`)
     .then(async (response) => {
@@ -372,10 +373,14 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
         : "만족도 설문지") : "",
       session.contract ? `계약서 ${session.contract.contract_no}` : "",
     ].filter(Boolean);
-    const warning = losses.length
-      ? `‘${session.title}’ 교육과정을 삭제할까요?\n\n함께 사라집니다 — ${losses.join(", ")}`
-      : `‘${session.title}’ 교육과정을 삭제할까요?`;
-    if (!window.confirm(warning)) return;
+    const agreed = await ask({
+      title: `‘${session.title}’ 교육과정을 삭제할까요?`,
+      message: losses.length ? "함께 사라집니다." : "되돌릴 수 없습니다.",
+      lines: losses,
+      confirmLabel: "삭제",
+      danger: true,
+    });
+    if (!agreed) return;
 
     setBusyId(session.id); setFeedback(null);
     try {
@@ -410,10 +415,12 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     if (!session.survey) return;
     const already = session.survey.sent;
     // 메일은 되돌릴 수 없다. 몇 명에게 나가는지 먼저 말하고 확인을 받는다.
-    const message = already
-      ? `이미 ${already}명에게 보냈습니다. 아직 못 받은 사람에게 보내려면 확인을 눌러 주세요.`
-      : `배정된 수강생 ${session.learners?.total || 0}명에게 설문 링크를 보냅니다. 계속할까요?`;
-    if (!window.confirm(message)) return;
+    const agreed = await ask({
+      title: already ? "아직 못 받은 사람에게 보낼까요?" : `수강생 ${session.learners?.total || 0}명에게 설문 링크를 보낼까요?`,
+      message: already ? `이미 ${already}명에게 보냈습니다.` : undefined,
+      confirmLabel: "보내기",
+    });
+    if (!agreed) return;
 
     setBusyId(session.id); setFeedback(null);
     try {
@@ -479,6 +486,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
 
 
   return <section className="tab-content">
+    {confirmDialog}
     <div className="content-title">
       <div>
         <h2>교육 진행</h2>

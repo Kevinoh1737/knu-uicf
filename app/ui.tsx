@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 /**
  * 화면 여럿이 공유하는 표시 요소. page.tsx 안에 두면 새 화면이 같은 아이콘을 쓰려다
@@ -83,6 +84,65 @@ export function Feedback({ value, onClose, timeout = 4000 }: {
     <span>{value.message}</span>
     <button type="button" onClick={onClose} aria-label="안내 닫기">×</button>
   </p>;
+}
+
+export type ConfirmRequest = {
+  /** 무엇을 하려는지 한 줄로. */
+  title: string;
+  /** 곁들일 설명. 없으면 안 보인다. */
+  message?: string;
+  /** 함께 사라지는 것들처럼 눈으로 세어야 하는 것. 줄로 세워 보여 준다. */
+  lines?: string[];
+  confirmLabel?: string;
+  cancelLabel?: string;
+  /** 되돌릴 수 없는 일은 빨간 버튼으로 갈라 준다. */
+  danger?: boolean;
+};
+
+/**
+ * 되묻는 창.
+ *
+ * 브라우저의 `confirm()` 은 쓰지 않는다 — 한 번 '이 페이지에서 추가 대화상자를 표시하지
+ * 않음'을 누른 브라우저에서는 창이 뜨지 않고 조용히 '취소'가 되어, 사장님 눈에는 버튼이
+ * 죽은 것으로 보인다(휴지통을 눌러도 아무 일도 안 일어나던 일이 실제로 있었다). 창을
+ * 우리가 그리면 그런 상태가 없고, 무엇이 함께 사라지는지도 줄로 세워 보여 줄 수 있다.
+ *
+ * 부르는 쪽은 `if (!(await ask({...}))) return;` 한 줄로 쓴다.
+ */
+export function useConfirm() {
+  const [request, setRequest] = useState<(ConfirmRequest & { resolve: (value: boolean) => void }) | null>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+
+  const ask = useCallback((options: ConfirmRequest) =>
+    new Promise<boolean>((resolve) => setRequest({ ...options, resolve })), []);
+
+  const close = useCallback((value: boolean) => {
+    setRequest((current) => { current?.resolve(value); return null; });
+  }, []);
+
+  // 되돌릴 수 없는 일이라 처음 초점은 '취소'에 둔다. 창이 뜨자마자 엔터를 치는 버릇이
+  // 삭제로 이어지면 안 된다.
+  useEffect(() => { if (request) cancelRef.current?.focus(); }, [request]);
+  useEscapeClose(Boolean(request), () => close(false));
+
+  const dialog = request ? createPortal(<div className="modal-backdrop">
+    <button type="button" className="modal-scrim" aria-label="닫기" onClick={() => close(false)} />
+    <div className="modal confirm-modal" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title">{request.title}</h2>
+      {request.message && <p className="body-text">{request.message}</p>}
+      {request.lines?.length ? <ul className="confirm-lines">
+        {request.lines.map((line) => <li key={line}>{line}</li>)}
+      </ul> : null}
+      <div className="modal-actions">
+        <button type="button" ref={cancelRef} onClick={() => close(false)}>{request.cancelLabel || "취소"}</button>
+        <button type="button" className={request.danger ? "danger-small" : "primary-small"} onClick={() => close(true)}>
+          {request.confirmLabel || "확인"}
+        </button>
+      </div>
+    </div>
+  </div>, document.body) : null;
+
+  return { ask, confirmDialog: dialog };
 }
 
 export function formatFileSize(bytes: number) {
