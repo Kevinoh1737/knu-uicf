@@ -338,3 +338,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 /* 항목이 5개로 늘어 4열에서는 마지막 칸만 아래로 떨어졌다. */
 .session-body dl{grid-template-columns:repeat(5,1fr)}
 @media(max-width:900px){.session-body dl{grid-template-columns:repeat(3,1fr)}}
+/* 내보내기를 탭 안으로 옮기면서 필요한 자리. */
+.title-actions{display:flex;align-items:flex-start;gap:8px}
+.tab-export{display:flex;justify-content:flex-end;padding:20px 27px 0;background:#f8f9f8}
