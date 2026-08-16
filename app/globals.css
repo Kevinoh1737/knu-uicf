@@ -547,3 +547,9 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .stage-pick.progress{background:#e2ecf6;color:#2f5d80}
 .stage-pick.done{background:#e2efe8;color:#2f6a52}
 .stage-pick.stopped{background:#f6eae5;color:#94503b}
+
+/* 제목줄의 동작 묶음은 생김새가 하나여야 한다. button 으로 만든 칩은 전역 button 의
+   min-height 가 height 를 이겨 혼자 6px 더 컸다 — 모바일에서는 뒤의 !important 규칙이
+   다시 44px 로 키우므로 누를 자리는 그대로다. */
+.content-title .title-actions .upload-chip{height:36px;min-height:0;font-size:11px;line-height:1}
+.content-title .title-actions .upload-chip svg{flex:none}

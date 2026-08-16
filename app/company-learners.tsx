@@ -147,8 +147,8 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
         <a className="upload-chip" href={`/api/companies/${companyId}/learners/export`}>
           <Icon name="download" size={15} /> 현재 명단 내려받기
         </a>
-        <button type="button" onClick={() => { setAdding((current) => !current); setEditing(null); setDraft(EMPTY_ROW); }}>
-          ＋ 직접 추가
+        <button type="button" className="upload-chip" onClick={() => { setAdding((current) => !current); setEditing(null); setDraft(EMPTY_ROW); }}>
+          <Icon name="plus" size={15} /> 직접 추가
         </button>
       </div>
     </div>

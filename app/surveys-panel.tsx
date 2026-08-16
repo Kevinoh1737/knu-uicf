@@ -252,8 +252,8 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
         <p>문항을 고치고 저장하면 바로 반영됩니다. 이미 응답이 있으면 문항 삭제는 막힙니다.</p>
       </div>
       <div className="title-actions">
-        <button type="button" onClick={() => void draft()} disabled={Boolean(busy)}>
-          {busy === "draft" ? "만드는 중" : "AI 초안"}
+        <button type="button" className="upload-chip" onClick={() => void draft()} disabled={Boolean(busy)}>
+          <Icon name="spark" size={15} /> {busy === "draft" ? "만드는 중" : "AI 초안"}
         </button>
         <label className="upload-chip">
           <input ref={fileInputRef} className="pdf-file-input" type="file" accept="application/pdf" disabled={Boolean(busy)}
@@ -327,7 +327,7 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     </div>
 
     <div className="savebar">
-      <button type="button" onClick={addQuestion} disabled={Boolean(busy)}>＋ 문항 추가</button>
+      <button type="button" className="upload-chip" onClick={addQuestion} disabled={Boolean(busy)}><Icon name="plus" size={15} /> 문항 추가</button>
       <span>{dirty ? "저장하지 않은 변경이 있습니다" : "저장됨"}</span>
       <button type="button" className="primary-small" disabled={Boolean(busy) || !dirty || !questions.length}
         onClick={() => void patch({ title, intro, questions }, "save")}>
