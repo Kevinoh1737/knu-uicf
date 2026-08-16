@@ -185,6 +185,13 @@ const nav = [
   { id: "learners" as View, icon: "survey" as IconName, label: "수강생" },
 ];
 
+/** 아직 만들지 않은 사업. 시연에서 "무엇이 예정인지"를 보여 주는 용도다. */
+const UPCOMING_NAV: Array<{ icon: IconName; label: string }> = [
+  { icon: "building", label: "참여기업" },
+  { icon: "person", label: "참여청년" },
+  { icon: "calendar", label: "프로젝트" },
+];
+
 function CompanyLogo({ company, size = "" }: { company: CompanyItem; size?: "large" | "xl" | "" }) {
   return <span className={`company-logo ${size} ${company.color}`} aria-hidden="true">{displayCompanyName(company.name).slice(0, 1)}</span>;
 }
@@ -211,10 +218,12 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
           미래내일 일경험 사업은 프로그램 구조가 달라 따로 만든다 — 자리만 보여 준다. */}
       <p className="nav-label program">K-하이테크 플랫폼 사업</p>
       {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") || (view === "instructor" && item.id === "instructors") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}
-      <p className="nav-label program second">미래내일 일경험 사업</p>
-      <button type="button" className="nav-item upcoming" disabled aria-disabled="true">
-        <span><Icon name="calendar" /></span>운영 관리<em>준비 중</em>
-      </button>
+      <p className="nav-label program second">미래내일 일경험 사업<em>준비 중</em></p>
+      {/* 자리만 잡아 둔다. 확인된 구성(참여기업이 과제를 내고, 청년이 지원·선발되고,
+          8주 프로젝트가 돌아간다)에 맞춰 이름만 박아 둔 것이고 화면은 아직 없다. */}
+      {UPCOMING_NAV.map((item) => <button type="button" key={item.label} className="nav-item upcoming" disabled aria-disabled="true">
+        <span><Icon name={item.icon} /></span>{item.label}
+      </button>)}
     </nav>
     <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><SignOutButton /></div>
   </aside>;
