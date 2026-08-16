@@ -207,8 +207,14 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
   return <aside className="sidebar">
     <Brand />
     <nav aria-label="주 메뉴">
-      <p className="nav-label">WORKSPACE</p>
+      {/* 사업 단위로 묶는다. 지금 만든 것은 전부 K-하이테크 플랫폼 사업이고,
+          미래내일 일경험 사업은 프로그램 구조가 달라 따로 만든다 — 자리만 보여 준다. */}
+      <p className="nav-label program">K-하이테크 플랫폼 사업</p>
       {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") || (view === "instructor" && item.id === "instructors") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}
+      <p className="nav-label program second">미래내일 일경험 사업</p>
+      <button type="button" className="nav-item upcoming" disabled aria-disabled="true">
+        <span><Icon name="calendar" /></span>운영 관리<em>준비 중</em>
+      </button>
     </nav>
     <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><SignOutButton /></div>
   </aside>;

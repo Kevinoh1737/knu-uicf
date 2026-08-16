@@ -299,3 +299,10 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .company-cards .company-card>.company-card-open{display:flex;flex-direction:column;justify-content:flex-start;height:100%}
 /* 휴지통도 세로로 늘어나 있어 텍스트를 따라 움직였다. 오른쪽 아래 한 자리에 고정한다. */
 .company-card-delete{top:auto;bottom:12px;right:12px;height:34px;width:34px}
+/* 사이드바를 사업 단위로 묶는다. 기존 .nav-label 은 영문 대문자용(mono·넓은 자간)이라
+   한국어 사업명에는 맞지 않는다. */
+.nav-label.program{font:600 11px var(--font-geist-sans);letter-spacing:-.01em;color:#9db3ab}
+.nav-label.program.second{margin-top:26px}
+.nav-item.upcoming{color:#6f8980;cursor:default}
+.nav-item.upcoming:hover{background:transparent;color:#6f8980}
+.nav-item.upcoming em{background:#2b453d;color:#93aaa1}
