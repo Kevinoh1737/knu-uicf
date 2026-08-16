@@ -511,10 +511,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
    높으므로 여기서 되돌린다. */
 .stage.progress{height:auto;overflow:visible}
 
-/* 진행 상태는 한 과정에서 많아야 한 번 누른다. 카드로 세우지 않고 제목줄에 둔다. */
-.stage-select{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 4px 0 11px;border:1px solid #dce3ec;border-radius:9px;background:#fff}
-.stage-select>span{color:#8b969f;font-size:11.5px;letter-spacing:-.01em}
-.stage-select select{min-height:0;height:30px;border:0;background:transparent;color:#1c3b56;font-size:12.5px;font-weight:650;padding-right:2px}
 
 /* 작업 결과 안내. 성공은 스스로 사라지고 실패는 남는다 — 둘 다 손으로 닫을 수 있다. */
 .feedback{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;padding:11px 8px 11px 13px;border-radius:9px;background:#eef4f9;color:#2f5d80;font-size:12.5px;line-height:1.5}
@@ -532,3 +528,20 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .session-delete:focus-visible{outline:3px solid rgba(180,35,24,.2);outline-offset:1px;color:#b42318}
 .session-delete:disabled{cursor:wait;opacity:.6}
 .session-delete .spinner{width:15px;height:15px;border-color:#efd1cd;border-top-color:#b42318}
+
+/* 진행 상태 고르기. 버튼처럼 보이면 누르기 전에는 무엇인지 알 수 없어, 상태 배지의 생김새
+   (색 점 + 상태색 글자)를 그대로 쓰고 누를 수 있다는 것만 화살표로 알린다. 옆 버튼과 높이를
+   맞춰 한 줄로 선다. */
+.stage-pick{position:relative;display:inline-flex;align-items:center;height:42px;padding:0 30px 0 32px;border:1px solid transparent;border-radius:10px;background:#eef2f6;transition:background-color var(--motion-fast),border-color var(--motion-fast)}
+.stage-pick:hover{border-color:currentColor}
+.stage-pick:focus-within{outline:3px solid color-mix(in srgb,currentColor 22%,transparent);outline-offset:1px}
+.stage-pick select{appearance:none;-webkit-appearance:none;height:100%;min-height:0;padding:0;border:0;background:transparent;color:inherit;font-size:13px;font-weight:650;letter-spacing:-.02em;cursor:pointer}
+.stage-pick select:disabled{cursor:wait;opacity:.7}
+.stage-dot{position:absolute;left:13px;width:7px;height:7px;border-radius:50%;background:currentColor}
+.stage-caret{position:absolute;right:12px;pointer-events:none;opacity:.55}
+
+/* 상태색은 배지와 같은 계열을 쓴다 — 같은 뜻이 자리마다 다른 색이면 읽는 사람이 다시 배운다. */
+.stage-pick.neutral{background:#eaf1f8;color:#2f5d80}
+.stage-pick.progress{background:#e2ecf6;color:#2f5d80}
+.stage-pick.done{background:#e2efe8;color:#2f6a52}
+.stage-pick.stopped{background:#f6eae5;color:#94503b}

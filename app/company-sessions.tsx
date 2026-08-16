@@ -12,7 +12,7 @@ import {
   resolveInstructorDocument,
   tailoredCaseRatio,
 } from "@/lib/instructors";
-import { STORED_STAGES, StoredStage, stageChoiceLabel, withRo } from "@/lib/company-stage";
+import { STAGE_TONE, STORED_STAGES, StoredStage, stageChoiceLabel, withRo } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
@@ -448,12 +448,17 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
         {/* 교육 완료·취소는 사람이 정한다(일정이 지났다고 자동으로 넘어가지 않는다). 다만
             한 과정에서 많아야 한 번 누르는 것이라 카드로 세워 두지 않고, 지금 상태가 보이는
             선택 하나로 둔다. 만들어 둔 과정이 없으면 완료로 표시할 것도 없어 나오지 않는다. */}
-        {showStageControl && <label className="stage-select">
-          <span>진행</span>
-          <select value={stage} disabled={busyId === "stage"}
+        {showStageControl && <label className={`stage-pick ${STAGE_TONE[stage]}`}>
+          {/* 버튼이 아니라 상태다. 색 점과 상태색 글자로 지금 상태를 먼저 읽히고, 누르면
+              바뀐다는 것은 오른쪽 화살표로만 알린다. */}
+          <i className="stage-dot" aria-hidden="true" />
+          <select value={stage} disabled={busyId === "stage"} aria-label="진행 상태"
             onChange={(event) => void changeStage(event.target.value as StoredStage)}>
             {STORED_STAGES.map((value) => <option key={value} value={value}>{stageChoiceLabel(value)}</option>)}
           </select>
+          <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+            <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </label>}
         <button type="button" onClick={() => setAdding((current) => !current)}>
           {adding ? "닫기" : "＋ 교육과정 생성"}
