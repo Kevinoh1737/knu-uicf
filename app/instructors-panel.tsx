@@ -141,7 +141,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
     {loading
       ? <p className="instructor-empty">강사 목록 불러오는 중</p>
       : visible.length === 0
-        ? <p className="instructor-empty">{instructors.length ? "검색 결과가 없습니다." : "등록된 강사가 없습니다. 프로필 파일을 올려 등록하세요."}</p>
+        ? <p className="instructor-empty">{instructors.length ? "검색 결과가 없습니다." : "등록된 강사가 없습니다. 강사가 제출한 프로필 PDF를 올리면 양식이 자동으로 채워집니다."}</p>
         : <div className="instructor-list">
             {visible.map((instructor) => <article key={instructor.id}>
               <span className={`avatar ${toneFor(instructor.name)}`}>{initials(instructor.name)}</span>
@@ -159,14 +159,15 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
             </article>)}
           </div>}
 
-    <div className="import-callout">
+    {/* 비어 있을 때는 위 안내가 같은 말을 이미 하고 있어 두 번 말하는 셈이 된다. */}
+    {instructors.length > 0 && <div className="import-callout">
       <span>↥</span>
       <div>
         <b>강사가 제출한 프로필 PDF를 올리면 양식이 자동으로 채워집니다</b>
         <p>최대 50MB · 한글·워드는 &lsquo;PDF로 저장&rsquo; 후 올려 주세요</p>
       </div>
       <button type="button" onClick={() => setModal(true)}>파일로 등록</button>
-    </div>
+    </div>}
 
     {modal && <NewInstructorModal
       onClose={() => setModal(false)}
