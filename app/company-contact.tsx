@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CompanyContact, EMPTY_CONTACT, hasContact, parseRememberText, sanitizeContact } from "@/lib/contacts";
 import { Icon } from "./ui";
 
@@ -25,6 +26,10 @@ export function CompanyContactPanel({ companyId, initial, onSaved }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const filled = hasContact(contact);
+  // 이 패널은 .topbar 안에서 그려지는데, .topbar 의 backdrop-filter 가 position:fixed 의
+  // 기준을 가로챈다. 그대로 두면 모달이 상단바 안에 갇혀 위가 잘린다. body 로 빼낸다.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const start = () => {
     setDraft(filled ? contact : EMPTY_CONTACT);
@@ -106,7 +111,7 @@ export function CompanyContactPanel({ companyId, initial, onSaved }: {
       </>}
     </div>
 
-    {open && <div className="modal-backdrop">
+    {open && mounted && createPortal(<div className="modal-backdrop">
       <button type="button" className="modal-scrim" aria-label="닫기" onClick={() => setOpen(false)} disabled={busy} />
       <div className="modal instructor-modal" aria-busy={busy}>
         <div className="modal-head">
@@ -170,6 +175,6 @@ export function CompanyContactPanel({ companyId, initial, onSaved }: {
           {mode === "manual" && <button type="button" className="primary-small" onClick={save} disabled={busy}>저장</button>}
         </div>
       </div>
-    </div>}
+    </div>, document.body)}
   </>;
 }
