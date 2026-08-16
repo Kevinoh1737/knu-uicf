@@ -17,7 +17,7 @@ import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Feedback } from "./ui";
+import { Feedback, Icon } from "./ui";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
 
@@ -316,6 +316,37 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
     } finally { setBusyId(""); }
   };
 
+  /**
+   * 교육과정 삭제. 과정에 매달린 것들이 함께 사라지므로(수강생 배정·설문지와 응답·계약서
+   * 초안·올린 자료) 무엇이 없어지는지 세어서 먼저 보여 준다 — "정말 삭제할까요?"만으로는
+   * 사람이 무엇을 잃는지 알 수 없다. 서명이 끝난 계약이 걸린 과정은 서버가 막는다.
+   */
+  const deleteSession = async (session: SessionRow) => {
+    const losses = [
+      (session.learners?.total || 0) > 0 ? `수강생 배정 ${session.learners?.total}명` : "",
+      session.survey ? (session.survey.responded > 0
+        ? `만족도 설문지와 응답 ${session.survey.responded}건`
+        : "만족도 설문지") : "",
+      session.contract ? `계약서 ${session.contract.contract_no}` : "",
+    ].filter(Boolean);
+    const warning = losses.length
+      ? `‘${session.title}’ 교육과정을 삭제할까요?\n\n함께 사라집니다 — ${losses.join(", ")}`
+      : `‘${session.title}’ 교육과정을 삭제할까요?`;
+    if (!window.confirm(warning)) return;
+
+    setBusyId(session.id); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${session.id}`, { method: "DELETE" });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "교육과정을 삭제하지 못했습니다.");
+      await reload();
+      onDataChanged?.();
+      setFeedback({ message: "교육과정을 삭제했습니다.", error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "교육과정을 삭제하지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
   const createSurvey = async (sessionId: string) => {
     setBusyId(sessionId); setFeedback(null);
     try {
@@ -467,6 +498,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
               const hasOutline = Boolean(session.outline?.modules?.length);
               const hasMaterials = Boolean(session.materials?.caseExamples?.length || session.materials?.toolsUsed?.length);
               return <div className={open ? "session open" : "session"} key={session.id}>
+                <div className="session-head">
                 <button type="button" onClick={() => setOpenId(open ? null : session.id)}>
                   <div>
                     <b>{session.title}</b>
@@ -485,6 +517,11 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                     </span>
                   </div>
                 </button>
+                <button type="button" className="session-delete" disabled={busyId === session.id}
+                  onClick={() => void deleteSession(session)} aria-label={`${session.title} 삭제`} title="교육과정 삭제">
+                  {busyId === session.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}
+                </button>
+                </div>
                 {open && <div className="session-body">
                   <dl>
                     <div><dt>강사</dt><dd>{session.instructors?.name || "미배정"}</dd></div>

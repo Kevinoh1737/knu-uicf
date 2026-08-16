@@ -522,3 +522,13 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .feedback>button{flex:none;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;opacity:.55;font-size:15px;line-height:1}
 .feedback>button:hover{opacity:1;background:rgba(15,23,42,.06)}
 .feedback.error{background:#fef2f2;color:#b42318}
+
+/* 교육과정 줄. 여는 버튼과 삭제 버튼이 나란히 서야 해서 머리 줄을 따로 둔다 —
+   버튼 안에 버튼을 넣을 수 없다. */
+.session-head{display:flex;align-items:center;gap:4px}
+.session-head>button:first-child{flex:1;min-width:0;width:auto;display:flex;justify-content:space-between;align-items:center;gap:12px;border:0;background:transparent;text-align:left;padding:14px 4px}
+.session-delete{flex:none;display:grid;place-items:center;width:34px;height:34px;min-width:34px;min-height:34px;padding:0;border:0;border-radius:9px;background:transparent;color:#98a3ad;transition:background-color var(--motion-fast),color var(--motion-fast)}
+.session-delete:hover{background:#fef2f2;color:#b42318}
+.session-delete:focus-visible{outline:3px solid rgba(180,35,24,.2);outline-offset:1px;color:#b42318}
+.session-delete:disabled{cursor:wait;opacity:.6}
+.session-delete .spinner{width:15px;height:15px;border-color:#efd1cd;border-top-color:#b42318}
