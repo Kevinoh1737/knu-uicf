@@ -19,6 +19,7 @@ import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, read
 import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructors-panel";
 import { CompanySessionsTab } from "./company-sessions";
 import { LearnersPanel } from "./learners-panel";
+import { STAGE_TONE, resolveStage, stageLabel } from "@/lib/company-stage";
 import { Icon, IconName, formatFileSize } from "./ui";
 
 type View = "companies" | "company" | "instructors" | "instructor" | "learners";
@@ -52,6 +53,8 @@ type CompanyItem = {
   name: string;
   field: string;
   stage: string;
+  storedStage?: string;
+  sessionCount?: number;
   owner: string;
   progress: number;
   date: string;
@@ -243,11 +246,11 @@ function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { compan
       setDeletingId("");
     }
   };
-  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위의 <b>새 기업 조사</b>에서 홈페이지를 입력하면<br/>웹사이트·OpenDART·공개 채용정보를 함께 분석합니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <article className="company-card" key={c.id || c.name}><button type="button" className="company-card-open" onClick={() => onSelectCompany(c)} aria-label={`${displayCompanyName(c.name)} 조사 결과 열기`}><div className="company-card-heading"><h3>{displayCompanyName(c.name)}</h3><span className="stage">{c.stage}</span></div><p>{c.field}</p></button><button type="button" className="company-card-delete" onClick={() => deleteCompany(c)} aria-label={`${displayCompanyName(c.name)} 삭제`} title="삭제" disabled={!c.id || deletingId === c.id}>{deletingId === c.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}</button></article>)}</div></>}
+  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위의 <b>새 기업 조사</b>에서 홈페이지를 입력하면<br/>웹사이트·OpenDART·공개 채용정보를 함께 분석합니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <article className="company-card" key={c.id || c.name}><button type="button" className="company-card-open" onClick={() => onSelectCompany(c)} aria-label={`${displayCompanyName(c.name)} 조사 결과 열기`}><div className="company-card-heading"><h3>{displayCompanyName(c.name)}</h3><span className={`stage ${STAGE_TONE[resolveStage(c.storedStage, c.sessionCount || 0)]}`}>{stageLabel(c.storedStage, c.sessionCount || 0)}</span></div><p>{c.field}</p></button><button type="button" className="company-card-delete" onClick={() => deleteCompany(c)} aria-label={`${displayCompanyName(c.name)} 삭제`} title="삭제" disabled={!c.id || deletingId === c.id}>{deletingId === c.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}</button></article>)}</div></>}
   </section>;
 }
 
-function CompanyDetail({ company, companies, onSelectCompany }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void }) {
+function CompanyDetail({ company, companies, onSelectCompany, onStageChange }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onStageChange?: (id: string, stage: string) => void }) {
   const [tab, setTab] = useState("research");
   const [questions, setQuestions] = useState(company.research?.questions?.length ? company.research.questions : [...AX_FOUNDATION_QUESTIONS]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -372,7 +375,7 @@ function CompanyDetail({ company, companies, onSelectCompany }: { company: Compa
     {tab === "research" && <ResearchTab company={company} companies={companies} onSelectCompany={onSelectCompany} />}
     {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><h2>니즈 질문지</h2></div><button onClick={addQuestion}>＋ 질문 추가</button></div>{questions.map((q,i)=><article key={i} data-question-index={i} className={[draggingQuestion === i && "dragging",draggingQuestion !== null && dragInsertAt === i && "drop-before",draggingQuestion !== null && dragInsertAt === questions.length && i === questions.length-1 && "drop-after"].filter(Boolean).join(" ")}><button type="button" className="question-grip" aria-label={`${i+1}번 질문 순서 이동`} title="드래그하여 순서 변경" onPointerDown={(event)=>startQuestionDrag(event,i)} onPointerMove={moveQuestionDrag} onPointerUp={endQuestionDrag} onPointerCancel={cancelQuestionDrag} onKeyDown={(event)=>{if(event.key === "ArrowUp" && i > 0){event.preventDefault();reorderQuestion(i,i-1,true);}else if(event.key === "ArrowDown" && i < questions.length-1){event.preventDefault();reorderQuestion(i,i+1,true);}}}><Icon name="grip" size={20}/></button><span>{String(i+1).padStart(2,"0")}</span><textarea rows={1} aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>{setQuestions(questions.map((x,j)=>j===i?e.target.value:x));setSaveState("idle");}}/><button type="button" className="question-delete" aria-label={`${i+1}번 질문 삭제`} onClick={()=>{setQuestions(questions.filter((_,j)=>j!==i));setSaveState("idle");}}>×</button></article>)}<span className="sr-only" role="status" aria-live="polite">{reorderMessage}</span><div className="savebar"><span className={saveState === "error" ? "save-error" : ""}>{saveState === "saving" ? "저장 중…" : saveState === "saved" ? "저장 완료" : saveState === "error" ? "저장 실패 · 다시 시도" : "수정 후 저장"}</span><button onClick={saveQuestions} disabled={!company.id || saveState === "saving"}>{saveState === "saving" ? "저장 중…" : "질문지 저장"}</button></div></section>}
     {tab === "consultation" && <ConsultingTab company={company} />}
-    {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} />}
+    {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} storedStage={company.storedStage} onStageChange={(stage) => onStageChange?.(company.id as string, stage)} />}
   </section>;
 }
 
@@ -691,7 +694,7 @@ function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCr
     const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
     const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
     if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
-    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
+    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0), storedStage: "research_complete", sessionCount: 0, owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
     onClose();
   };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -744,12 +747,15 @@ export default function Home() {
   const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
   const selectInstructor = (instructor: InstructorItem) => { setSelectedInstructor(instructor); setView("instructor"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
+  // 상세에서 바꾼 상태를 목록 카드에도 즉시 반영한다. 다시 불러오지 않으면 배지가 옛값으로 남는다.
+  const updateStage = (id: string, stage: string) => setCompanyItems(current => current.map(item =>
+    item.id === id ? { ...item, storedStage: stage, stage: stageLabel(stage, item.sessionCount || 0) } : item));
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
     fetch("/api/companies").then(async response => {
-      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
+      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
       if (!response.ok) throw new Error("기업 목록 조회 실패");
-      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: "조사 완료", owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };
@@ -759,6 +765,6 @@ export default function Home() {
     ? <InstructorDetail key={selectedInstructor.id} instructor={selectedInstructor} onBack={() => setView("instructors")}/>
     : view === "instructors"
       ? <InstructorsPanel onSelect={selectInstructor}/>
-      : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
+      : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany} onStageChange={updateStage}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
   return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }

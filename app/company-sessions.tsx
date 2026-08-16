@@ -12,6 +12,7 @@ import {
   resolveInstructorDocument,
   tailoredCaseRatio,
 } from "@/lib/instructors";
+import { STAGE_LABEL, STAGE_TONE, STORED_STAGES, StoredStage, withRo } from "@/lib/company-stage";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
@@ -40,7 +41,7 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(value));
 }
 
-export function CompanySessionsTab({ companyId }: { companyId: string }) {
+export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { companyId: string; storedStage?: string; onStageChange?: (stage: StoredStage) => void }) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,6 +50,7 @@ export function CompanySessionsTab({ companyId }: { companyId: string }) {
   const [busyId, setBusyId] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const [form, setForm] = useState({ instructorId: "", title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
+  const [stage, setStage] = useState<StoredStage>((storedStage as StoredStage) || "research_complete");
 
   const reload = () => fetch(`/api/companies/${companyId}/sessions`)
     .then(async (response) => {
@@ -64,6 +66,24 @@ export function CompanySessionsTab({ companyId }: { companyId: string }) {
     // reload 는 companyId 만 참조한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
+
+  const changeStage = async (next: StoredStage) => {
+    if (next === stage) return;
+    setBusyId("stage"); setFeedback(null);
+    try {
+      const response = await fetch(`/api/companies/${companyId}/stage`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: next }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "상태를 바꾸지 못했습니다.");
+      setStage(next);
+      onStageChange?.(next);
+      setFeedback({ message: `진행 상태를 ${withRo(next === "research_complete" ? "진행 중" : STAGE_LABEL[next])} 바꿨습니다.`, error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "상태를 바꾸지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
 
   const createSession = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -153,6 +173,22 @@ export function CompanySessionsTab({ companyId }: { companyId: string }) {
       <button type="button" onClick={() => setAdding((current) => !current)} disabled={!instructors.length}>
         {adding ? "닫기" : "＋ 강사 배정"}
       </button>
+    </div>
+
+    {/* 교육 완료·취소는 사람이 정한다. 일정이 지났다고 자동으로 넘어가지 않는다. */}
+    <div className="stage-control">
+      <div>
+        <b>진행 상태</b>
+        <p>강사가 배정되면 자동으로 바뀝니다. 교육 완료와 취소는 직접 표시해 주세요.</p>
+      </div>
+      <div className="stage-buttons">
+        {STORED_STAGES.map((value) => <button type="button" key={value}
+          className={stage === value ? `stage ${STAGE_TONE[value]} active` : "stage-choice"}
+          disabled={busyId === "stage"}
+          onClick={() => void changeStage(value)}>
+          {value === "research_complete" ? "진행 중" : STAGE_LABEL[value]}
+        </button>)}
+      </div>
     </div>
 
     {!loading && !instructors.length && <p className="body-text">

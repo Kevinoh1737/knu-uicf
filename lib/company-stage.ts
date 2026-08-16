@@ -1,0 +1,55 @@
+/**
+ * 기업의 진행 단계.
+ *
+ * 저장하는 값과 계산하는 값을 나눈다. '강사 배정 완료'는 강의가 있는지로 언제나 알 수 있어
+ * 저장하지 않는다 — 저장하면 강의를 지웠을 때 상태만 남아 어긋난다. 반대로 '교육 완료'와
+ * '교육 취소'는 사람이 판단하는 것이라 저장한다. 일정이 지났다고 자동으로 넘기지 않는다.
+ */
+export type StoredStage = "research_complete" | "training_complete" | "cancelled";
+export type CompanyStage = StoredStage | "instructor_assigned";
+
+export const STAGE_LABEL: Record<CompanyStage, string> = {
+  research_complete: "조사 완료",
+  instructor_assigned: "강사 배정 완료",
+  training_complete: "교육 완료",
+  cancelled: "교육 취소",
+};
+
+/** 배지 색. 진행 중 · 끝남 · 멈춤을 구분한다. */
+export const STAGE_TONE: Record<CompanyStage, string> = {
+  research_complete: "neutral",
+  instructor_assigned: "progress",
+  training_complete: "done",
+  cancelled: "stopped",
+};
+
+export const STORED_STAGES: StoredStage[] = ["research_complete", "training_complete", "cancelled"];
+
+export function isStoredStage(value: unknown): value is StoredStage {
+  return typeof value === "string" && (STORED_STAGES as string[]).includes(value);
+}
+
+/**
+ * 저장된 값이 사람의 판단이면 그것을 따르고, 아니면 강의 유무로 정한다.
+ * 스키마 기본값이 'research_complete' 라 예전 행도 그대로 지나간다.
+ */
+export function resolveStage(stored: unknown, sessionCount: number): CompanyStage {
+  if (stored === "training_complete" || stored === "cancelled") return stored;
+  return sessionCount > 0 ? "instructor_assigned" : "research_complete";
+}
+
+export function stageLabel(stored: unknown, sessionCount: number) {
+  return STAGE_LABEL[resolveStage(stored, sessionCount)];
+}
+
+/**
+ * '로' / '으로' 를 가른다. 받침이 없거나 ㄹ 받침이면 '로'다 — '교육 완료로', '교육 취소로',
+ * '진행 중으로'. 문구에 (으)로 를 박아 넣지 않으려면 이 계산이 필요하다.
+ */
+export function withRo(word: string) {
+  const last = word.trim().slice(-1);
+  const code = last.charCodeAt(0);
+  if (code < 0xac00 || code > 0xd7a3) return `${word}로`;
+  const jong = (code - 0xac00) % 28;
+  return jong === 0 || jong === 8 ? `${word}로` : `${word}으로`;
+}
