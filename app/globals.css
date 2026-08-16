@@ -632,6 +632,15 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .session-head .session-meta,.session-head .stage-pick,.session-head .session-edit,.session-head .session-delete{position:relative;z-index:1}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
+/* ── 이번 교육에 들어올 사람 고르기 ────────────────────────────────────────
+   기업 명단은 회사에 한 벌이고 교육은 회차마다 다르다. 서른 명짜리 명단에서 눈으로
+   찾게 두지 않도록 검색과 전체 선택을 붙인다. */
+.roster h4 small{margin-left:6px;font-weight:500;font-size:11px;color:#69736e}
+.roster-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.roster-tools .searchbox{flex:1 1 180px;width:auto;max-width:280px;height:40px}
+.roster-tools .searchbox input{font-size:12px}
+.roster-count{font-size:11.5px;color:#5a6672}
+
 /* ── 교육 카드 작업 줄 (ui-ux-pro-max 점검 결과) ──────────────────────────
    [Accessibility · 초점 표시, CRITICAL] '강의 구성/자료 올리기'는 label 안에 숨긴 file
    input 이라, 탭으로 옮겨 가도 화면에 아무 표시가 없었다 — 키보드로는 어디에 있는지

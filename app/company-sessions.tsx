@@ -99,7 +99,11 @@ function formatDate(session: { held_on: string | null; start_time?: string | nul
   return formatHeldOn(session.held_on, session.start_time, session.duration_hours) || "일자 미정";
 }
 
-/** 교육과정별 수강생. 사람은 기업 수강생 목록에서 고르고, 여기서는 연결과 출결만 다룬다. */
+/**
+ * 교육과정별 수강생. 사람은 기업 명단에 한 번 쌓이고, 여기서는 '이번 교육에 누가
+ * 들어오는가'만 고른다 — 한 회사가 교육을 여러 번 하면 회차마다 오는 사람이 다르다.
+ * 그래서 기업 명단 전체가 자동으로 들어오지 않는다.
+ */
 function SessionRoster({ roster, busy, onEnroll, onChange }: {
   roster: { enrolled: EnrolledRow[]; available: PoolRow[] } | null;
   busy: boolean;
@@ -107,13 +111,29 @@ function SessionRoster({ roster, busy, onEnroll, onChange }: {
   onChange: (learnerId: string, patch: { status?: string; remove?: boolean }) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
   if (!roster) return <p className="body-text">수강생 불러오는 중</p>;
 
   const toggle = (id: string) => setPicked((current) =>
     current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
 
+  // 서른 명이 넘으면 눈으로 찾는 것이 일이 된다. 부서·직급·이메일까지 같이 훑는다.
+  const keyword = query.trim().toLowerCase();
+  const visible = keyword
+    ? roster.available.filter((learner) => [learner.name, learner.department, learner.job_title, learner.email]
+        .filter(Boolean).join(" ").toLowerCase().includes(keyword))
+    : roster.available;
+  const allPicked = visible.length > 0 && visible.every((learner) => picked.includes(learner.id));
+  // 전체 선택은 '지금 보이는 것'에만 건다 — 검색으로 부서를 걸러 놓고 누르면 그 부서만
+  // 들어온다. 화면에 없는 사람이 조용히 딸려 들어가면 그게 사고다.
+  const toggleAll = () => setPicked((current) => allPicked
+    ? current.filter((id) => !visible.some((learner) => learner.id === id))
+    : [...new Set([...current, ...visible.map((learner) => learner.id)])]);
+
+  const total = roster.enrolled.length + roster.available.length;
+
   return <div className="roster">
-    <h4>등록된 수강생 {roster.enrolled.length}명</h4>
+    <h4>이 교육 수강생 {roster.enrolled.length}명 <small>기업 명단 {total}명 중</small></h4>
     {roster.enrolled.length === 0
       ? <p className="body-text">아직 없습니다. 아래에서 골라 넣으세요.</p>
       : <table className="roster-table">
@@ -135,22 +155,40 @@ function SessionRoster({ roster, busy, onEnroll, onChange }: {
           </tbody>
         </table>}
 
-    <h4>기업 수강생에서 고르기</h4>
+    <h4>기업 명단에서 고르기 <small>{roster.available.length}명 대기</small></h4>
+    {/* 빈 이유를 갈라 말한다. 예전에는 둘 다 '명단을 먼저 등록하세요'로 나와서, 이미 다
+        넣은 상태인데도 아무것도 안 한 것처럼 보였다. */}
     {roster.available.length === 0
-      ? <p className="body-text">더 넣을 수강생이 없습니다. 수강생 메뉴에서 명단을 먼저 등록하세요.</p>
+      ? <p className="body-text">
+          {total === 0
+            ? "기업에 등록된 수강생이 없습니다. 수강생 탭에서 명단을 먼저 올려 주세요."
+            : `기업 명단 ${total}명이 모두 이 교육에 들어와 있습니다.`}
+        </p>
       : <>
+          <div className="roster-tools">
+            <div className="searchbox">
+              <Icon name="search" size={15} />
+              <input value={query} onChange={(event) => setQuery(event.target.value)}
+                placeholder="이름 또는 부서" aria-label="기업 명단에서 검색" />
+            </div>
+            <button type="button" className="upload-chip" onClick={toggleAll} disabled={busy || !visible.length}>
+              {allPicked ? "선택 해제" : keyword ? `검색된 ${visible.length}명 선택` : "전체 선택"}
+            </button>
+            <span className="roster-count">{picked.length ? `${picked.length}명 선택함` : "선택한 사람 없음"}</span>
+          </div>
           <div className="roster-pick">
-            {roster.available.map((learner) => <label key={learner.id}>
+            {visible.map((learner) => <label key={learner.id}>
               <input type="checkbox" checked={picked.includes(learner.id)} disabled={busy}
                 onChange={() => toggle(learner.id)} />
               <b>{learner.name}</b>
               <small>{[learner.department, learner.job_title].filter(Boolean).join(" · ") || "부서 미입력"}</small>
             </label>)}
           </div>
+          {keyword && visible.length === 0 && <p className="body-text">‘{query.trim()}’ 에 맞는 사람이 없습니다.</p>}
           <div className="modal-actions">
             <button type="button" className="primary-small" disabled={busy || !picked.length}
-              onClick={() => { onEnroll(picked); setPicked([]); }}>
-              {picked.length ? `${picked.length}명 넣기` : "선택하세요"}
+              onClick={() => { onEnroll(picked); setPicked([]); setQuery(""); }}>
+              {picked.length ? `고른 ${picked.length}명 넣기` : "고른 사람 넣기"}
             </button>
           </div>
         </>}
