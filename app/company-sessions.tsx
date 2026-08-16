@@ -14,6 +14,7 @@ import {
 } from "@/lib/instructors";
 import { STAGE_LABEL, STAGE_TONE, STORED_STAGES, StoredStage, withRo } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
+import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
@@ -81,7 +82,54 @@ type SessionRow = {
   instructors?: { id: string; name: string; affiliation: string; job_title: string; email: string } | null;
   contract?: { id: string; contract_no: string; status: ContractStatus } | null;
   learners?: { total: number; attended: number };
+  survey?: {
+    id: string; title: string; status: string; questionCount: number;
+    sent: number; responded: number; responseRate: number; overall: number | null;
+  } | null;
 };
+
+/**
+ * 교육과정 안의 만족도. 문항을 고치는 곳은 만족도 메뉴이고, 여기서는 '보내고 결과를 보는'
+ * 두 가지만 한다 — 발송은 그 교육과정에 배정된 수강생에게만 나간다.
+ */
+function SessionSurvey({ session, busy, onSend, onCreate }: {
+  session: SessionRow; busy: boolean; onSend: () => void; onCreate: () => void;
+}) {
+  const survey = session.survey;
+  const learners = session.learners?.total || 0;
+  return <div className="session-survey">
+    <div className="session-survey-head">
+      <h4>만족도</h4>
+      {survey
+        ? <span className={`stage ${survey.status === "open" ? "progress" : survey.status === "closed" ? "done" : "neutral"}`}>
+            {SURVEY_STATUS_LABEL[(survey.status as SurveyStatus)] || survey.status}
+          </span>
+        : <span className="stage neutral">설문지 없음</span>}
+    </div>
+
+    {survey ? <>
+      <dl className="session-survey-metrics">
+        <div><dt>발송</dt><dd>{survey.sent}명</dd></div>
+        <div><dt>응답</dt><dd>{survey.responded}명 · {survey.responseRate}%</dd></div>
+        <div><dt>평균</dt><dd>{survey.overall === null ? "—" : `${survey.overall} / 5`}</dd></div>
+      </dl>
+      <div className="session-actions">
+        <button type="button" className="upload-chip" disabled={busy || !learners || !survey.questionCount}
+          title={learners ? undefined : "이 교육과정에 배정된 수강생이 없습니다"}
+          onClick={onSend}>
+          {survey.sent ? "설문 링크 다시 보내기" : "수강생에게 설문 보내기"}
+        </button>
+        <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer">설문지 PDF</a>
+      </div>
+      <p className="survey-hint">문항 편집과 응답 상세는 왼쪽 메뉴의 만족도에서 볼 수 있습니다.</p>
+    </> : <>
+      <p className="body-text">아직 설문지가 없습니다. 만들고 나면 만족도 메뉴에서 문항을 다듬을 수 있습니다.</p>
+      <div className="session-actions">
+        <button type="button" className="upload-chip" disabled={busy} onClick={onCreate}>설문지 만들기</button>
+      </div>
+    </>}
+  </div>;
+}
 
 const STATUS_LABEL: Record<string, string> = {
   planned: "예정", contracted: "계약 완료", delivered: "진행 완료", cancelled: "취소",
@@ -310,6 +358,55 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
     } finally { setBusyId(""); }
   };
 
+  const createSurvey = async (sessionId: string) => {
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const response = await fetch("/api/surveys", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ courseSessionId: sessionId }),
+      });
+      const result = await response.json() as { error?: string; survey?: { id: string } };
+      if (!response.ok || !result.survey) throw new Error(result.error || "설문지를 만들지 못했습니다.");
+      await reload();
+      setFeedback({ message: "기본 문항으로 설문지를 만들었습니다. 만족도 메뉴에서 다듬어 주세요.", error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "설문지를 만들지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  const sendSurvey = async (session: SessionRow) => {
+    if (!session.survey) return;
+    const already = session.survey.sent;
+    // 메일은 되돌릴 수 없다. 몇 명에게 나가는지 먼저 말하고 확인을 받는다.
+    const message = already
+      ? `이미 ${already}명에게 보냈습니다. 아직 못 받은 사람에게 보내려면 확인을 눌러 주세요.`
+      : `배정된 수강생 ${session.learners?.total || 0}명에게 설문 링크를 보냅니다. 계속할까요?`;
+    if (!window.confirm(message)) return;
+
+    setBusyId(session.id); setFeedback(null);
+    try {
+      const response = await fetch(`/api/surveys/${session.survey.id}/send`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resend: false }),
+      });
+      const result = await response.json() as {
+        sent?: number; skipped?: number; withoutEmail?: number; stoppedEarly?: number;
+        failures?: Array<{ name: string; reason: string }>; error?: string;
+      };
+      if (!response.ok) throw new Error(result.error || "설문 링크를 보내지 못했습니다.");
+      const notes = [
+        `${result.sent || 0}명에게 보냈습니다`,
+        result.skipped ? `이미 받은 ${result.skipped}명 제외` : "",
+        result.withoutEmail ? `이메일 없는 ${result.withoutEmail}명 제외` : "",
+        result.stoppedEarly ? `${result.stoppedEarly}명 남음 — 다시 눌러 주세요` : "",
+        result.failures?.length ? `실패 ${result.failures.length}명 (${result.failures[0].reason})` : "",
+      ].filter(Boolean);
+      await reload();
+      setFeedback({ message: notes.join(" · "), error: Boolean(result.failures?.length) });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "설문 링크를 보내지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
   const uploadDocument = async (sessionId: string, kind: "outline" | "materials", file: File) => {
     setBusyId(sessionId); setFeedback(null);
     try {
@@ -488,6 +585,9 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                         </button>}
                   </div>
                   {busyId === session.id && <p className="body-text">처리 중</p>}
+
+                  <SessionSurvey session={session} busy={busyId === session.id}
+                    onSend={() => void sendSurvey(session)} onCreate={() => void createSurvey(session.id)} />
 
                   {rosterFor === session.id && <SessionRoster
                     roster={roster}

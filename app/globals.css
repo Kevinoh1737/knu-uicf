@@ -384,3 +384,129 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 */
 .profile{justify-content:space-between;gap:12px}
 .profile>small{color:#7b918a;font-size:11px;letter-spacing:-.01em}
+
+/* 기업 카드 — 이름·상태만으로는 '어디를 먼저 열지' 알 수 없어 두 줄을 더 둔다.
+   모든 줄을 한 줄로 잘라 카드 높이를 고정한다. 높이가 흔들리면 배지·휴지통 위치가
+   카드마다 어긋나 보인다. */
+/* 높이를 억지로 늘리지 않는다. 네 줄 모두 한 줄짜리라 카드 높이는 저절로 같아지고,
+   min-height 로 바닥을 깔면 그 남는 공간이 줄 사이 빈칸으로 나온다. */
+.company-cards .company-card{min-height:0;display:flex;flex-direction:column}
+.company-cards .company-card>.company-card-open{flex:none;min-height:0;padding-bottom:0}
+.company-card-open>p{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.company-card-next{display:flex;align-items:center;gap:8px;min-width:0;margin:12px 0 0!important;padding-top:12px;border-top:1px solid #eef1f5}
+.company-card-next b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#1c3b56;font-size:13px;font-weight:650;letter-spacing:-.02em}
+.company-card-next .stale{flex:none;border-radius:5px;background:#fdf1e7;color:#a2541f;padding:2px 7px;font-size:10px;font-weight:650}
+
+/* 담당자는 읽는 줄이 아니라 누르는 줄이다 — 카드 본문 버튼 밖에 둬야 버튼 중첩이 안 된다.
+   오른쪽은 휴지통 자리라 비워 둔다. */
+.company-card-meta{display:flex;align-items:center;gap:8px;min-width:0;padding:0 10px 8px 22px;color:#8b969f;font-size:11.5px;letter-spacing:-.01em}
+.company-card-meta .counts{flex:none}
+.company-card-meta .counts:after{content:"·";margin-left:8px;color:#c7cfd6}
+/* 누를 자리는 확보하되(모바일에서는 전역 규칙이 44px 로 다시 키운다) 데스크톱에서 한 줄짜리
+   글이 40px 짜리 덩어리로 보이지 않게 낮춘다. */
+.company-card-meta .contact-chip{min-width:0;min-height:32px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:0;background:transparent;padding:2px 0;color:#5c7a91;font-size:11.5px;font-weight:600;text-align:left;border-bottom:1px solid transparent}
+.company-card-meta .company-card-delete{position:static;flex:none;margin-left:auto;display:grid;place-items:center;width:34px;height:34px;min-width:34px;min-height:34px;padding:0;border:0;border-radius:9px;background:transparent;color:#82908a}
+.company-card-meta .contact-chip:hover,.company-card-meta .contact-chip:focus-visible{color:#1c3b56;border-bottom-color:#b6c6d3}
+.company-card-meta .contact-chip.empty{color:#a2541f;font-weight:650}
+.company-card-meta .contact-chip.empty:hover,.company-card-meta .contact-chip.empty:focus-visible{color:#8a4519;border-bottom-color:#e2b48c}
+
+/* 배지 점은 단계 색을 따른다. 늘 초록이면 '조사만 끝난 것'과 '교육까지 끝난 것'이
+   같아 보인다. */
+.company-card .stage.neutral{color:#6b7a85}
+.company-card .stage.neutral:before{background:#aab6bf}
+.company-card .stage.progress{color:#2f5d80}
+.company-card .stage.progress:before{background:#3f7fb0}
+.company-card .stage.done{color:#2f6a52}
+.company-card .stage.done:before{background:#2f7d60}
+.company-card .stage.stopped{color:#94503b}
+.company-card .stage.stopped:before{background:#c07257}
+
+/* ── 만족도 ─────────────────────────────────────────────────────────────────
+   관리자 화면(목록·편집)과 수강생 응답 화면이 함께 있다. 응답 화면은 로그인 없이 열리고
+   대부분 교육 직후 휴대폰에서 열리므로, 앱 크롬 없이 카드 하나로만 만든다. */
+.survey-list{display:flex;flex-direction:column;gap:10px}
+.survey-row{display:flex;align-items:center;gap:16px;padding:18px 20px;border:1px solid #dce3ec;border-radius:12px;background:#fff;box-shadow:var(--shadow-sm)}
+.survey-row-main{flex:1;min-width:0}
+.survey-row-head{display:flex;align-items:center;gap:10px}
+.survey-row-head h3{margin:0;font-size:15px;letter-spacing:-.02em}
+.survey-row-meta{margin:6px 0 0;color:#8b969f;font-size:12px}
+.survey-row-actions{flex:none}
+
+.survey-editor .backbar{margin-bottom:14px;border:0;background:transparent;color:#5c7a91;font-size:12.5px;padding:0}
+.survey-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:4px 0 14px;padding:14px 18px;border:1px solid #e6ebf1;border-radius:12px;background:#f9fbfc}
+.survey-metrics dt{margin:0;color:#8b969f;font-size:11px}
+.survey-metrics dd{margin:5px 0 0;font-size:15px;font-weight:650;letter-spacing:-.02em}
+.survey-actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.survey-fields{display:flex;flex-direction:column;gap:10px;margin-bottom:16px}
+.survey-fields label{display:flex;flex-direction:column;gap:6px;font-size:12px;color:#4a5a68}
+.survey-fields input,.survey-fields textarea{border:1px solid #dce3ec;border-radius:9px;padding:10px 12px;font-size:13px;color:var(--ink)}
+
+.survey-questions{display:flex;flex-direction:column;gap:10px}
+.survey-edit-row{border:1px solid #e6ebf1;border-radius:12px;padding:14px 16px;background:#fff}
+.survey-edit-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.survey-number{display:inline-grid;place-items:center;min-width:26px;height:22px;border-radius:6px;background:#eef3f8;color:#5c7a91;font:650 11px var(--font-geist-mono)}
+.survey-edit-head select{border:1px solid #dce3ec;border-radius:8px;padding:6px 8px;font-size:12px}
+.survey-required{display:flex;align-items:center;gap:5px;font-size:12px;color:#6b7a85}
+.survey-required input{width:15px;height:15px;min-height:0}
+.survey-edit-tools{margin-left:auto;display:flex;gap:4px}
+.survey-edit-tools button{min-width:32px;min-height:32px;padding:0 8px;border:1px solid #e2e8ee;border-radius:8px;background:#fff;color:#6b7a85;font-size:12px}
+.survey-edit-row textarea,.survey-edit-row input{width:100%;border:1px solid #dce3ec;border-radius:9px;padding:9px 11px;font-size:13px;color:var(--ink)}
+.survey-edit-row input{margin-top:8px}
+.survey-hint{margin:8px 0 0;color:#98a3ad;font-size:11px}
+
+.survey-results{margin-top:22px}
+.survey-results h3{margin:0 0 12px;font-size:14px;letter-spacing:-.02em}
+.survey-result-row{padding:12px 0;border-bottom:1px solid #eef1f5}
+.survey-result-head{display:flex;justify-content:space-between;gap:12px;font-size:13px}
+.survey-result-head span{flex:none;color:#5c7a91;font-weight:650}
+.survey-bar{margin:8px 0 0;height:7px;border-radius:4px;background:#eef2f6;overflow:hidden}
+.survey-bar i{display:block;height:100%;background:#315f50;border-radius:4px}
+.survey-answers{margin:8px 0 0;padding-left:18px;color:#4a5a68;font-size:12.5px;line-height:1.7}
+
+.session-survey{margin-top:16px;padding-top:14px;border-top:1px solid #eef1f5}
+.session-survey-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.session-survey-head h4{margin:0;font-size:13px}
+.session-survey-metrics{display:flex;gap:22px;margin:0 0 10px}
+.session-survey-metrics dt{margin:0;color:#8b969f;font-size:11px}
+.session-survey-metrics dd{margin:4px 0 0;font-size:14px;font-weight:650}
+
+/* 수강생 응답 화면 */
+.survey-page{min-height:100dvh;background:#f4f6f8;padding:28px 14px 60px}
+.survey-card{max-width:640px;margin:0 auto;background:#fff;border:1px solid #e3e9ef;border-radius:16px;padding:32px 28px 36px}
+.survey-eyebrow{margin:0 0 10px;color:#5c7a91;font:650 11px var(--font-geist-mono);letter-spacing:.1em}
+.survey-card h1{margin:0 0 10px;font-size:23px;letter-spacing:-.03em}
+.survey-note{margin:0 0 6px;color:#8b969f;font-size:13px;line-height:1.7}
+.survey-note.small{margin-top:10px;font-size:11.5px;text-align:center}
+.survey-intro{margin:12px 0 0;padding:12px 14px;border-radius:10px;background:#f5f8fa;color:#4a5a68;font-size:13px;line-height:1.7}
+.survey-form{margin-top:22px;display:flex;flex-direction:column;gap:18px}
+.survey-question{border:0;border-top:1px solid #eef1f5;margin:0;padding:18px 0 0}
+.survey-question.missing{border-top-color:#e6b8a2}
+.survey-question legend{display:flex;align-items:flex-start;gap:8px;padding:0;font-size:14.5px;font-weight:650;line-height:1.6;letter-spacing:-.02em}
+.survey-question legend em{flex:none;margin-top:2px;color:#98a3ad;font-size:11px;font-style:normal;font-weight:500}
+.survey-scale{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:14px}
+.survey-scale button{display:flex;flex-direction:column;align-items:center;gap:3px;min-height:64px;padding:8px 2px;border:1px solid #dce3ec;border-radius:10px;background:#fff;color:#6b7a85}
+.survey-scale button b{font-size:15px}
+.survey-scale button small{font-size:10px;line-height:1.3;text-align:center;word-break:keep-all}
+.survey-scale button.picked{border-color:#173452;background:#173452;color:#fff}
+.survey-choices{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.survey-choices button{padding:10px 16px;border:1px solid #dce3ec;border-radius:10px;background:#fff;color:#4a5a68;font-size:13px}
+.survey-choices button.picked{border-color:#173452;background:#173452;color:#fff}
+.survey-question textarea{width:100%;margin-top:14px;border:1px solid #dce3ec;border-radius:10px;padding:12px;font-size:14px;line-height:1.6;color:var(--ink)}
+.survey-error{margin:4px 0 0;color:#b42318;font-size:13px}
+.survey-submit{width:100%;min-height:52px;margin-top:6px;border:0;border-radius:12px;background:#173452;color:#fff;font-size:15px;font-weight:650}
+.survey-submit:disabled{opacity:.6}
+.survey-done{margin-top:24px;padding:28px 0;text-align:center}
+.survey-done h2{margin:0 0 8px;font-size:19px;letter-spacing:-.02em}
+
+@media (max-width:520px){
+  .survey-card{padding:26px 18px 30px}
+  .survey-scale{gap:4px}
+  .survey-scale button small{font-size:9px}
+  .survey-metrics{grid-template-columns:repeat(2,1fr)}
+  .survey-row{flex-direction:column;align-items:flex-start}
+}
+
+/* 진행 단계 배지(.stage.progress)가 진행률 막대(.progress)의 규칙을 물려받아 높이 4px 로
+   눌리고 글자가 잘렸다 — 이름이 같은 두 개념이 한 클래스를 쓰고 있었다. 배지 쪽 특이도가
+   높으므로 여기서 되돌린다. */
+.stage.progress{height:auto;overflow:visible}

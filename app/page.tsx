@@ -19,13 +19,14 @@ import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, read
 import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructors-panel";
 import { CompanySessionsTab } from "./company-sessions";
 import { LearnersPanel } from "./learners-panel";
+import { SurveysPanel } from "./surveys-panel";
 import { CompanyContactPanel } from "./company-contact";
 import { CompanyLearnersTab } from "./company-learners";
 import { CompanyContact } from "@/lib/contacts";
-import { STAGE_TONE, resolveStage, stageLabel } from "@/lib/company-stage";
-import { Icon, IconName, formatFileSize } from "./ui";
+import { STAGE_TONE, STALE_AFTER_DAYS, daysSince, heldOnLabel, nextAction, resolveStage, stageLabel } from "@/lib/company-stage";
+import { Icon, IconName, formatFileSize, useEscapeClose } from "./ui";
 
-type View = "companies" | "company" | "instructors" | "instructor" | "learners";
+type View = "companies" | "company" | "instructors" | "instructor" | "learners" | "surveys";
 
 type ResearchReport = {
   companyName: string; industry: string; headline: string; summary: string; keywords: string[]; comparisonTags?: string[];
@@ -59,6 +60,11 @@ type CompanyItem = {
   storedStage?: string;
   sessionCount?: number;
   assignedCount?: number;
+  learnerCount?: number;
+  consultationCount?: number;
+  pastSessionCount?: number;
+  nextSession?: { heldOn: string; instructorName: string } | null;
+  updatedAt?: string;
   contact?: CompanyContact;
   progress: number;
   date: string;
@@ -187,6 +193,7 @@ const nav = [
   { id: "companies" as View, icon: "building" as IconName, label: "기업" },
   { id: "instructors" as View, icon: "person" as IconName, label: "강사" },
   { id: "learners" as View, icon: "survey" as IconName, label: "수강생" },
+  { id: "surveys" as View, icon: "chart" as IconName, label: "만족도" },
 ];
 
 /** 아직 만들지 않은 사업. 시연에서 "무엇이 예정인지"를 보여 주는 용도다. */
@@ -229,20 +236,87 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
   </aside>;
 }
 
-function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string }) {
+function Header({ view, onNew, selectedCompany, selectedInstructorName, contactSignal }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string; contactSignal?: number }) {
   const titles: Record<View, [string, string]> = {
     companies: ["기업", "기업 조사와 교육 진행 상황"],
     company: [displayCompanyName(selectedCompany.name), [selectedCompany.field, parsePublicWebsite(selectedCompany.websiteUrl)?.host].filter(Boolean).join(" · ")],
     instructors: ["강사", "강사 프로필과 강의 이력"],
     instructor: [selectedInstructorName || "강사", "강사 프로필과 강의 이력"],
     learners: ["수강생", "참석자 명단과 수강 이력"],
+    surveys: ["만족도", "교육과정별 설문지와 응답 결과"],
   };
   // 새 기업 조사는 목록에서 하는 일이다. 특정 기업 안에 들어와 있을 때는 맥락이 어긋난다.
   const showNew = view === "companies";
-  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{view === "company" && selectedCompany.id && <CompanyContactPanel key={selectedCompany.id} companyId={selectedCompany.id} initial={selectedCompany.contact} />}{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
+  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{view === "company" && selectedCompany.id && <CompanyContactPanel key={`${selectedCompany.id}-${contactSignal || 0}`} companyId={selectedCompany.id} initial={selectedCompany.contact} openSignal={contactSignal} />}{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
 }
 
-function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onCompanyDeleted: (id: string) => void }) {
+/**
+ * 목록 카드. 이름과 상태만으로는 '어느 회사를 먼저 열어야 하나'에 답하지 못한다 — 조사만
+ * 끝난 회사가 여럿이면 배지가 전부 같기 때문이다. 그래서 두 줄을 더 둔다:
+ * 다음에 할 일(또는 잡힌 교육일)과, 규모·담당자.
+ *
+ * 두 줄 모두 한 줄로 잘라 낸다. 글자 수에 따라 카드 높이가 달라지면 배지와 휴지통 위치가
+ * 카드마다 어긋나 보인다 — 이미 한 번 겪은 문제다.
+ */
+function CompanyCard({ company, onOpen, onDelete, deleting }: { company: CompanyItem; onOpen: (company: CompanyItem, intent?: "contact") => void; onDelete: (company: CompanyItem) => void; deleting: boolean }) {
+  const sessionCount = company.sessionCount || 0;
+  const assignedCount = company.assignedCount || 0;
+  const stage = resolveStage(company.storedStage, sessionCount, assignedCount);
+  const name = displayCompanyName(company.name);
+
+  // 교육이 잡혀 있으면 날짜가 가장 급한 정보다. 없으면 다음에 할 일을 보여 준다.
+  const upcoming = company.nextSession?.heldOn ? heldOnLabel(company.nextSession.heldOn) : "";
+  const primary = upcoming
+    ? [upcoming, company.nextSession?.instructorName ? `${company.nextSession.instructorName} 강사` : ""].filter(Boolean).join(" · ")
+    : nextAction(company.storedStage, {
+        questionCount: company.research?.questions?.length || 0,
+        consultationCount: company.consultationCount || 0,
+        pastSessionCount: company.pastSessionCount || 0,
+        sessionCount, assignedCount,
+      });
+
+  // 정체 표시는 아직 할 일이 남은 회사에만 의미가 있다. 끝났거나 취소된 건, 그리고 이미
+  // 일정이 잡힌 건은 조용한 것이 정상이다.
+  const idleDays = daysSince(company.updatedAt);
+  const stale = !upcoming && stage !== "training_complete" && stage !== "cancelled"
+    && idleDays !== null && idleDays >= STALE_AFTER_DAYS;
+
+  const contactName = [company.contact?.name, company.contact?.position].filter(Boolean).join(" ");
+  const counts = [
+    sessionCount > 0 ? `과정 ${sessionCount}` : "",
+    (company.learnerCount || 0) > 0 ? `수강생 ${company.learnerCount}` : "",
+  ].filter(Boolean).join(" · ");
+
+  // 담당자 칸은 읽는 곳이 아니라 누르는 곳이다. 비어 있으면 등록하러, 채워져 있으면 고치러
+  // 간다. 버튼 안에 버튼을 둘 수 없어 카드 본문(열기 버튼) 밖으로 뺐다.
+  return <article className="company-card">
+    <button type="button" className="company-card-open" onClick={() => onOpen(company)} aria-label={`${name} 조사 결과 열기`}>
+      <div className="company-card-heading">
+        <h3>{name}</h3>
+        <span className={`stage ${STAGE_TONE[stage]}`}>{stageLabel(company.storedStage, sessionCount, assignedCount)}</span>
+      </div>
+      <p>{company.field}</p>
+      <p className="company-card-next">
+        <b>{primary}</b>
+        {stale && <span className="stale">{idleDays}일째 멈춤</span>}
+      </p>
+    </button>
+    {/* 휴지통도 이 줄에 둔다. 따로 띄워 놓으면 담당자 줄과 높이가 어긋나고, 그 어긋남을
+        맞추려 카드에 여백을 더하게 된다. */}
+    <div className="company-card-meta">
+      {counts && <span className="counts">{counts}</span>}
+      <button type="button" className={`contact-chip${contactName ? "" : " empty"}`} onClick={() => onOpen(company, "contact")}
+        aria-label={contactName ? `${name} 담당자 ${contactName} 수정` : `${name} 담당자 등록`}>
+        {contactName || "담당자 등록"}
+      </button>
+      <button type="button" className="company-card-delete" onClick={() => onDelete(company)} aria-label={`${name} 삭제`} title="삭제" disabled={!company.id || deleting}>
+        {deleting ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}
+      </button>
+    </div>
+  </article>;
+}
+
+function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem, intent?: "contact") => void; onCompanyDeleted: (id: string) => void }) {
   const [deletingId, setDeletingId] = useState("");
   const [deleteFeedback, setDeleteFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const deleteCompany = async (company: CompanyItem) => {
@@ -261,7 +335,7 @@ function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { compan
       setDeletingId("");
     }
   };
-  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위의 <b>새 기업 조사</b>에서 홈페이지를 입력하면<br/>웹사이트·OpenDART·공개 채용정보를 함께 분석합니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <article className="company-card" key={c.id || c.name}><button type="button" className="company-card-open" onClick={() => onSelectCompany(c)} aria-label={`${displayCompanyName(c.name)} 조사 결과 열기`}><div className="company-card-heading"><h3>{displayCompanyName(c.name)}</h3><span className={`stage ${STAGE_TONE[resolveStage(c.storedStage, c.sessionCount || 0, c.assignedCount || 0)]}`}>{stageLabel(c.storedStage, c.sessionCount || 0, c.assignedCount || 0)}</span></div><p>{c.field}</p></button><button type="button" className="company-card-delete" onClick={() => deleteCompany(c)} aria-label={`${displayCompanyName(c.name)} 삭제`} title="삭제" disabled={!c.id || deletingId === c.id}>{deletingId === c.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}</button></article>)}</div></>}
+  return <section className="workspace-panel">{deleteFeedback&&<span className={`company-action-message${deleteFeedback.error?" error":""}`} role={deleteFeedback.error?"alert":"status"}>{deleteFeedback.message}</span>}{companyItems.length === 0 ? <div className="company-empty"><span><Icon name="building" size={26}/></span><h2>아직 조사한 기업이 없습니다</h2><p>오른쪽 위의 <b>새 기업 조사</b>에서 홈페이지를 입력하면<br/>웹사이트·OpenDART·공개 채용정보를 함께 분석합니다.</p></div> : <><div className="toolbar"><div className="searchbox"><Icon name="search" size={17}/><input aria-label="기업 검색" placeholder="기업명 또는 산업으로 검색" /></div></div><div className="company-cards">{companyItems.map((c) => <CompanyCard key={c.id || c.name} company={c} onOpen={onSelectCompany} onDelete={deleteCompany} deleting={deletingId === c.id}/>)}</div></>}
   </section>;
 }
 
@@ -746,6 +820,7 @@ function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCr
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  useEscapeClose(!loading, onClose);
   const researchCompany = async (urlValue: string, resolvedName?: string, documentSummary?: string) => {
     const normalized = new URL(/^https?:\/\//i.test(urlValue) ? urlValue : `https://${urlValue}`);
     const researchResponse = await fetch("/api/companies/research", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ websiteUrl: normalized.href, companyName: resolvedName, documentSummary }) });
@@ -757,7 +832,7 @@ function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCr
     const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
     const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
     if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
-    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0, 0), storedStage: "research_complete", sessionCount: 0, assignedCount: 0, progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
+    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0, 0), storedStage: "research_complete", sessionCount: 0, assignedCount: 0, learnerCount: 0, consultationCount: 0, nextSession: null, updatedAt: new Date().toISOString(), progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
     onClose();
   };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -807,7 +882,15 @@ export default function Home() {
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [selectedCompany, setSelectedCompany] = useState<CompanyItem | null>(null);
   const [selectedInstructor, setSelectedInstructor] = useState<InstructorItem | null>(null);
-  const selectCompany = (company: CompanyItem) => { setSelectedCompany(company); setView("company"); };
+  // 카드에서 '담당자 등록'을 누르면 기업 화면을 열면서 담당자 입력까지 바로 띄운다. 값은
+  // 매번 새로 찍는 신호다 — 담당자 의도 없이 다른 기업을 열 때 0으로 되돌려 놓지 않으면,
+  // 패널이 다시 마운트되면서 지난 신호로 창이 또 열린다.
+  const [contactSignal, setContactSignal] = useState(0);
+  const selectCompany = (company: CompanyItem, intent?: "contact") => {
+    setSelectedCompany(company);
+    setView("company");
+    setContactSignal(intent === "contact" ? Date.now() : 0);
+  };
   const selectInstructor = (instructor: InstructorItem) => { setSelectedInstructor(instructor); setView("instructor"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
   // 상세에서 바꾼 상태를 목록 카드에도 즉시 반영한다. 다시 불러오지 않으면 배지가 옛값으로 남는다.
@@ -816,18 +899,20 @@ export default function Home() {
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
     fetch("/api/companies").then(async response => {
-      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; contact: CompanyContact; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
+      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; learnerCount: number; consultationCount: number; pastSessionCount: number; nextSession: CompanyItem["nextSession"]; updated_at: string; contact: CompanyContact; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
       if (!response.ok) throw new Error("기업 목록 조회 실패");
-      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, contact: item.contact, progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, learnerCount: item.learnerCount || 0, consultationCount: item.consultationCount || 0, pastSessionCount: item.pastSessionCount || 0, nextSession: item.nextSession || null, updatedAt: item.updated_at, contact: item.contact, progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", progress: 0, date: "", color: "blue" };
-  const content = view === "learners"
+  const content = view === "surveys"
+    ? <SurveysPanel/>
+    : view === "learners"
     ? <LearnersPanel/>
     : view === "instructor" && selectedInstructor
     ? <InstructorDetail key={selectedInstructor.id} instructor={selectedInstructor} onBack={() => setView("instructors")}/>
     : view === "instructors"
       ? <InstructorsPanel onSelect={selectInstructor}/>
       : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany} onStageChange={updateStage}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
-  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
+  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""} contactSignal={contactSignal}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }

@@ -1,4 +1,5 @@
 import { requireTeamSession } from "@/lib/auth/guard";
+import { SurveyAnswers, sanitizeQuestions, summarizeSurvey } from "@/lib/surveys";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -65,11 +66,50 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .eq("status", "active")
       .order("name");
 
+    // 만족도. 발송은 이 화면에서 하고 결과도 여기서 본다 — 설문지 문항 편집만 만족도 메뉴다.
+    const { data: surveys } = sessionIds.length
+      ? await supabase.from("surveys").select("id,course_session_id,title,status,questions").in("course_session_id", sessionIds)
+      : { data: [] };
+    const surveyIds = (surveys || []).map((survey) => survey.id as string);
+    const [{ data: surveyInvites }, { data: surveyResponses }] = await Promise.all([
+      surveyIds.length
+        ? supabase.from("survey_invites").select("survey_id,sent_at").in("survey_id", surveyIds)
+        : Promise.resolve({ data: [] as Array<{ survey_id: string; sent_at: string | null }> }),
+      surveyIds.length
+        ? supabase.from("survey_responses").select("survey_id,answers").in("survey_id", surveyIds)
+        : Promise.resolve({ data: [] as Array<{ survey_id: string; answers: unknown }> }),
+    ]);
+
+    const surveyBySession = new Map<string, {
+      id: string; title: string; status: string; questionCount: number;
+      sent: number; responded: number; responseRate: number; overall: number | null;
+    }>();
+    (surveys || []).forEach((survey) => {
+      const surveyId = survey.id as string;
+      const questions = sanitizeQuestions(survey.questions);
+      const sent = (surveyInvites || []).filter((invite) => invite.survey_id === surveyId && invite.sent_at).length;
+      const responses = (surveyResponses || [])
+        .filter((response) => response.survey_id === surveyId)
+        .map((response) => ({ answers: (response.answers || {}) as SurveyAnswers }));
+      const summary = summarizeSurvey(questions, responses, sent);
+      surveyBySession.set(survey.course_session_id as string, {
+        id: surveyId,
+        title: String(survey.title || ""),
+        status: String(survey.status || "draft"),
+        questionCount: questions.length,
+        sent: summary.invited,
+        responded: summary.responded,
+        responseRate: summary.responseRate,
+        overall: summary.overall,
+      });
+    });
+
     return Response.json({
       sessions: (sessions || []).map((session) => ({
         ...session,
         contract: latest.get(session.id as string) || null,
         learners: learnerCounts.get(session.id as string) || { total: 0, attended: 0 },
+        survey: surveyBySession.get(session.id as string) || null,
       })),
       instructors: instructors || [],
       progress: {

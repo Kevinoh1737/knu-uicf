@@ -15,7 +15,7 @@ import {
   CourseOutline,
 } from "@/lib/instructors";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Icon, formatFileSize } from "./ui";
+import { Icon, formatFileSize, useEscapeClose } from "./ui";
 
 export type InstructorStats = { delivered: number; planned: number; lastHeldOn: string | null };
 
@@ -187,6 +187,7 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const busy = phase === "uploading" || phase === "extracting" || phase === "saving";
+  useEscapeClose(!busy, onClose);
   // 직접 입력을 고른 순간부터 양식을 보여준다. 파일 경로에서는 추출이 끝난 뒤에 나온다.
   const showForm = phase === "review" || (phase === "pick" && mode === "manual");
 

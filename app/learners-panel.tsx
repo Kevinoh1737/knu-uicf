@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { INSTRUCTOR_DOCUMENTS_BUCKET, MAX_INSTRUCTOR_DOCUMENT_SIZE } from "@/lib/instructors";
 import { LearnerInput } from "@/lib/learners";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Icon, formatFileSize } from "./ui";
+import { Icon, formatFileSize, useEscapeClose } from "./ui";
 
 type LearnerRow = {
   id: string;
@@ -147,6 +147,7 @@ function RosterModal({ companies, onClose, onSaved }: {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const busy = phase === "uploading" || phase === "extracting" || phase === "saving";
+  useEscapeClose(!busy, onClose);
 
   const handleFile = async (file: File) => {
     // 실패한 파일을 다시 고를 수 있도록 무엇보다 먼저 입력을 비운다.

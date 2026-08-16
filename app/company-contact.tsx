@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CompanyContact, EMPTY_CONTACT, hasContact, parseRememberText, sanitizeContact } from "@/lib/contacts";
-import { Icon } from "./ui";
+import { Icon, useEscapeClose } from "./ui";
 
 type Mode = "card" | "remember" | "manual";
 
@@ -11,19 +11,27 @@ type Mode = "card" | "remember" | "manual";
  * 기업 담당자. 상담 일정을 잡고 브리프를 보내고 계약을 진행할 상대라 기업 화면 어디서나
  * 보여야 한다. 입력은 명함 사진·리멤버 텍스트·직접 입력 세 갈래다.
  */
-export function CompanyContactPanel({ companyId, initial, onSaved }: {
+export function CompanyContactPanel({ companyId, initial, onSaved, openSignal }: {
   companyId: string;
   initial?: CompanyContact | null;
   onSaved?: (contact: CompanyContact) => void;
+  /** 0 이 아니면 곧바로 입력창을 연다. 목록 카드의 '담당자 등록'이 여기로 들어온다. */
+  openSignal?: number;
 }) {
-  const [contact, setContact] = useState<CompanyContact>(initial ? sanitizeContact(initial) : EMPTY_CONTACT);
-  const [open, setOpen] = useState(false);
-  const [mode, setMode] = useState<Mode>("card");
-  const [draft, setDraft] = useState<CompanyContact>(EMPTY_CONTACT);
+  // 목록 카드에서 '담당자 등록'으로 들어오면 이미 열린 채로 시작한다. 부모가 openSignal 을
+  // key 에 넣어 다시 마운트하므로, 여는 일을 effect 로 미룰 필요가 없다 — 첫 렌더에 바로 열린다.
+  const initialContact = initial ? sanitizeContact(initial) : EMPTY_CONTACT;
+  const initiallyFilled = hasContact(initialContact);
+  const [contact, setContact] = useState<CompanyContact>(initialContact);
+  const [open, setOpen] = useState(Boolean(openSignal));
+  const [mode, setMode] = useState<Mode>(initiallyFilled ? "manual" : "card");
+  const [draft, setDraft] = useState<CompanyContact>(initiallyFilled ? initialContact : EMPTY_CONTACT);
   const [remember, setRemember] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEscapeClose(open && !busy, () => setOpen(false));
 
   const filled = hasContact(contact);
   // 이 패널은 .topbar 안에서 그려지는데, .topbar 의 backdrop-filter 가 position:fixed 의
@@ -35,6 +43,7 @@ export function CompanyContactPanel({ companyId, initial, onSaved }: {
     setDraft(filled ? contact : EMPTY_CONTACT);
     setRemember(""); setError(""); setMode(filled ? "manual" : "card"); setOpen(true);
   };
+
 
   const readCard = async (file: File) => {
     // 같은 파일을 다시 고를 수 있도록 무엇보다 먼저 입력을 비운다.

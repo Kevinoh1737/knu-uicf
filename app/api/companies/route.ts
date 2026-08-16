@@ -15,25 +15,63 @@ export async function GET() {
     if (error) throw error;
 
     // 교육과정 생성과 강사 배정은 다른 단계라 따로 센다 — lib/company-stage.ts 참고.
-    const { data: sessions, error: sessionsError } = await supabase
-      .from("course_sessions")
-      .select("company_id,status,instructor_id");
-    if (sessionsError) throw sessionsError;
+    // 상담·수강생 수와 다음 교육일까지 함께 읽는 이유는 카드가 '어디를 먼저 열어야 하나'에
+    // 답해야 하기 때문이다. 회사마다 상세를 열어 보게 하면 그 답이 목록에 없는 셈이 된다.
+    const [sessionsResult, learnersResult, consultationsResult] = await Promise.all([
+      supabase.from("course_sessions").select("company_id,status,instructor_id,held_on,instructors(name)"),
+      supabase.from("learners").select("company_id"),
+      supabase.from("company_consultations").select("company_id"),
+    ]);
+    if (sessionsResult.error) throw sessionsResult.error;
+    if (learnersResult.error) throw learnersResult.error;
+    if (consultationsResult.error) throw consultationsResult.error;
 
-    const counts = new Map<string, { total: number; assigned: number }>();
-    (sessions || []).forEach((session) => {
+    const today = new Date().toISOString().slice(0, 10);
+    type Next = { heldOn: string; instructorName: string };
+    const counts = new Map<string, { total: number; assigned: number; past: number; next: Next | null }>();
+    (sessionsResult.data || []).forEach((session) => {
       if (session.status === "cancelled") return;
       const key = session.company_id as string;
-      const current = counts.get(key) || { total: 0, assigned: 0 };
+      const current = counts.get(key) || { total: 0, assigned: 0, past: 0, next: null };
       current.total += 1;
       if (session.instructor_id) current.assigned += 1;
+
+      // 다가오는 교육 중 가장 이른 것 하나. 지난 교육은 '다음'이 아니라 이력이다.
+      const heldOn = typeof session.held_on === "string" ? session.held_on.slice(0, 10) : "";
+      if (heldOn && heldOn < today && session.status !== "delivered") current.past += 1;
+      if (heldOn && heldOn >= today && (!current.next || heldOn < current.next.heldOn)) {
+        // 조인 결과는 단일 관계라도 배열로 올 수 있다.
+        const joined = session.instructors as { name?: string } | { name?: string }[] | null;
+        const instructor = Array.isArray(joined) ? joined[0] : joined;
+        current.next = { heldOn, instructorName: String(instructor?.name || "") };
+      }
       counts.set(key, current);
     });
 
+    const tally = (rows: Array<{ company_id: unknown }> | null) => {
+      const map = new Map<string, number>();
+      (rows || []).forEach((row) => {
+        const key = String(row.company_id);
+        map.set(key, (map.get(key) || 0) + 1);
+      });
+      return map;
+    };
+    const learnerCounts = tally(learnersResult.data);
+    const consultationCounts = tally(consultationsResult.data);
+
     return Response.json({
       companies: (data || []).map((company) => {
-        const count = counts.get(company.id as string) || { total: 0, assigned: 0 };
-        return { ...company, sessionCount: count.total, assignedCount: count.assigned };
+        const id = company.id as string;
+        const count = counts.get(id) || { total: 0, assigned: 0, past: 0, next: null };
+        return {
+          ...company,
+          sessionCount: count.total,
+          assignedCount: count.assigned,
+          pastSessionCount: count.past,
+          nextSession: count.next,
+          learnerCount: learnerCounts.get(id) || 0,
+          consultationCount: consultationCounts.get(id) || 0,
+        };
       }),
     });
   } catch (error) {

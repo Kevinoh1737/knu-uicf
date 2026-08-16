@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 /**
  * 화면 여럿이 공유하는 표시 요소. page.tsx 안에 두면 새 화면이 같은 아이콘을 쓰려다
  * 순환 import 가 되므로 여기로 뺐다.
@@ -28,6 +30,26 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     grip: <><circle cx="9" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="1" fill="currentColor" stroke="none"/></>,
   };
   return <svg className="ui-icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
+}
+
+/**
+ * 열린 창을 Esc 로 닫는다. 창마다 따로 붙이면 어떤 창은 되고 어떤 창은 안 되는 상태가 되므로
+ * 한 곳에 둔다.
+ *
+ * `active` 에는 '지금 닫아도 되는가'를 넣는다 — 처리 중인 창은 취소 버튼도 잠그고 있으므로
+ * Esc 로도 빠져나갈 수 없어야 한다. 올리던 파일이나 저장 중인 입력이 조용히 사라진다.
+ */
+export function useEscapeClose(active: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!active) return;
+    const handle = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      onClose();
+    };
+    window.addEventListener("keydown", handle);
+    return () => window.removeEventListener("keydown", handle);
+  }, [active, onClose]);
 }
 
 export function formatFileSize(bytes: number) {
