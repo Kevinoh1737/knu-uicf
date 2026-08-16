@@ -105,22 +105,43 @@ function formatDate(session: { held_on: string | null; start_time?: string | nul
  * 서버 값이 바뀌면 부모가 key 를 갈아 이 컴포넌트를 다시 만든다. effect 로 값을 되돌리는
  * 것보다 단순하고, 저장 중에 화면이 앞서 나가지 않는다.
  */
-function NumberField({ label, suffix, value, min, step, disabled, onSave }: {
-  label: string; suffix: string; value: number | null | undefined;
-  min: number; step: number; disabled: boolean; onSave: (next: string) => void;
+function NumberField({ suffix, value, min, step, disabled, ariaLabel, onSave }: {
+  suffix: string; value: number | null | undefined;
+  min: number; step: number; disabled: boolean; ariaLabel: string; onSave: (next: string) => void;
 }) {
   const initial = value === null || value === undefined ? "" : String(value);
   const [draft, setDraft] = useState(initial);
   const commit = () => { if (draft !== initial) onSave(draft); };
-  return <label className="number-field">{label}
-    <span>
-      <input type="number" min={min} step={step} value={draft} disabled={disabled}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={commit}
-        onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
-      <em>{suffix}</em>
-    </span>
-  </label>;
+  return <span className="inline-number">
+    <input type="number" min={min} step={step} value={draft} disabled={disabled} aria-label={ariaLabel}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
+    <em>{suffix}</em>
+  </span>;
+}
+
+/**
+ * 제목처럼 보이지만 눌러서 고치는 칸. 카드를 열지 않고 이름을 고칠 수 있어야 한다 —
+ * 오타 하나 때문에 수정 폼을 여는 것은 과하다. 비우면 저장하지 않고 원래 이름으로 돌린다.
+ */
+function TextField({ value, placeholder, ariaLabel, disabled, onSave }: {
+  value: string; placeholder: string; ariaLabel: string; disabled: boolean; onSave: (next: string) => void;
+}) {
+  const [draft, setDraft] = useState(value);
+  const commit = () => {
+    const next = draft.trim();
+    if (!next) return setDraft(value);
+    if (next !== value) onSave(next);
+  };
+  return <input className="session-name" value={draft} placeholder={placeholder} aria-label={ariaLabel}
+    disabled={disabled}
+    onChange={(event) => setDraft(event.target.value)}
+    onBlur={commit}
+    onKeyDown={(event) => {
+      if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
+      if (event.key === "Escape") { setDraft(value); event.currentTarget.blur(); }
+    }} />;
 }
 
 /** 교육과정별 수강생. 사람은 기업 수강생 목록에서 고르고, 여기서는 연결과 출결만 다룬다. */
@@ -576,14 +597,28 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
               const hasMaterials = Boolean(session.materials?.caseExamples?.length || session.materials?.toolsUsed?.length);
               return <div className={open ? "session open" : "session"} key={session.id}>
                 <div className="session-head">
-                <button type="button" onClick={() => setOpenId(open ? null : session.id)}>
-                  <div>
-                    <b>{session.title}</b>
-                    <p>{session.instructors?.name ? `${session.instructors.name} 강사` : "강사 미배정"}</p>
+                  {/* 펼치기 버튼을 뒤에 깔고 고칠 수 있는 것들을 그 위에 올린다 — 버튼 안에
+                      입력을 넣을 수 없고, 그렇다고 카드를 여는 넓은 자리를 포기할 수도 없다. */}
+                  <button type="button" className="session-toggle" aria-expanded={open}
+                    aria-label={`${session.title} ${open ? "접기" : "펼치기"}`}
+                    onClick={() => setOpenId(open ? null : session.id)} />
+                  <div className="session-title">
+                    <TextField key={`title-${session.id}-${session.title}`}
+                      value={session.title} ariaLabel="과정명" placeholder="과정명"
+                      disabled={busyId === session.id}
+                      onSave={(next) => void patchSession(session, { title: next }, "과정명")} />
+                    <label className="session-instructor">
+                      <span className="sr-only">담당 강사</span>
+                      <select value={session.instructor_id || ""} disabled={busyId === session.id}
+                        onChange={(event) => void assignInstructor(session.id, event.target.value)}>
+                        <option value="">강사 미배정</option>
+                        {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
+                          {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
+                        </option>)}
+                      </select>
+                    </label>
                   </div>
                   <div className="session-meta">
-                    {/* 무엇이 밀렸는지 목록에서 바로 보여야 한다. 강사는 제목 아래에 이름으로
-                        적히므로 여기서 또 세지 않는다. */}
                     <span className="course-progress">
                       {([["구성", hasOutline], ["자료", hasMaterials],
                          ["수강생", (session.learners?.total || 0) > 0]] as Array<[string, boolean]>)
@@ -591,27 +626,24 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     </span>
                     <small>{formatDate(session)}</small>
                   </div>
-                </button>
-                {/* 상태는 카드를 열지 않고도 바꿀 수 있어야 한다 — 교육이 끝난 날 하는 일이
-                    '완료로 바꾸기' 하나뿐인데 그것 때문에 카드를 펼치게 할 이유가 없다. */}
-                <label className={`stage-pick head ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
-                  <i className="stage-dot" aria-hidden="true" />
-                  <select value={session.status} disabled={busyId === session.id} aria-label={`${session.title} 진행 상태`}
-                    onChange={(event) => void changeSessionStatus(session, event.target.value)}>
-                    {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
-                      {SESSION_STATUS_LABEL[value]}
-                    </option>)}
-                    {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
-                      <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
-                  </select>
-                  <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
-                    <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </label>
-                <button type="button" className="session-delete" disabled={busyId === session.id}
-                  onClick={() => void deleteSession(session)} aria-label={`${session.title} 삭제`} title="교육과정 삭제">
-                  {busyId === session.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}
-                </button>
+                  <label className={`stage-pick head ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
+                    <i className="stage-dot" aria-hidden="true" />
+                    <select value={session.status} disabled={busyId === session.id} aria-label={`${session.title} 진행 상태`}
+                      onChange={(event) => void changeSessionStatus(session, event.target.value)}>
+                      {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
+                        {SESSION_STATUS_LABEL[value]}
+                      </option>)}
+                      {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
+                        <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
+                    </select>
+                    <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+                      <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </label>
+                  <button type="button" className="session-delete" disabled={busyId === session.id}
+                    onClick={() => void deleteSession(session)} aria-label={`${session.title} 삭제`} title="교육과정 삭제">
+                    {busyId === session.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}
+                  </button>
                 </div>
                 {open && <div className="session-body">
                   {editId === session.id
@@ -640,44 +672,59 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                         </div>
                       </form>
                     : null}
-                  <dl>
+                  <dl className="session-facts">
                     <div><dt>장소</dt><dd>{session.location || "미정"}</dd></div>
+                    <div className="editable"><dt>인원</dt><dd>
+                      <NumberField key={`headcount-${session.id}-${session.headcount ?? ""}`}
+                        suffix="명" min={1} step={1} value={session.headcount}
+                        ariaLabel="참석 인원" disabled={busyId === session.id}
+                        onSave={(next) => void patchSession(session, { headcount: next }, "인원")} />
+                    </dd></div>
+                    <div className="editable"><dt>교육 시간</dt><dd>
+                      <NumberField key={`duration-${session.id}-${session.duration_hours}`}
+                        suffix="시간" min={0.5} step={0.5} value={session.duration_hours}
+                        ariaLabel="교육 시간" disabled={busyId === session.id}
+                        onSave={(next) => void patchSession(session, { durationHours: next }, "교육 시간")} />
+                    </dd></div>
                     <div><dt>수강생</dt><dd>{session.learners?.total ? `${session.learners.total}명${session.learners.attended ? ` · 참석 ${session.learners.attended}` : ""}` : "미등록"}</dd></div>
                     <div><dt>계약</dt><dd>{session.contract ? `${CONTRACT_STATUS_LABEL[session.contract.status]} · ${session.contract.contract_no}` : "미작성"}</dd></div>
                   </dl>
 
-                  {session.outline?.objective && <><h4>학습목표</h4><p className="body-text">{session.outline.objective}</p></>}
-                  {hasOutline && <><h4>구성</h4><ul className="module-list">
-                    {session.outline.modules.map((module, index) => <li key={`${module.title}-${index}`}>
-                      <span>{module.minutes}분</span><b>{module.title}</b><em>{module.mode}</em>
-                    </li>)}
-                  </ul></>}
+                  {/* 강사가 낸 자료에서 뽑은 것을 다 보여 준다. 도구·성과·사전 준비까지 있어야
+                      "이 수업이 무엇을 남기는가"를 담당자가 고객사에 설명할 수 있다. */}
+                  {session.outline?.objective && <div className="outline-block">
+                    <h4>학습목표</h4><p className="body-text">{session.outline.objective}</p>
+                  </div>}
+                  {hasOutline && <div className="outline-block">
+                    <h4>구성 <small>{session.outline.modules.length}교시 · {session.outline.modules.reduce((sum, module) => sum + (module.minutes || 0), 0)}분</small></h4>
+                    <ol className="module-list">
+                      {session.outline.modules.map((module, index) => <li key={`${module.title}-${index}`}>
+                        <div className="module-head">
+                          <span className="module-time">{module.minutes}분</span>
+                          <b>{module.title}</b>
+                          <em className={`module-mode ${module.mode}`}>{module.mode}</em>
+                        </div>
+                        {module.outcome && <p className="module-outcome">{module.outcome}</p>}
+                        {module.tools.length > 0 && <p className="module-tools">
+                          {module.tools.map((tool) => <i key={tool}>{tool}</i>)}
+                        </p>}
+                      </li>)}
+                    </ol>
+                  </div>}
+                  {(session.outline?.prerequisites?.length || session.outline?.deliverables?.length) ? <div className="outline-block outline-side">
+                    {session.outline.prerequisites.length > 0 && <div>
+                      <h4>사전 준비</h4>
+                      <ul className="plain-list">{session.outline.prerequisites.map((item) => <li key={item}>{item}</li>)}</ul>
+                    </div>}
+                    {session.outline.deliverables.length > 0 && <div>
+                      <h4>수강생이 얻는 것</h4>
+                      <ul className="plain-list">{session.outline.deliverables.map((item) => <li key={item}>{item}</li>)}</ul>
+                    </div>}
+                  </div> : null}
                   {ratio !== null && <p className={ratio < 50 ? "case-ratio warn" : "case-ratio"}>
                     맞춤 사례 {ratio}% · 사용 사례 {session.materials.caseExamples.length}건
                     {ratio < 50 && " — 일반 사례 비중이 높습니다"}
                   </p>}
-
-                  <div className="assign-row">
-                    <label>담당 강사
-                      <select value={session.instructor_id || ""} disabled={busyId === session.id}
-                        onChange={(event) => void assignInstructor(session.id, event.target.value)}>
-                        <option value="">미배정</option>
-                        {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
-                          {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
-                        </option>)}
-                      </select>
-                    </label>
-                    {/* 인원과 시간은 확정되기까지 몇 번씩 바뀐다. 볼 수만 있고 고치려면 수정 폼을
-                        열어야 하는 값이라면, 읽는 자리와 고치는 자리가 갈라진다. */}
-                    <NumberField key={`headcount-${session.id}-${session.headcount ?? ""}`}
-                      label="인원" suffix="명" min={1} step={1} value={session.headcount}
-                      disabled={busyId === session.id}
-                      onSave={(next) => void patchSession(session, { headcount: next }, "인원")} />
-                    <NumberField key={`duration-${session.id}-${session.duration_hours}`}
-                      label="교육 시간" suffix="시간" min={0.5} step={0.5} value={session.duration_hours}
-                      disabled={busyId === session.id}
-                      onSave={(next) => void patchSession(session, { durationHours: next }, "교육 시간")} />
-                  </div>
 
                   <div className="session-actions">
                     <button type="button" className="upload-chip" disabled={busyId === session.id}
