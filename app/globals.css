@@ -553,3 +553,13 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
    다시 44px 로 키우므로 누를 자리는 그대로다. */
 .content-title .title-actions .upload-chip{height:36px;min-height:0;font-size:11px;line-height:1}
 .content-title .title-actions .upload-chip svg{flex:none}
+
+/* 강사 배정과 진행 상태는 나란히 선다. .assign-row 의 label{display:block}·select{width:100%}
+   이 상태 칩까지 덮어써 통짜 상자가 됐었다 — 칩 쪽만 특이도를 올려 되돌린다. */
+.assign-row{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.assign-row>label{flex:1 1 240px;min-width:0}
+.assign-status{display:flex;flex-direction:column;gap:6px;flex:none}
+.assign-status>span{font-size:11px;font-weight:600}
+.assign-row .stage-pick{display:inline-flex;height:38px;width:auto}
+.assign-row .stage-pick select{display:inline-flex;align-items:center;width:100%;max-width:none;height:100%;margin:0;border:0;border-radius:inherit;background:transparent;padding:0 30px 0 32px;font-size:12.5px;font-weight:650}
+.assign-row .stage-pick select:focus{border-color:transparent;box-shadow:none}

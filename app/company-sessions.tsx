@@ -604,23 +604,6 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                   </p>}
 
                   <div className="assign-row">
-                    {/* 상태는 과정마다 다르다. 회사 단위로 하나만 두면 과정 2개 중 하나만
-                        끝났을 때 나머지가 목록에서 사라진다. */}
-                    <label className={`stage-pick ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
-                      <i className="stage-dot" aria-hidden="true" />
-                      <select value={session.status} disabled={busyId === session.id} aria-label="교육 상태"
-                        onChange={(event) => void changeSessionStatus(session, event.target.value)}>
-                        {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
-                          {SESSION_STATUS_LABEL[value]}
-                        </option>)}
-                        {/* 예전 값(계약 완료)이 들어 있으면 고를 수는 없어도 보이기는 해야 한다. */}
-                        {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
-                          <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
-                      </select>
-                      <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
-                        <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </label>
                     <label>담당 강사
                       <select value={session.instructor_id || ""} disabled={busyId === session.id}
                         onChange={(event) => void assignInstructor(session.id, event.target.value)}>
@@ -630,6 +613,26 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                         </option>)}
                       </select>
                     </label>
+                    {/* 상태는 과정마다 다르다. 회사 단위로 하나만 두면 과정 2개 중 하나만
+                        끝났을 때 나머지가 목록에서 사라진다. */}
+                    <div className="assign-status">
+                      <span>진행 상태</span>
+                      <label className={`stage-pick ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
+                        <i className="stage-dot" aria-hidden="true" />
+                        <select value={session.status} disabled={busyId === session.id} aria-label="교육 상태"
+                          onChange={(event) => void changeSessionStatus(session, event.target.value)}>
+                          {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
+                            {SESSION_STATUS_LABEL[value]}
+                          </option>)}
+                          {/* 예전 값(계약 완료)이 들어 있으면 고를 수는 없어도 보이기는 해야 한다. */}
+                          {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
+                            <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
+                        </select>
+                        <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+                          <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="session-actions">
