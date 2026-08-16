@@ -515,3 +515,10 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .stage-select{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 4px 0 11px;border:1px solid #dce3ec;border-radius:9px;background:#fff}
 .stage-select>span{color:#8b969f;font-size:11.5px;letter-spacing:-.01em}
 .stage-select select{min-height:0;height:30px;border:0;background:transparent;color:#1c3b56;font-size:12.5px;font-weight:650;padding-right:2px}
+
+/* 작업 결과 안내. 성공은 스스로 사라지고 실패는 남는다 — 둘 다 손으로 닫을 수 있다. */
+.feedback{display:flex;align-items:flex-start;gap:10px;margin:14px 0 0;padding:11px 8px 11px 13px;border-radius:9px;background:#eef4f9;color:#2f5d80;font-size:12.5px;line-height:1.5}
+.feedback>span{flex:1;min-width:0}
+.feedback>button{flex:none;width:24px;height:24px;min-width:24px;min-height:24px;padding:0;border:0;border-radius:6px;background:transparent;color:inherit;opacity:.55;font-size:15px;line-height:1}
+.feedback>button:hover{opacity:1;background:rgba(15,23,42,.06)}
+.feedback.error{background:#fef2f2;color:#b42318}

@@ -16,6 +16,7 @@ import { STORED_STAGES, StoredStage, stageChoiceLabel, withRo } from "@/lib/comp
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
+import { Feedback } from "./ui";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
 
@@ -241,7 +242,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       if (!response.ok) throw new Error(result.error || "상태를 바꾸지 못했습니다.");
       setStage(next);
       onStageChange?.(next);
-      setFeedback({ message: `진행 상태를 ${withRo(stageChoiceLabel(next))} 바꿨습니다.`, error: false });
+      setFeedback({ message: `${withRo(stageChoiceLabel(next))} 바꿨습니다.`, error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "상태를 바꾸지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -265,7 +266,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       await reload();
       setAdding(false);
       setForm({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
-      setFeedback({ message: "교육과정을 만들었습니다. 이어서 강사를 배정하세요.", error: false });
+      setFeedback({ message: "교육과정을 만들었습니다.", error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "교육과정을 만들지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -282,7 +283,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       if (!response.ok) throw new Error(result.error || "강사를 배정하지 못했습니다.");
       await reload();
       setFeedback({
-        message: instructorId ? "강사를 배정했습니다. 브리프를 내려받아 전달하세요." : "강사 배정을 해제했습니다.",
+        message: instructorId ? "강사를 배정했습니다." : "강사 배정을 해제했습니다.",
         error: false,
       });
     } catch (caught) {
@@ -314,7 +315,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       const result = await response.json() as { error?: string; added?: number };
       if (!response.ok) throw new Error(result.error || "수강생을 추가하지 못했습니다.");
       await Promise.all([reload(), openRosterAgain(sessionId)]);
-      setFeedback({ message: `수강생 ${result.added}명을 넣었습니다.`, error: false });
+      setFeedback({ message: `수강생 ${result.added}명을 추가했습니다.`, error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "수강생을 추가하지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -352,7 +353,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       const result = await response.json() as { error?: string; contract?: { contract_no: string } };
       if (!response.ok || !result.contract) throw new Error(result.error || "계약서를 만들지 못했습니다.");
       await reload();
-      setFeedback({ message: `계약서 ${result.contract.contract_no} 를 만들었습니다.`, error: false });
+      setFeedback({ message: `계약서를 만들었습니다 · ${result.contract.contract_no}`, error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "계약서를 만들지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -368,7 +369,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       const result = await response.json() as { error?: string; survey?: { id: string } };
       if (!response.ok || !result.survey) throw new Error(result.error || "설문지를 만들지 못했습니다.");
       await reload();
-      setFeedback({ message: "기본 문항으로 설문지를 만들었습니다. 만족도 메뉴에서 다듬어 주세요.", error: false });
+      setFeedback({ message: "설문지를 만들었습니다.", error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "설문지를 만들지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -495,7 +496,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       </div>
     </form>}
 
-    {feedback && <p className={feedback.error ? "modal-error" : "modal-notice"} role={feedback.error ? "alert" : undefined}>{feedback.message}</p>}
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
     {loading
       ? <p className="body-text">불러오는 중</p>

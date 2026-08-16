@@ -15,7 +15,7 @@ import {
   CourseOutline,
 } from "@/lib/instructors";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Icon, formatFileSize, useEscapeClose } from "./ui";
+import { Feedback, Icon, formatFileSize, useEscapeClose } from "./ui";
 
 export type InstructorStats = { delivered: number; planned: number; lastHeldOn: string | null };
 
@@ -546,7 +546,7 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
           instructorId={instructor.id}
           onCreated={(session) => { setSessions((current) => [session, ...current]); setAddingSession(false); setOpenSession(session.id); }}
         />}
-        {feedback && <p className={feedback.error ? "modal-error" : "modal-notice"} role={feedback.error ? "alert" : undefined}>{feedback.message}</p>}
+        <Feedback value={feedback} onClose={() => setFeedback(null)} />
         {loading
           ? <p className="body-text">불러오는 중</p>
           : sessions.length === 0

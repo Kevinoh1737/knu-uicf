@@ -52,6 +52,38 @@ export function useEscapeClose(active: boolean, onClose: () => void) {
   }, [active, onClose]);
 }
 
+export type FeedbackValue = { message: string; error: boolean } | null;
+
+/**
+ * 작업 결과 안내. 처음 몇 번은 다음 할 일을 알려 주지만, 익숙해진 뒤에도 화면에 남아 있으면
+ * 그냥 가리는 것이 된다. 그래서 성공은 잠깐 보이고 스스로 사라진다.
+ *
+ * 실패는 사라지지 않는다 — 읽기 전에 없어지면 무엇이 잘못됐는지 알 방법이 없다. 대신 둘 다
+ * 손으로 닫을 수 있다.
+ */
+export function Feedback({ value, onClose, timeout = 4000 }: {
+  value: FeedbackValue;
+  onClose: () => void;
+  timeout?: number;
+}) {
+  const message = value?.message;
+  const isError = Boolean(value?.error);
+
+  useEffect(() => {
+    if (!message || isError) return;
+    const timer = window.setTimeout(onClose, timeout);
+    // 메시지가 바뀌면 시계도 다시 시작한다. 같은 문구가 연달아 나오면 사라지지 않는 것처럼
+    // 보이는데, 그건 새 안내가 앞의 시계를 물려받기 때문이다.
+    return () => window.clearTimeout(timer);
+  }, [message, isError, timeout, onClose]);
+
+  if (!value) return null;
+  return <p className={`feedback${value.error ? " error" : ""}`} role={value.error ? "alert" : "status"}>
+    <span>{value.message}</span>
+    <button type="button" onClick={onClose} aria-label="안내 닫기">×</button>
+  </p>;
+}
+
 export function formatFileSize(bytes: number) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))}KB`;
   return `${(bytes / (1024 * 1024)).toFixed(bytes < 10 * 1024 * 1024 ? 1 : 0)}MB`;

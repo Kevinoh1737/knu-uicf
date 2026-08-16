@@ -8,7 +8,7 @@ import {
   SurveyStatus,
   SurveySummary,
 } from "@/lib/surveys";
-import { Icon } from "./ui";
+import { Feedback, Icon } from "./ui";
 
 type SurveyBrief = {
   id: string; title: string; status: SurveyStatus; questionCount: number;
@@ -84,7 +84,7 @@ export function SurveysPanel() {
       </div>
     </div>
 
-    {feedback && <p className={feedback.error ? "modal-error" : "modal-notice"} role={feedback.error ? "alert" : undefined}>{feedback.message}</p>}
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
     {loading ? <p className="body-text">불러오는 중</p>
       : items.length === 0
@@ -266,7 +266,7 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
       </div>
     </div>
 
-    {feedback && <p className={feedback.error ? "modal-error" : "modal-notice"} role={feedback.error ? "alert" : undefined}>{feedback.message}</p>}
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
     <div className="survey-metrics">
       <div><dt>상태</dt><dd>{SURVEY_STATUS_LABEL[status]}</dd></div>

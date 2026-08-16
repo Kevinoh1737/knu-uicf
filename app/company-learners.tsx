@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { LearnerInput, sanitizeLearner } from "@/lib/learners";
-import { Icon } from "./ui";
+import { Feedback, Icon } from "./ui";
 
 type LearnerRow = {
   id: string; name: string; department: string; job_title: string; email: string;
@@ -153,7 +153,7 @@ export function CompanyLearnersTab({ companyId, companyName, onDataChanged }: { 
       </div>
     </div>
 
-    {feedback && <p className={feedback.error ? "modal-error" : "modal-notice"} role={feedback.error ? "alert" : undefined}>{feedback.message}</p>}
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
     {busy && <p className="body-text">처리 중</p>}
 
     {/* 엑셀은 바로 저장하지 않는다. 사람 이름이 들어가는 자료라 한 번 보여 주고 넣는다. */}

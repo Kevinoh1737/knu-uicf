@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { INSTRUCTOR_DOCUMENTS_BUCKET, MAX_INSTRUCTOR_DOCUMENT_SIZE } from "@/lib/instructors";
 import { LearnerInput } from "@/lib/learners";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
-import { Icon, formatFileSize, useEscapeClose } from "./ui";
+import { Feedback, Icon, formatFileSize, useEscapeClose } from "./ui";
 
 type LearnerRow = {
   id: string;
@@ -92,7 +92,7 @@ export function LearnersPanel() {
       </div>
     </div>
 
-    {feedback && <p className={feedback.error ? "modal-error" : "modal-notice"} role={feedback.error ? "alert" : undefined}>{feedback.message}</p>}
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
     {loading
       ? <p className="instructor-empty">수강생 목록 불러오는 중</p>
