@@ -341,3 +341,10 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 /* 내보내기를 탭 안으로 옮기면서 필요한 자리. */
 .title-actions{display:flex;align-items:flex-start;gap:8px}
 .tab-export{display:flex;justify-content:flex-end;padding:20px 27px 0;background:#f8f9f8}
+.brief-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.brief-head .hero-export{flex:none}
+/* 상단 제목이 기업 정체성을 통째로 맡는다. 배지가 제목 옆에 붙는다. */
+.topbar h1 .stage{margin-left:10px;vertical-align:middle;font-size:11px;padding:5px 9px}
+/* 이름을 뺀 만큼 첫 줄이 올라온다. */
+.instructor-hero p:first-child{font-size:14px;color:#fff;margin:0}
+.instructor-hero p.contact{font-size:12px;color:#9db6cc;margin-top:6px}

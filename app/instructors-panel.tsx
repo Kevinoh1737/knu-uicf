@@ -501,10 +501,10 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
   return <section className="workspace-panel">
     <button type="button" className="link-button" onClick={onBack}>← 강사 목록</button>
 
+    {/* 이름은 상단 제목이 맡는다. 여기서 반복하면 같은 글자가 두 번 보인다. */}
     <div className="instructor-hero">
       <span className={`avatar ${toneFor(instructor.name)}`}>{surname(instructor.name)}</span>
       <div>
-        <h2>{instructor.name}</h2>
         <p>{[instructor.affiliation, instructor.job_title].filter(Boolean).join(" · ") || "소속 미입력"}</p>
         <p className="contact">{[instructor.email, instructor.phone].filter(Boolean).join(" · ") || "연락처 미입력"}</p>
       </div>

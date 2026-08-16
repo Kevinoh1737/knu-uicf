@@ -233,14 +233,14 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
 function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string }) {
   const titles: Record<View, [string, string]> = {
     companies: ["기업", "기업 조사와 교육 진행 상황"],
-    company: [displayCompanyName(selectedCompany.name), ""],
+    company: [displayCompanyName(selectedCompany.name), [selectedCompany.field, parsePublicWebsite(selectedCompany.websiteUrl)?.host].filter(Boolean).join(" · ")],
     instructors: ["강사", "강사 프로필과 강의 이력"],
-    instructor: [selectedInstructorName || "강사", ""],
+    instructor: [selectedInstructorName || "강사", "강사 프로필과 강의 이력"],
     learners: ["수강생", "참석자 명단과 수강 이력"],
   };
   // 새 기업 조사는 목록에서 하는 일이다. 특정 기업 안에 들어와 있을 때는 맥락이 어긋난다.
   const showNew = view === "companies";
-  return <header className="topbar"><div><h1>{titles[view][0]}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
+  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
 }
 
 function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onCompanyDeleted: (id: string) => void }) {
@@ -386,12 +386,9 @@ function CompanyDetail({ company, companies, onSelectCompany, onStageChange }: {
   };
   const websiteHost = parsePublicWebsite(company.websiteUrl)?.hostname;
   return <section className="company-detail">
-    <div className="company-hero"><div className="company-identity"><CompanyLogo company={company} size="xl"/><div><div className="title-line"><h2>{displayCompanyName(company.name)}</h2><span>{company.stage}</span></div><p>{company.field}{websiteHost && <><i>·</i>{websiteHost}</>}</p></div></div></div>
     <div className="detail-tabs">{[["research","기업 조사"],["questions","니즈 질문지"],["consultation","상담 기록"],["sessions","교육 진행"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>{questions.length}</em>}</button>)}</div>
-    {tab === "research" && <>
-      {company.research && <div className="tab-export"><ExportButton label="조사 결과 PDF" busy={exportState === "pdf"} message={exportState === "pdf" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("pdf")} /></div>}
-      <ResearchTab company={company} companies={companies} onSelectCompany={onSelectCompany} />
-    </>}
+    {tab === "research" && <ResearchTab company={company} companies={companies} onSelectCompany={onSelectCompany}
+      exportSlot={company.research ? <ExportButton label="조사 결과 PDF" busy={exportState === "pdf"} message={exportState === "pdf" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("pdf")} /> : null} />}
     {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><h2>니즈 질문지</h2><p>상담에서 물어볼 질문입니다. 엑셀로 내려받아 인쇄하거나 전달하세요.</p></div><div className="title-actions"><ExportButton label="질문지 Excel" busy={exportState === "xlsx"} disabled={!questions.length} message={exportState === "xlsx" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("xlsx")} /><button onClick={addQuestion}>＋ 질문 추가</button></div></div>{questions.map((q,i)=><article key={i} data-question-index={i} className={[draggingQuestion === i && "dragging",draggingQuestion !== null && dragInsertAt === i && "drop-before",draggingQuestion !== null && dragInsertAt === questions.length && i === questions.length-1 && "drop-after"].filter(Boolean).join(" ")}><button type="button" className="question-grip" aria-label={`${i+1}번 질문 순서 이동`} title="드래그하여 순서 변경" onPointerDown={(event)=>startQuestionDrag(event,i)} onPointerMove={moveQuestionDrag} onPointerUp={endQuestionDrag} onPointerCancel={cancelQuestionDrag} onKeyDown={(event)=>{if(event.key === "ArrowUp" && i > 0){event.preventDefault();reorderQuestion(i,i-1,true);}else if(event.key === "ArrowDown" && i < questions.length-1){event.preventDefault();reorderQuestion(i,i+1,true);}}}><Icon name="grip" size={20}/></button><span>{String(i+1).padStart(2,"0")}</span><textarea rows={1} aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>{setQuestions(questions.map((x,j)=>j===i?e.target.value:x));setSaveState("idle");}}/><button type="button" className="question-delete" aria-label={`${i+1}번 질문 삭제`} onClick={()=>{setQuestions(questions.filter((_,j)=>j!==i));setSaveState("idle");}}>×</button></article>)}<span className="sr-only" role="status" aria-live="polite">{reorderMessage}</span><div className="savebar"><span className={saveState === "error" ? "save-error" : ""}>{saveState === "saving" ? "저장 중…" : saveState === "saved" ? "저장 완료" : saveState === "error" ? "저장 실패 · 다시 시도" : "수정 후 저장"}</span><button onClick={saveQuestions} disabled={!company.id || saveState === "saving"}>{saveState === "saving" ? "저장 중…" : "질문지 저장"}</button></div></section>}
     {tab === "consultation" && <ConsultingTab company={company} />}
     {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} storedStage={company.storedStage} onStageChange={(stage) => onStageChange?.(company.id as string, stage)} />}
@@ -414,7 +411,7 @@ function ExportButton({ label, busy, disabled, message, error, onClick }: {
   </div>;
 }
 
-function ResearchTab({ company, companies, onSelectCompany }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void }) {
+function ResearchTab({ company, companies, onSelectCompany, exportSlot }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; exportSlot?: React.ReactNode }) {
   if (!company.research) return <section className="tab-content research"><div className="research-empty"><span>!</span><h2>조사 결과 없음</h2><p>{company.researchError || "홈페이지 재입력 필요"}</p></div></section>;
   const report = company.research;
   const business = report.business;
@@ -426,7 +423,8 @@ function ResearchTab({ company, companies, onSelectCompany }: { company: Company
   const date = (value?: string) => value?.length === 8 ? `${value.slice(0, 4)}.${value.slice(4, 6)}.${value.slice(6, 8)}` : value || "확인되지 않음";
   return <section className="tab-content research research-understanding">
     <article className="company-brief">
-      <small>한눈에 이해하기</small>
+      {/* 내보내기를 별도 줄로 두면 빈 띠가 하나 더 생긴다. 이미 있는 머리 줄에 얹는다. */}
+      <div className="brief-head"><small>한눈에 이해하기</small>{exportSlot}</div>
       <h2>{report.headline}</h2>
       <p>{report.summary}</p>
       <div className="chips">{report.keywords.map(keyword => <span key={keyword}>{keyword}</span>)}</div>
