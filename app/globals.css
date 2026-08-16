@@ -563,3 +563,14 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .assign-row .stage-pick{display:inline-flex;height:38px;width:auto}
 .assign-row .stage-pick select{display:inline-flex;align-items:center;width:100%;max-width:none;height:100%;margin:0;border:0;border-radius:inherit;background:transparent;padding:0 30px 0 32px;font-size:12.5px;font-weight:650}
 .assign-row .stage-pick select:focus{border-color:transparent;box-shadow:none}
+
+/* 한 줄 안의 칸들은 같은 높이에서 시작해야 한다. 라벨마다 margin-top 이 붙어 있어
+   줄의 첫 칸만 위로 붙고 나머지는 12px 씩 내려가 계단처럼 보였다. */
+.session-form .form-row{margin-top:12px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.session-form .form-row label{margin-top:0}
+.session-form input,.session-form select{height:38px}
+.session-form input:focus,.session-form select:focus{border-color:#7f9db8;box-shadow:0 0 0 3px #e8eff6}
+
+/* 브랜드가 남색으로 옮겨 갔는데 기본 버튼만 예전 초록으로 남아 있었다. 토큰 이름(--green)은
+   그대로 두고 값만 남색으로 맞춘다 — 이 토큰은 버튼 배경으로만 쓰인다. */
+:root{--green:#173452}
