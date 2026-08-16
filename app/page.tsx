@@ -60,7 +60,6 @@ type CompanyItem = {
   sessionCount?: number;
   assignedCount?: number;
   contact?: CompanyContact;
-  owner: string;
   progress: number;
   date: string;
   color: string;
@@ -226,7 +225,7 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
         <span><Icon name={item.icon} /></span>{item.label}
       </button>)}
     </nav>
-    <div className="profile"><span>김</span><div><b>김서윤</b><small>교육사업팀 · 관리자</small></div><SignOutButton /></div>
+    <div className="profile"><small>Powered by Synthya</small><SignOutButton /></div>
   </aside>;
 }
 
@@ -758,7 +757,7 @@ function Modal({ onClose, onCompanyCreated }: { onClose: () => void; onCompanyCr
     const saveResponse = await fetch("/api/companies", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(draft) });
     const saved = await saveResponse.json() as { error?: string; company?: { id: string } };
     if (!saveResponse.ok || !saved.company) throw new Error(saved.error || "조사 결과 저장에 실패했습니다.");
-    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0, 0), storedStage: "research_complete", sessionCount: 0, assignedCount: 0, owner: "김서윤", progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
+    onCompanyCreated({ id: saved.company.id, name: draft.name, field: draft.industry, stage: stageLabel("research_complete", 0, 0), storedStage: "research_complete", sessionCount: 0, assignedCount: 0, progress: 25, date: "조사 완료", color: "blue", websiteUrl: draft.websiteUrl, research: draft.research, intelligence: draft.intelligence, crawl: draft.crawl });
     onClose();
   };
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -819,10 +818,10 @@ export default function Home() {
     fetch("/api/companies").then(async response => {
       const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; contact: CompanyContact; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
       if (!response.ok) throw new Error("기업 목록 조회 실패");
-      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, contact: item.contact, owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, contact: item.contact, progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
-  const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };
+  const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", progress: 0, date: "", color: "blue" };
   const content = view === "learners"
     ? <LearnersPanel/>
     : view === "instructor" && selectedInstructor

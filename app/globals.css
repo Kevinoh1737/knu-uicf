@@ -379,3 +379,8 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .content-title>div:first-child{min-width:0}
 .title-actions{flex:none;flex-wrap:nowrap;white-space:nowrap}
 .title-actions>*{flex:none}
+
+/* 접근 코드 방식에는 개인 식별이 없다. 사람 이름을 지어내 보여 주지 않는다.
+*/
+.profile{justify-content:space-between;gap:12px}
+.profile>small{color:#7b918a;font-size:11px;letter-spacing:-.01em}
