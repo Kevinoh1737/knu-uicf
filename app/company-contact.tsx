@@ -87,17 +87,21 @@ export function CompanyContactPanel({ companyId, initial, onSaved }: {
     </label>;
 
   return <>
+    {/* 상단바 안에 들어가야 하므로 두 줄을 넘기지 않는다. 네 줄짜리 카드는 상단바보다 커서
+        위아래가 잘렸다. */}
     <div className="contact-card">
       {filled ? <>
         <div>
-          <small>담당자</small>
-          <b>{contact.name || "이름 미입력"}</b>
-          <p>{[contact.position, contact.department].filter(Boolean).join(" · ") || "직급 미입력"}</p>
-          <p className="contact-lines">{[contact.email, contact.phone].filter(Boolean).join(" · ") || "연락처 미입력"}</p>
+          <p className="contact-line">
+            <small>담당자</small>
+            <b>{contact.name || "이름 미입력"}</b>
+            <em>{[contact.position, contact.department].filter(Boolean).join(" · ")}</em>
+          </p>
+          <p className="contact-line reach">{[contact.email, contact.phone].filter(Boolean).join(" · ") || "연락처 미입력"}</p>
         </div>
         <button type="button" onClick={start}>수정</button>
       </> : <>
-        <div><small>담당자</small><p>등록된 담당자가 없습니다</p></div>
+        <div><p className="contact-line"><small>담당자</small><em>미등록</em></p></div>
         <button type="button" onClick={start}>등록</button>
       </>}
     </div>
