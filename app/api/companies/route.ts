@@ -10,7 +10,7 @@ export async function GET() {
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from("company_research")
-      .select("id,name,website_url,industry,stage,research,intelligence,crawl,questions,created_at,updated_at")
+      .select("id,name,website_url,industry,stage,contact,research,intelligence,crawl,questions,created_at,updated_at")
       .order("updated_at", { ascending: false });
     if (error) throw error;
 

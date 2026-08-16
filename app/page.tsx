@@ -19,6 +19,8 @@ import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, read
 import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructors-panel";
 import { CompanySessionsTab } from "./company-sessions";
 import { LearnersPanel } from "./learners-panel";
+import { CompanyContactPanel } from "./company-contact";
+import { CompanyContact } from "@/lib/contacts";
 import { STAGE_TONE, resolveStage, stageLabel } from "@/lib/company-stage";
 import { Icon, IconName, formatFileSize } from "./ui";
 
@@ -56,6 +58,7 @@ type CompanyItem = {
   storedStage?: string;
   sessionCount?: number;
   assignedCount?: number;
+  contact?: CompanyContact;
   owner: string;
   progress: number;
   date: string;
@@ -240,7 +243,7 @@ function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view
   };
   // 새 기업 조사는 목록에서 하는 일이다. 특정 기업 안에 들어와 있을 때는 맥락이 어긋난다.
   const showNew = view === "companies";
-  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
+  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{view === "company" && selectedCompany.id && <CompanyContactPanel key={selectedCompany.id} companyId={selectedCompany.id} initial={selectedCompany.contact} />}{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
 }
 
 function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { companyItems: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onCompanyDeleted: (id: string) => void }) {
@@ -786,9 +789,9 @@ export default function Home() {
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
     fetch("/api/companies").then(async response => {
-      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
+      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; contact: CompanyContact; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
       if (!response.ok) throw new Error("기업 목록 조회 실패");
-      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, contact: item.contact, owner: "김서윤", progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", owner: "", progress: 0, date: "", color: "blue" };
