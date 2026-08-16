@@ -159,16 +159,6 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
             </article>)}
           </div>}
 
-    {/* 비어 있을 때는 위 안내가 같은 말을 이미 하고 있어 두 번 말하는 셈이 된다. */}
-    {instructors.length > 0 && <div className="import-callout">
-      <span>↥</span>
-      <div>
-        <b>강사가 제출한 프로필 PDF를 올리면 양식이 자동으로 채워집니다</b>
-        <p>최대 50MB · 한글·워드는 &lsquo;PDF로 저장&rsquo; 후 올려 주세요</p>
-      </div>
-      <button type="button" onClick={() => setModal(true)}>파일로 등록</button>
-    </div>}
-
     {modal && <NewInstructorModal
       onClose={() => setModal(false)}
       onCreated={(instructor) => { setInstructors((current) => [instructor, ...current]); setModal(false); }}
