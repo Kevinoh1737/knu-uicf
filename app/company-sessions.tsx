@@ -20,54 +20,12 @@ import { Feedback } from "./ui";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
 
-type Progress = { hasResearch: boolean; questionCount: number; consultationCount: number; storedStage: string };
-
 type EnrolledRow = {
   id: string; status: string; learner_id: string;
   learners?: { id: string; name: string; department: string; job_title: string; email: string } | null;
 };
 
 type PoolRow = { id: string; name: string; department: string; job_title: string; email: string };
-
-/**
- * 기업 전체의 단계. 탭 네 개가 서로 다른 수명(기업 조사는 1회, 상담은 여러 번, 교육과정은
- * 여러 개)을 갖는데 화면에서는 같은 층에 나란히 있어 "지금 어디까지 왔는지"가 보이지 않았다.
- */
-function CompanySteps({ progress, sessions }: { progress: Progress | null; sessions: SessionRow[] }) {
-  if (!progress) return null;
-  const live = sessions.filter((session) => session.status !== "cancelled");
-  const done = {
-    research: progress.hasResearch,
-    questions: progress.questionCount > 0,
-    consultation: progress.consultationCount > 0,
-    course: live.length > 0 && live.some((session) => session.instructor_id),
-    learners: live.some((session) => (session.learners?.total || 0) > 0),
-    finished: progress.storedStage === "training_complete",
-  };
-  const steps: Array<[string, string, boolean]> = [
-    ["01", "기업 조사", done.research],
-    ["02", "니즈 질문지", done.questions],
-    ["03", "상담 기록", done.consultation],
-    ["04", "교육과정·강사", done.course],
-    ["05", "수강생 등록", done.learners],
-    ["06", "교육 완료", done.finished],
-  ];
-  // 끝나지 않은 것 중 첫 번째가 지금 할 일이다.
-  const currentIndex = steps.findIndex(([, , complete]) => !complete);
-  const notes: Record<string, string> = {
-    "02": progress.questionCount ? `${progress.questionCount}개` : "",
-    "03": progress.consultationCount ? `${progress.consultationCount}건` : "",
-    "04": live.length ? `${live.length}개 과정` : "",
-    "05": live.reduce((total, session) => total + (session.learners?.total || 0), 0)
-      ? `${live.reduce((total, session) => total + (session.learners?.total || 0), 0)}명` : "",
-  };
-  return <div className="steps company-steps">
-    {steps.map(([number, label, complete], index) => <div key={number}
-      className={complete ? "done" : index === currentIndex ? "current" : ""}>
-      <span>{number}</span><b>{label}</b><small>{complete ? (notes[number] || "완료") : index === currentIndex ? "진행할 차례" : "대기"}</small>
-    </div>)}
-  </div>;
-}
 
 type SessionRow = {
   id: string;
@@ -209,17 +167,15 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const [form, setForm] = useState({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
   const [stage, setStage] = useState<StoredStage>((storedStage as StoredStage) || "research_complete");
-  const [progress, setProgress] = useState<Progress | null>(null);
   const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
   const [rosterFor, setRosterFor] = useState<string | null>(null);
 
   const reload = () => fetch(`/api/companies/${companyId}/sessions`)
     .then(async (response) => {
-      const result = await response.json() as { sessions?: SessionRow[]; instructors?: InstructorOption[]; progress?: Progress };
+      const result = await response.json() as { sessions?: SessionRow[]; instructors?: InstructorOption[] };
       if (!response.ok) throw new Error("교육 진행 정보 조회 실패");
       setSessions(result.sessions || []);
       setInstructors(result.instructors || []);
-      setProgress(result.progress || null);
       onDataChanged?.();
     })
     .catch(() => undefined);
@@ -473,7 +429,6 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       </div>
     </div>
 
-    <CompanySteps progress={progress} sessions={sessions} />
 
     {!loading && !instructors.length && <p className="body-text">
       등록된 강사가 없습니다. 교육과정은 만들 수 있지만 배정하려면 강사 메뉴에서 먼저 등록해 주세요.
