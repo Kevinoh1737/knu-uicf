@@ -238,8 +238,8 @@ function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view
     instructor: [selectedInstructorName || "강사", ""],
     learners: ["수강생", "참석자 명단과 수강 이력"],
   };
-  // 새 기업 조사는 기업 화면의 동작이다. 강사 화면에서 누르면 맥락이 어긋난다.
-  const showNew = view === "companies" || view === "company";
+  // 새 기업 조사는 목록에서 하는 일이다. 특정 기업 안에 들어와 있을 때는 맥락이 어긋난다.
+  const showNew = view === "companies";
   return <header className="topbar"><div><h1>{titles[view][0]}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
 }
 
