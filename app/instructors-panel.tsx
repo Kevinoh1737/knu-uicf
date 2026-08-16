@@ -69,8 +69,14 @@ function toneFor(name: string) {
   return TONES[sum % TONES.length];
 }
 
-function initials(name: string) {
-  return name.replace(/\s+/g, "").slice(0, 2) || "강사";
+/** 두 글자 성. 앞 한 글자만 자르면 남궁·황보 같은 이름이 틀린 성으로 보인다. */
+const COMPOUND_SURNAMES = ["남궁", "황보", "제갈", "사공", "선우", "서문", "독고", "동방", "어금", "강전", "망절"];
+
+function surname(name: string) {
+  const cleaned = name.replace(/\s+/g, "");
+  if (!cleaned) return "강사";
+  const leading = cleaned.slice(0, 2);
+  return COMPOUND_SURNAMES.includes(leading) ? leading : cleaned.slice(0, 1);
 }
 
 function formatDate(value: string | null) {
@@ -144,7 +150,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
         ? <p className="instructor-empty">{instructors.length ? "검색 결과가 없습니다." : "등록된 강사가 없습니다. 강사가 제출한 프로필 PDF를 올리면 양식이 자동으로 채워집니다."}</p>
         : <div className="instructor-list">
             {visible.map((instructor) => <article key={instructor.id}>
-              <span className={`avatar ${toneFor(instructor.name)}`}>{initials(instructor.name)}</span>
+              <span className={`avatar ${toneFor(instructor.name)}`}>{surname(instructor.name)}</span>
               <div className="instructor-name">
                 <h3>{instructor.name}</h3>
                 <p>{[instructor.affiliation, instructor.job_title].filter(Boolean).join(" · ") || "소속 미입력"}</p>
@@ -496,7 +502,7 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
     <button type="button" className="link-button" onClick={onBack}>← 강사 목록</button>
 
     <div className="instructor-hero">
-      <span className={`avatar ${toneFor(instructor.name)}`}>{initials(instructor.name)}</span>
+      <span className={`avatar ${toneFor(instructor.name)}`}>{surname(instructor.name)}</span>
       <div>
         <h2>{instructor.name}</h2>
         <p>{[instructor.affiliation, instructor.job_title].filter(Boolean).join(" · ") || "소속 미입력"}</p>
