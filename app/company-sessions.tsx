@@ -150,7 +150,7 @@ function SessionRoster({ roster, busy, onEnroll, onChange }: {
   </div>;
 }
 
-export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { companyId: string; storedStage?: string; onStageChange?: (stage: StoredStage) => void }) {
+export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDataChanged }: { companyId: string; storedStage?: string; onStageChange?: (stage: StoredStage) => void; onDataChanged?: () => void }) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -171,6 +171,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
       setSessions(result.sessions || []);
       setInstructors(result.instructors || []);
       setProgress(result.progress || null);
+      onDataChanged?.();
     })
     .catch(() => undefined);
 

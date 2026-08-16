@@ -85,7 +85,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .company-discovery .input-panel{height:124px;min-height:124px;box-sizing:border-box;overflow:hidden}
 .company-discovery .input-panel>label{display:block;height:100%;box-sizing:border-box}
 @media(max-width:600px){.company-discovery .input-panel{height:132px;min-height:132px}}
-.company-discovery .pdf-file-input,.instructor-modal .pdf-file-input,.session-actions .pdf-file-input{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+/* 파일 입력을 감추는 것은 어느 화면에서나 같은 요구다. 화면이 늘 때마다 선택자를
+   덧붙이다 세 번째에 또 빠뜨렸다 — 전역 유틸리티로 둔다. */
+.pdf-file-input{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .company-discovery .pdf-upload-control,.instructor-modal .pdf-upload-control{display:flex;align-items:center;gap:10px;height:48px;margin-top:9px;padding:0 14px;border:1px dashed #aebdb7;border-radius:10px;background:#f8faf9;color:#315f50;cursor:pointer;transition:border-color .18s ease,background .18s ease}
 .company-discovery .pdf-upload-copy,.instructor-modal .pdf-upload-copy{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;width:100%;overflow:hidden}
 .company-discovery .pdf-upload-copy>b,.instructor-modal .pdf-upload-copy>b{min-width:0;overflow:hidden;color:#26342f;font-size:13px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
@@ -366,3 +368,14 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
    (실제로 2칸짜리 강사 등록이 3칸으로 벌어졌다), 탭이 늘 때마다 CSS 를 고쳐야 한다.
    자동 열로 두면 개수와 무관하게 같은 모양이 나온다. */
 .modal .input-tabs{grid-template-columns:none!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr)}
+.detail-tabs .tab-done{font-style:normal;color:#3d8f6b;margin-right:5px;font-size:11px}
+.detail-tabs button.active .tab-done{color:#2f6a52}
+.row-tools{white-space:nowrap}
+.roster.preview{border-top:0;padding-top:0;margin-top:8px}
+.title-actions .upload-chip{display:inline-flex;align-items:center;gap:6px;height:36px}
+
+/* 탭 머리글의 동작 묶음. 세 개가 세로로 접히지 않도록 줄바꿈을 막고 폭을 확보한다. */
+.content-title{gap:16px}
+.content-title>div:first-child{min-width:0}
+.title-actions{flex:none;flex-wrap:nowrap;white-space:nowrap}
+.title-actions>*{flex:none}

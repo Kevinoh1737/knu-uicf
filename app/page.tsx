@@ -20,6 +20,7 @@ import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructor
 import { CompanySessionsTab } from "./company-sessions";
 import { LearnersPanel } from "./learners-panel";
 import { CompanyContactPanel } from "./company-contact";
+import { CompanyLearnersTab } from "./company-learners";
 import { CompanyContact } from "@/lib/contacts";
 import { STAGE_TONE, resolveStage, stageLabel } from "@/lib/company-stage";
 import { Icon, IconName, formatFileSize } from "./ui";
@@ -196,10 +197,6 @@ const UPCOMING_NAV: Array<{ icon: IconName; label: string }> = [
   { icon: "calendar", label: "프로젝트" },
 ];
 
-function CompanyLogo({ company, size = "" }: { company: CompanyItem; size?: "large" | "xl" | "" }) {
-  return <span className={`company-logo ${size} ${company.color}`} aria-hidden="true">{displayCompanyName(company.name).slice(0, 1)}</span>;
-}
-
 function Brand() {
   return <div className="brand"><Image className="official-logo" src="/knu-uicf-logo.png" width={96} height={103} priority alt="강원대학교 산학협력단 UICF" /><span className="team-name">교육사업팀</span></div>;
 }
@@ -271,6 +268,27 @@ function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { compan
 
 function CompanyDetail({ company, companies, onSelectCompany, onStageChange }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onStageChange?: (id: string, stage: string) => void }) {
   const [tab, setTab] = useState("research");
+  // 탭 표시에 쓰는 숫자. 탭을 열기 전에도 보여야 해서 상세 진입 시 한 번 읽는다.
+  const [summary, setSummary] = useState({ consultations: 0, sessions: 0, learners: 0 });
+  // 탭 안에서 자료가 바뀌면 배지도 따라와야 한다. 탭 전환만으로 다시 읽으면
+  // 방금 올린 명단이 숫자에 반영되지 않는다.
+  const [dataVersion, setDataVersion] = useState(0);
+  useEffect(() => {
+    if (!company.id) return;
+    let alive = true;
+    void Promise.all([
+      fetch(`/api/companies/${company.id}/sessions`).then(response => response.ok ? response.json() : null).catch(() => null),
+      fetch(`/api/learners?companyId=${company.id}`).then(response => response.ok ? response.json() : null).catch(() => null),
+    ]).then(([sessionsResult, learnersResult]) => {
+      if (!alive) return;
+      setSummary({
+        consultations: sessionsResult?.progress?.consultationCount || 0,
+        sessions: (sessionsResult?.sessions || []).filter((item: { status?: string }) => item.status !== "cancelled").length,
+        learners: (learnersResult?.learners || []).length,
+      });
+    });
+    return () => { alive = false; };
+  }, [company.id, tab, dataVersion]);
   const [questions, setQuestions] = useState(company.research?.questions?.length ? company.research.questions : [...AX_FOUNDATION_QUESTIONS]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [exportState, setExportState] = useState<"idle" | "pdf" | "xlsx" | "error">("idle");
@@ -387,14 +405,24 @@ function CompanyDetail({ company, companies, onSelectCompany, onStageChange }: {
       setExportMessage(error instanceof Error ? error.message : "파일을 만들지 못했습니다.");
     }
   };
-  const websiteHost = parsePublicWebsite(company.websiteUrl)?.hostname;
   return <section className="company-detail">
-    <div className="detail-tabs">{[["research","기업 조사"],["questions","니즈 질문지"],["consultation","상담 기록"],["sessions","교육 진행"]].map(([id,label]) => <button className={tab===id?"active":""} onClick={()=>setTab(id)} key={id}>{label}{id === "questions" && <em>{questions.length}</em>}</button>)}</div>
+    {/* 어떤 단계가 끝났는지 탭에서 바로 보인다. 개수가 의미 있는 곳(교육과정·수강생)만 숫자를 쓴다. */}
+    <div className="detail-tabs">{([
+      ["research", "기업 조사", Boolean(company.research), ""],
+      ["questions", "니즈 질문지", questions.length > 0, ""],
+      ["consultation", "상담 기록", summary.consultations > 0, ""],
+      ["sessions", "교육 진행", summary.sessions > 0, summary.sessions ? String(summary.sessions) : ""],
+      ["learners", "수강생", summary.learners > 0, summary.learners ? String(summary.learners) : ""],
+    ] as Array<[string, string, boolean, string]>).map(([id, label, done, count]) =>
+      <button className={tab === id ? "active" : ""} onClick={() => setTab(id)} key={id}>
+        {done && <i className="tab-done" aria-hidden="true">✓</i>}{label}{count && <em>{count}</em>}
+      </button>)}</div>
     {tab === "research" && <ResearchTab company={company} companies={companies} onSelectCompany={onSelectCompany}
       exportSlot={company.research ? <ExportButton label="조사 결과 PDF" busy={exportState === "pdf"} message={exportState === "pdf" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("pdf")} /> : null} />}
     {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><h2>니즈 질문지</h2><p>상담에서 물어볼 질문입니다. 엑셀로 내려받아 인쇄하거나 전달하세요.</p></div><div className="title-actions"><ExportButton label="질문지 Excel" busy={exportState === "xlsx"} disabled={!questions.length} message={exportState === "xlsx" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("xlsx")} /><button onClick={addQuestion}>＋ 질문 추가</button></div></div>{questions.map((q,i)=><article key={i} data-question-index={i} className={[draggingQuestion === i && "dragging",draggingQuestion !== null && dragInsertAt === i && "drop-before",draggingQuestion !== null && dragInsertAt === questions.length && i === questions.length-1 && "drop-after"].filter(Boolean).join(" ")}><button type="button" className="question-grip" aria-label={`${i+1}번 질문 순서 이동`} title="드래그하여 순서 변경" onPointerDown={(event)=>startQuestionDrag(event,i)} onPointerMove={moveQuestionDrag} onPointerUp={endQuestionDrag} onPointerCancel={cancelQuestionDrag} onKeyDown={(event)=>{if(event.key === "ArrowUp" && i > 0){event.preventDefault();reorderQuestion(i,i-1,true);}else if(event.key === "ArrowDown" && i < questions.length-1){event.preventDefault();reorderQuestion(i,i+1,true);}}}><Icon name="grip" size={20}/></button><span>{String(i+1).padStart(2,"0")}</span><textarea rows={1} aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>{setQuestions(questions.map((x,j)=>j===i?e.target.value:x));setSaveState("idle");}}/><button type="button" className="question-delete" aria-label={`${i+1}번 질문 삭제`} onClick={()=>{setQuestions(questions.filter((_,j)=>j!==i));setSaveState("idle");}}>×</button></article>)}<span className="sr-only" role="status" aria-live="polite">{reorderMessage}</span><div className="savebar"><span className={saveState === "error" ? "save-error" : ""}>{saveState === "saving" ? "저장 중…" : saveState === "saved" ? "저장 완료" : saveState === "error" ? "저장 실패 · 다시 시도" : "수정 후 저장"}</span><button onClick={saveQuestions} disabled={!company.id || saveState === "saving"}>{saveState === "saving" ? "저장 중…" : "질문지 저장"}</button></div></section>}
     {tab === "consultation" && <ConsultingTab company={company} />}
-    {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} storedStage={company.storedStage} onStageChange={(stage) => onStageChange?.(company.id as string, stage)} />}
+    {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} storedStage={company.storedStage} onStageChange={(stage) => onStageChange?.(company.id as string, stage)} onDataChanged={() => setDataVersion(current => current + 1)} />}
+    {tab === "learners" && company.id && <CompanyLearnersTab companyId={company.id} companyName={displayCompanyName(company.name)} onDataChanged={() => setDataVersion(current => current + 1)} />}
   </section>;
 }
 
