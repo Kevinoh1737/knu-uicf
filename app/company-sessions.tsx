@@ -82,7 +82,8 @@ function SessionSurvey({ session, busy, onSend, onCreate }: {
           onClick={onSend}>
           {survey.sent ? "설문 링크 다시 보내기" : "수강생에게 설문 보내기"}
         </button>
-        <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer">설문지 PDF</a>
+        <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer"
+          aria-label="설문지 PDF 내려받기" title="설문지 PDF 내려받기"><Icon name="download" size={15} />설문지 PDF</a>
       </div>
       <p className="survey-hint">문항 편집·응답 상세는 만족도 메뉴에서</p>
     </> : <>
@@ -642,31 +643,37 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                       다섯 개를 똑같은 무게로 늘어놓지 않고, 지금 비어 있는 칸을 채우는 것
                       하나만 진하게 한다 — 나머지는 있되 부르지 않는다. */}
                   <div className="session-actions">
-                    {(["outline", "materials"] as const).map((kind) => <label
-                      className={`upload-chip${leadAction === kind ? " lead" : ""}`} key={kind}>
-                      <input className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busyId === session.id}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = "";
-                          if (file) void uploadDocument(session.id, kind, file);
-                        }} />
-                      {kind === "outline"
-                        ? (hasOutline ? "강의 구성 다시 올리기" : "받은 강의 구성 올리기")
-                        : (hasMaterials ? "강의 자료 다시 올리기" : "받은 강의 자료 올리기")}
-                    </label>)}
+                    {/* 화살표가 방향을 말하므로 '올리기·내려받기'를 글로 되풀이하지 않는다.
+                        이름만 남기고, 읽어 주는 말은 aria-label 로 온전히 남긴다. */}
+                    {(["outline", "materials"] as const).map((kind) => {
+                      const label = kind === "outline" ? "강의 구성" : "강의 자료";
+                      const done = kind === "outline" ? hasOutline : hasMaterials;
+                      return <label className={`upload-chip${leadAction === kind ? " lead" : ""}`} key={kind}
+                        aria-label={`${label} ${done ? "다시 " : ""}올리기`} title={`${label} ${done ? "다시 " : ""}올리기`}>
+                        <input className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busyId === session.id}
+                          onChange={(event) => {
+                            const file = event.target.files?.[0];
+                            event.target.value = "";
+                            if (file) void uploadDocument(session.id, kind, file);
+                          }} />
+                        <Icon name="upload" size={15} />{label}
+                      </label>;
+                    })}
                     <button type="button" className={`upload-chip${leadAction === "roster" ? " lead" : ""}`}
                       onClick={() => void openRoster(session.id)}>
                       {rosterFor === session.id ? "수강생 닫기" : "수강생 등록"}
                     </button>
                     {session.contract
-                      ? <a className="upload-chip" href={`/api/contracts/${session.contract.id}/pdf`} target="_blank" rel="noreferrer">계약서 열기</a>
+                      ? <a className="upload-chip" href={`/api/contracts/${session.contract.id}/pdf`} target="_blank" rel="noreferrer"
+                          aria-label="계약서 내려받기" title="계약서 내려받기"><Icon name="download" size={15} />계약서</a>
                       : <button type="button" className={`upload-chip${leadAction === "contract" ? " lead" : ""}`}
                           disabled={busyId === session.id || !session.instructor_id}
                           onClick={() => void createContract(session.id)}>
                           계약서 만들기
                         </button>}
-                    <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer">
-                      강사용 브리프 내려받기
+                    <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer"
+                      aria-label="강사용 브리프 내려받기" title="강사용 브리프 내려받기">
+                      <Icon name="download" size={15} />강사용 브리프
                     </a>
                   </div>
                   {/* 못 누르는 이유는 마우스를 올려야 보이는 말풍선이 아니라 글로 적는다 —
