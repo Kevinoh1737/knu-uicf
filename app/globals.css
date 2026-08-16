@@ -510,3 +510,8 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
    눌리고 글자가 잘렸다 — 이름이 같은 두 개념이 한 클래스를 쓰고 있었다. 배지 쪽 특이도가
    높으므로 여기서 되돌린다. */
 .stage.progress{height:auto;overflow:visible}
+
+/* 진행 상태는 한 과정에서 많아야 한 번 누른다. 카드로 세우지 않고 제목줄에 둔다. */
+.stage-select{display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 4px 0 11px;border:1px solid #dce3ec;border-radius:9px;background:#fff}
+.stage-select>span{color:#8b969f;font-size:11.5px;letter-spacing:-.01em}
+.stage-select select{min-height:0;height:30px;border:0;background:transparent;color:#1c3b56;font-size:12.5px;font-weight:650;padding-right:2px}

@@ -12,7 +12,7 @@ import {
   resolveInstructorDocument,
   tailoredCaseRatio,
 } from "@/lib/instructors";
-import { STAGE_LABEL, STAGE_TONE, STORED_STAGES, StoredStage, withRo } from "@/lib/company-stage";
+import { STAGE_LABEL, STORED_STAGES, StoredStage, withRo } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
@@ -445,34 +445,36 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
   const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
 
+  // 과정이 하나도 없으면 완료로 표시할 것이 없다. 이미 완료·취소로 바꿔 둔 경우에는 되돌릴
+  // 길이 있어야 하므로 계속 보여 준다.
+  const showStageControl = sessions.some((session) => session.status !== "cancelled") || stage !== "research_complete";
+
   return <section className="tab-content">
     <div className="content-title">
       <div>
         <h2>교육 진행</h2>
         <p>교육과정을 만들고, 강사를 배정하고, 브리프를 전달하고, 받은 자료를 등록합니다.</p>
       </div>
-      <button type="button" onClick={() => setAdding((current) => !current)}>
-        {adding ? "닫기" : "＋ 교육과정 생성"}
-      </button>
+      <div className="title-actions">
+        {/* 교육 완료·취소는 사람이 정한다(일정이 지났다고 자동으로 넘어가지 않는다). 다만
+            한 과정에서 많아야 한 번 누르는 것이라 카드로 세워 두지 않고, 지금 상태가 보이는
+            선택 하나로 둔다. 만들어 둔 과정이 없으면 완료로 표시할 것도 없어 나오지 않는다. */}
+        {showStageControl && <label className="stage-select">
+          <span>진행</span>
+          <select value={stage} disabled={busyId === "stage"}
+            onChange={(event) => void changeStage(event.target.value as StoredStage)}>
+            {STORED_STAGES.map((value) => <option key={value} value={value}>
+              {value === "research_complete" ? "진행 중" : STAGE_LABEL[value]}
+            </option>)}
+          </select>
+        </label>}
+        <button type="button" onClick={() => setAdding((current) => !current)}>
+          {adding ? "닫기" : "＋ 교육과정 생성"}
+        </button>
+      </div>
     </div>
 
     <CompanySteps progress={progress} sessions={sessions} />
-
-    {/* 교육 완료·취소는 사람이 정한다. 일정이 지났다고 자동으로 넘어가지 않는다. */}
-    <div className="stage-control">
-      <div>
-        <b>진행 상태</b>
-        <p>강사가 배정되면 자동으로 바뀝니다. 교육 완료와 취소는 직접 표시해 주세요.</p>
-      </div>
-      <div className="stage-buttons">
-        {STORED_STAGES.map((value) => <button type="button" key={value}
-          className={stage === value ? `stage ${STAGE_TONE[value]} active` : "stage-choice"}
-          disabled={busyId === "stage"}
-          onClick={() => void changeStage(value)}>
-          {value === "research_complete" ? "진행 중" : STAGE_LABEL[value]}
-        </button>)}
-      </div>
-    </div>
 
     {!loading && !instructors.length && <p className="body-text">
       등록된 강사가 없습니다. 교육과정은 만들 수 있지만 배정하려면 강사 메뉴에서 먼저 등록해 주세요.
