@@ -292,3 +292,10 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .stage-buttons .stage{border:1px solid transparent;border-radius:7px;padding:7px 11px;font-size:11px}
 .stage-buttons .stage.active{font-weight:650;box-shadow:0 0 0 2px rgba(23,63,53,.08)}
 @media(max-width:760px){.stage-control{flex-direction:column;align-items:stretch}.stage-buttons{flex-wrap:wrap}}
+/* button 요소는 내용이 높이보다 짧으면 세로 가운데로 정렬한다(UA 기본 동작). 그래서 소개가
+   한 줄인 카드만 제목·배지가 9px 내려앉았다. 명시적 flex 로 위에서부터 쌓게 한다.
+   선택자를 .company-cards .company-card > 로 맞춘 이유는 같은 특이도의 기존 규칙이
+   display:block 을 걸어 두어 짧은 선택자로는 이기지 못하기 때문이다. */
+.company-cards .company-card>.company-card-open{display:flex;flex-direction:column;justify-content:flex-start;height:100%}
+/* 휴지통도 세로로 늘어나 있어 텍스트를 따라 움직였다. 오른쪽 아래 한 자리에 고정한다. */
+.company-card-delete{top:auto;bottom:12px;right:12px;height:34px;width:34px}
