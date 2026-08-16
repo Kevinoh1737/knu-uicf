@@ -27,6 +27,14 @@ export const STAGE_TONE: Record<CompanyStage, string> = {
 
 export const STORED_STAGES: StoredStage[] = ["research_complete", "training_complete", "cancelled"];
 
+/**
+ * 담당자가 직접 고르는 상태의 이름. 저장값은 조사 완료지만, 고르는 자리에서는 '아직 교육이
+ * 남아 있다'는 뜻이라 교육 예정으로 부른다 — 4시간 특강이라 '진행 중'인 기간이 사실상 없다.
+ */
+export function stageChoiceLabel(value: StoredStage) {
+  return value === "research_complete" ? "교육 예정" : STAGE_LABEL[value];
+}
+
 export function isStoredStage(value: unknown): value is StoredStage {
   return typeof value === "string" && (STORED_STAGES as string[]).includes(value);
 }
@@ -51,7 +59,7 @@ export function stageLabel(stored: unknown, sessionCount: number, assignedCount 
 
 /**
  * '로' / '으로' 를 가른다. 받침이 없거나 ㄹ 받침이면 '로'다 — '교육 완료로', '교육 취소로',
- * '진행 중으로'. 문구에 (으)로 를 박아 넣지 않으려면 이 계산이 필요하다.
+ * '교육 예정으로'. 문구에 (으)로 를 박아 넣지 않으려면 이 계산이 필요하다.
  */
 export function withRo(word: string) {
   const last = word.trim().slice(-1);

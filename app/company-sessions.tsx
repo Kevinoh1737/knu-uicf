@@ -12,7 +12,7 @@ import {
   resolveInstructorDocument,
   tailoredCaseRatio,
 } from "@/lib/instructors";
-import { STAGE_LABEL, STORED_STAGES, StoredStage, withRo } from "@/lib/company-stage";
+import { STORED_STAGES, StoredStage, stageChoiceLabel, withRo } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
@@ -241,7 +241,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       if (!response.ok) throw new Error(result.error || "상태를 바꾸지 못했습니다.");
       setStage(next);
       onStageChange?.(next);
-      setFeedback({ message: `진행 상태를 ${withRo(next === "research_complete" ? "진행 중" : STAGE_LABEL[next])} 바꿨습니다.`, error: false });
+      setFeedback({ message: `진행 상태를 ${withRo(stageChoiceLabel(next))} 바꿨습니다.`, error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "상태를 바꾸지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -463,9 +463,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
           <span>진행</span>
           <select value={stage} disabled={busyId === "stage"}
             onChange={(event) => void changeStage(event.target.value as StoredStage)}>
-            {STORED_STAGES.map((value) => <option key={value} value={value}>
-              {value === "research_complete" ? "진행 중" : STAGE_LABEL[value]}
-            </option>)}
+            {STORED_STAGES.map((value) => <option key={value} value={value}>{stageChoiceLabel(value)}</option>)}
           </select>
         </label>}
         <button type="button" onClick={() => setAdding((current) => !current)}>
