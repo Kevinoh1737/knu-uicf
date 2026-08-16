@@ -205,6 +205,51 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
     } finally { setBusyId(""); }
   };
 
+  /**
+   * 수정. 지우고 다시 만들면 붙어 있던 수강생 배정과 설문지·응답까지 사라지므로, 날짜가
+   * 밀리거나 장소가 바뀌는 흔한 일에는 수정이 맞는 길이다.
+   */
+  const [editId, setEditId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
+
+  const startEdit = (session: SessionRow) => {
+    setEditId(session.id);
+    setEditForm({
+      title: session.title,
+      heldOn: session.held_on ? String(session.held_on).slice(0, 10) : "",
+      // DB 의 time 은 "14:00:00" 으로 온다. input[type=time] 은 분까지만 받는다.
+      startTime: session.start_time ? String(session.start_time).slice(0, 5) : "",
+      location: session.location || "",
+      headcount: session.headcount ? String(session.headcount) : "",
+      durationHours: String(session.duration_hours ?? 4),
+    });
+  };
+
+  const saveEdit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editId) return;
+    if (!editForm.title.trim()) return setFeedback({ message: "과정명을 입력해 주세요.", error: true });
+    setBusyId(editId); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${editId}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: editForm.title, heldOn: editForm.heldOn, startTime: editForm.startTime,
+          location: editForm.location, headcount: editForm.headcount,
+          durationHours: Number(editForm.durationHours) || 4,
+        }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "교육과정을 수정하지 못했습니다.");
+      await reload();
+      onDataChanged?.();
+      setEditId(null);
+      setFeedback({ message: "교육과정을 수정했습니다.", error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "교육과정을 수정하지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
   const createSession = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!form.title.trim()) return setFeedback({ message: "과정명을 입력해 주세요.", error: true });
@@ -528,6 +573,32 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                 </button>
                 </div>
                 {open && <div className="session-body">
+                  {editId === session.id
+                    ? <form className="session-form" onSubmit={saveEdit} aria-busy={busyId === session.id}>
+                        <label>과정명<input value={editForm.title} disabled={busyId === session.id}
+                          onChange={(event) => setEditForm((current) => ({ ...current, title: event.target.value }))} required /></label>
+                        <div className="form-row">
+                          <label>교육 일자<input type="date" value={editForm.heldOn} disabled={busyId === session.id}
+                            onChange={(event) => setEditForm((current) => ({ ...current, heldOn: event.target.value }))} /></label>
+                          <label>시작 시각<input type="time" step={300} value={editForm.startTime} disabled={busyId === session.id}
+                            onChange={(event) => setEditForm((current) => ({ ...current, startTime: event.target.value }))} /></label>
+                          <label>교육 시간<input type="number" min="0.5" step="0.5" value={editForm.durationHours} disabled={busyId === session.id}
+                            onChange={(event) => setEditForm((current) => ({ ...current, durationHours: event.target.value }))} /></label>
+                        </div>
+                        <div className="form-row">
+                          <label>장소<input value={editForm.location} placeholder="본사 교육장" disabled={busyId === session.id}
+                            onChange={(event) => setEditForm((current) => ({ ...current, location: event.target.value }))} /></label>
+                          <label>참석 인원<input type="number" min="1" value={editForm.headcount} placeholder="30" disabled={busyId === session.id}
+                            onChange={(event) => setEditForm((current) => ({ ...current, headcount: event.target.value }))} /></label>
+                        </div>
+                        <div className="modal-actions">
+                          <button type="button" onClick={() => setEditId(null)} disabled={busyId === session.id}>취소</button>
+                          <button type="submit" className="primary-small" disabled={busyId === session.id}>
+                            {busyId === session.id ? "저장 중" : "수정 저장"}
+                          </button>
+                        </div>
+                      </form>
+                    : null}
                   <dl>
                     <div><dt>강사</dt><dd>{session.instructors?.name || "미배정"}</dd></div>
                     <div><dt>인원</dt><dd>{session.headcount ? `${session.headcount}명` : "미정"}</dd></div>
@@ -560,6 +631,10 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                   </div>
 
                   <div className="session-actions">
+                    <button type="button" className="upload-chip" disabled={busyId === session.id}
+                      onClick={() => (editId === session.id ? setEditId(null) : startEdit(session))}>
+                      {editId === session.id ? "수정 닫기" : "과정 정보 수정"}
+                    </button>
                     <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer">
                       강사용 브리프 내려받기
                     </a>
