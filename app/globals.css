@@ -318,9 +318,9 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 
 
 /* ─── 교육과정 진행 칩 ────────────────────────────────────────────────────── */
-.course-progress{display:flex;gap:4px}
-.course-progress i{font-style:normal;background:#f1f4f2;color:#666f6b;border-radius:4px;padding:4px 7px;font-size:10px}
-.course-progress i.done{background:#dcece4;color:#33705a}
+
+
+
 /* ─── 수강생 패널 ────────────────────────────────────────────────────────── */
 .roster{margin-top:16px;border-top:1px solid #edf0ee;padding-top:14px}
 .roster h4{font-size:12px;margin:0 0 10px}

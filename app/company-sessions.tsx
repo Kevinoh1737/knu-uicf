@@ -552,14 +552,9 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                         : "강사 미배정"}
                     </small>
                   </div>
-                  <div className="session-meta">
-                    <span className="course-progress">
-                      {([["구성", hasOutline], ["자료", hasMaterials],
-                         ["수강생", (session.learners?.total || 0) > 0]] as Array<[string, boolean]>)
-                        .map(([label, complete]) => <i key={label} className={complete ? "done" : ""}>{label}</i>)}
-                    </span>
-                    <small>{formatDate(session)}</small>
-                  </div>
+                  {/* 머리 줄에 남기는 것은 일시와 상태뿐이다. 구성·자료·수강생을 칩으로
+                      세워 두던 때에는 상태가 두 벌로 보였다 — 진짜 상태는 오른쪽 하나다. */}
+                  <div className="session-meta"><small>{formatDate(session)}</small></div>
                   <label className={`stage-pick head ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
                     <i className="stage-dot" aria-hidden="true" />
                     <select value={session.status} disabled={busyId === session.id} aria-label={`${session.title} 진행 상태`}
