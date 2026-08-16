@@ -532,12 +532,14 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 /* 진행 상태 고르기. 버튼처럼 보이면 누르기 전에는 무엇인지 알 수 없어, 상태 배지의 생김새
    (색 점 + 상태색 글자)를 그대로 쓰고 누를 수 있다는 것만 화살표로 알린다. 옆 버튼과 높이를
    맞춰 한 줄로 선다. */
-.stage-pick{position:relative;display:inline-flex;align-items:center;height:42px;padding:0 30px 0 32px;border:1px solid transparent;border-radius:10px;background:#eef2f6;transition:background-color var(--motion-fast),border-color var(--motion-fast)}
+.stage-pick{position:relative;display:inline-flex;align-items:center;height:42px;padding:0;border:1px solid transparent;border-radius:10px;background:#eef2f6;transition:background-color var(--motion-fast),border-color var(--motion-fast)}
 .stage-pick:hover{border-color:currentColor}
 .stage-pick:focus-within{outline:3px solid color-mix(in srgb,currentColor 22%,transparent);outline-offset:1px}
-.stage-pick select{appearance:none;-webkit-appearance:none;height:100%;min-height:0;padding:0;border:0;background:transparent;color:inherit;font-size:13px;font-weight:650;letter-spacing:-.02em;cursor:pointer}
+/* 칩 전체가 곧 셀렉트다. 여백을 라벨에 주면 점·화살표 쪽을 눌렀을 때 아무 일도 일어나지
+   않는다 — 눌러 보고 나서야 알게 되는 종류의 문제라 여백을 셀렉트 안으로 넣는다. */
+.stage-pick select{appearance:none;-webkit-appearance:none;width:100%;height:100%;min-height:0;padding:0 30px 0 32px;border:0;border-radius:inherit;background:transparent;color:inherit;font-size:13px;font-weight:650;letter-spacing:-.02em;cursor:pointer}
 .stage-pick select:disabled{cursor:wait;opacity:.7}
-.stage-dot{position:absolute;left:13px;width:7px;height:7px;border-radius:50%;background:currentColor}
+.stage-dot{position:absolute;left:13px;width:7px;height:7px;border-radius:50%;background:currentColor;pointer-events:none}
 .stage-caret{position:absolute;right:12px;pointer-events:none;opacity:.55}
 
 /* 상태색은 배지와 같은 계열을 쓴다 — 같은 뜻이 자리마다 다른 색이면 읽는 사람이 다시 배운다. */
