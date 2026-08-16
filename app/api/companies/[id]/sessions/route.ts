@@ -38,6 +38,26 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       if (!latest.has(key)) latest.set(key, contract);
     });
 
+    // 교육과정별 수강생 수. 단계 표시와 카드 진행에 같은 숫자를 쓴다.
+    const { data: enrollments } = sessionIds.length
+      ? await supabase.from("session_learners").select("course_session_id,status").in("course_session_id", sessionIds)
+      : { data: [] };
+    const learnerCounts = new Map<string, { total: number; attended: number }>();
+    (enrollments || []).forEach((row) => {
+      const key = row.course_session_id as string;
+      const current = learnerCounts.get(key) || { total: 0, attended: 0 };
+      if (row.status !== "cancelled") current.total += 1;
+      if (row.status === "attended") current.attended += 1;
+      learnerCounts.set(key, current);
+    });
+
+    // 단계 표시는 기업 전체의 진행이라 상담·질문지도 함께 읽는다.
+    const { data: company } = await supabase
+      .from("company_research").select("questions,research,stage").eq("id", id).single();
+    const { count: consultationCount } = await supabase
+      .from("company_consultations").select("id", { count: "exact", head: true })
+      .eq("company_id", id).eq("status", "completed");
+
     // 강사를 배정할 때 고르는 목록. 화면마다 따로 부르지 않도록 함께 내려보낸다.
     const { data: instructors } = await supabase
       .from("instructors")
@@ -46,8 +66,18 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .order("name");
 
     return Response.json({
-      sessions: (sessions || []).map((session) => ({ ...session, contract: latest.get(session.id as string) || null })),
+      sessions: (sessions || []).map((session) => ({
+        ...session,
+        contract: latest.get(session.id as string) || null,
+        learners: learnerCounts.get(session.id as string) || { total: 0, attended: 0 },
+      })),
       instructors: instructors || [],
+      progress: {
+        hasResearch: Boolean(company?.research && Object.keys(company.research as object).length),
+        questionCount: Array.isArray(company?.questions) ? company.questions.length : 0,
+        consultationCount: consultationCount || 0,
+        storedStage: (company?.stage as string) || "research_complete",
+      },
     });
   } catch (error) {
     return Response.json(

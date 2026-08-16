@@ -311,3 +311,30 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .assign-row label{display:block;font-size:11px;font-weight:600}
 .assign-row select{display:block;width:100%;max-width:340px;height:38px;border:1px solid var(--line);border-radius:8px;margin-top:6px;padding:0 11px;font-size:12px;background:#fff;outline:0}
 .assign-row select:focus{border-color:#6b9485;box-shadow:0 0 0 3px #e8f1ed}
+/* ─── 기업 단계 표시 ──────────────────────────────────────────────────────── */
+.company-steps{grid-template-columns:repeat(6,1fr);background:#fff;border:1px solid var(--line);border-radius:11px;padding:20px 16px;margin:0 0 16px}
+.company-steps b{font-size:11px}
+.company-steps small{font-size:10px}
+.company-steps div:not(:last-child):after{top:14px}
+/* ─── 교육과정 진행 칩 ────────────────────────────────────────────────────── */
+.course-progress{display:flex;gap:4px}
+.course-progress i{font-style:normal;background:#f1f4f2;color:#a3aaa7;border-radius:4px;padding:4px 7px;font-size:10px}
+.course-progress i.done{background:#dcece4;color:#33705a}
+/* ─── 수강생 패널 ────────────────────────────────────────────────────────── */
+.roster{margin-top:16px;border-top:1px solid #edf0ee;padding-top:14px}
+.roster h4{font-size:12px;margin:0 0 10px}
+.roster h4:not(:first-child){margin-top:20px}
+.roster-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.roster-table th,.roster-table td{text-align:left;border-bottom:1px solid #edf0ee;padding:10px 12px;font-size:12px}
+.roster-table th{background:#f3f5f4;color:#8c9591;font-weight:500;font-size:11px}
+.roster-table select{height:32px;border:1px solid var(--line);border-radius:7px;padding:0 8px;font-size:11px;background:#fff}
+.roster-pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;max-height:220px;overflow:auto;padding:4px}
+.roster-pick label{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;padding:9px 11px;background:#fff;cursor:pointer}
+.roster-pick label:hover{border-color:#a7beb5}
+.roster-pick input{margin:0}
+.roster-pick b{font-size:12px}
+.roster-pick small{color:#8b9590;font-size:11px;margin-left:auto}
+@media(max-width:760px){.company-steps{grid-template-columns:repeat(6,110px);overflow-x:auto}}
+/* 항목이 5개로 늘어 4열에서는 마지막 칸만 아래로 떨어졌다. */
+.session-body dl{grid-template-columns:repeat(5,1fr)}
+@media(max-width:900px){.session-body dl{grid-template-columns:repeat(3,1fr)}}

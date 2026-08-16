@@ -13,9 +13,59 @@ import {
   tailoredCaseRatio,
 } from "@/lib/instructors";
 import { STAGE_LABEL, STAGE_TONE, STORED_STAGES, StoredStage, withRo } from "@/lib/company-stage";
+import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 
 type InstructorOption = { id: string; name: string; affiliation: string; job_title: string };
+
+type Progress = { hasResearch: boolean; questionCount: number; consultationCount: number; storedStage: string };
+
+type EnrolledRow = {
+  id: string; status: string; learner_id: string;
+  learners?: { id: string; name: string; department: string; job_title: string; email: string } | null;
+};
+
+type PoolRow = { id: string; name: string; department: string; job_title: string; email: string };
+
+/**
+ * 기업 전체의 단계. 탭 네 개가 서로 다른 수명(기업 조사는 1회, 상담은 여러 번, 교육과정은
+ * 여러 개)을 갖는데 화면에서는 같은 층에 나란히 있어 "지금 어디까지 왔는지"가 보이지 않았다.
+ */
+function CompanySteps({ progress, sessions }: { progress: Progress | null; sessions: SessionRow[] }) {
+  if (!progress) return null;
+  const live = sessions.filter((session) => session.status !== "cancelled");
+  const done = {
+    research: progress.hasResearch,
+    questions: progress.questionCount > 0,
+    consultation: progress.consultationCount > 0,
+    course: live.length > 0 && live.some((session) => session.instructor_id),
+    learners: live.some((session) => (session.learners?.total || 0) > 0),
+    finished: progress.storedStage === "training_complete",
+  };
+  const steps: Array<[string, string, boolean]> = [
+    ["01", "기업 조사", done.research],
+    ["02", "니즈 질문지", done.questions],
+    ["03", "상담 기록", done.consultation],
+    ["04", "교육과정·강사", done.course],
+    ["05", "수강생 등록", done.learners],
+    ["06", "교육 완료", done.finished],
+  ];
+  // 끝나지 않은 것 중 첫 번째가 지금 할 일이다.
+  const currentIndex = steps.findIndex(([, , complete]) => !complete);
+  const notes: Record<string, string> = {
+    "02": progress.questionCount ? `${progress.questionCount}개` : "",
+    "03": progress.consultationCount ? `${progress.consultationCount}건` : "",
+    "04": live.length ? `${live.length}개 과정` : "",
+    "05": live.reduce((total, session) => total + (session.learners?.total || 0), 0)
+      ? `${live.reduce((total, session) => total + (session.learners?.total || 0), 0)}명` : "",
+  };
+  return <div className="steps company-steps">
+    {steps.map(([number, label, complete], index) => <div key={number}
+      className={complete ? "done" : index === currentIndex ? "current" : ""}>
+      <span>{number}</span><b>{label}</b><small>{complete ? (notes[number] || "완료") : index === currentIndex ? "진행할 차례" : "대기"}</small>
+    </div>)}
+  </div>;
+}
 
 type SessionRow = {
   id: string;
@@ -30,6 +80,7 @@ type SessionRow = {
   instructor_id: string;
   instructors?: { id: string; name: string; affiliation: string; job_title: string; email: string } | null;
   contract?: { id: string; contract_no: string; status: ContractStatus } | null;
+  learners?: { total: number; attended: number };
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -39,6 +90,64 @@ const STATUS_LABEL: Record<string, string> = {
 function formatDate(value: string | null) {
   if (!value) return "일자 미정";
   return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(value));
+}
+
+/** 교육과정별 수강생. 사람은 기업 수강생 목록에서 고르고, 여기서는 연결과 출결만 다룬다. */
+function SessionRoster({ roster, busy, onEnroll, onChange }: {
+  roster: { enrolled: EnrolledRow[]; available: PoolRow[] } | null;
+  busy: boolean;
+  onEnroll: (learnerIds: string[]) => void;
+  onChange: (learnerId: string, patch: { status?: string; remove?: boolean }) => void;
+}) {
+  const [picked, setPicked] = useState<string[]>([]);
+  if (!roster) return <p className="body-text">수강생 불러오는 중</p>;
+
+  const toggle = (id: string) => setPicked((current) =>
+    current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+
+  return <div className="roster">
+    <h4>등록된 수강생 {roster.enrolled.length}명</h4>
+    {roster.enrolled.length === 0
+      ? <p className="body-text">아직 없습니다. 아래에서 골라 넣으세요.</p>
+      : <table className="roster-table">
+          <thead><tr><th>이름</th><th>부서 · 직급</th><th>출결</th><th /></tr></thead>
+          <tbody>
+            {roster.enrolled.map((row) => <tr key={row.id}>
+              <td><b>{row.learners?.name || "—"}</b></td>
+              <td>{[row.learners?.department, row.learners?.job_title].filter(Boolean).join(" · ") || "—"}</td>
+              <td>
+                <select value={row.status} disabled={busy}
+                  onChange={(event) => onChange(row.learner_id, { status: event.target.value })}>
+                  {(Object.keys(LEARNER_STATUS_LABEL) as LearnerStatus[]).map((value) =>
+                    <option key={value} value={value}>{LEARNER_STATUS_LABEL[value]}</option>)}
+                </select>
+              </td>
+              <td><button type="button" className="row-delete" disabled={busy}
+                onClick={() => onChange(row.learner_id, { remove: true })}>제외</button></td>
+            </tr>)}
+          </tbody>
+        </table>}
+
+    <h4>기업 수강생에서 고르기</h4>
+    {roster.available.length === 0
+      ? <p className="body-text">더 넣을 수강생이 없습니다. 수강생 메뉴에서 명단을 먼저 등록하세요.</p>
+      : <>
+          <div className="roster-pick">
+            {roster.available.map((learner) => <label key={learner.id}>
+              <input type="checkbox" checked={picked.includes(learner.id)} disabled={busy}
+                onChange={() => toggle(learner.id)} />
+              <b>{learner.name}</b>
+              <small>{[learner.department, learner.job_title].filter(Boolean).join(" · ") || "부서 미입력"}</small>
+            </label>)}
+          </div>
+          <div className="modal-actions">
+            <button type="button" className="primary-small" disabled={busy || !picked.length}
+              onClick={() => { onEnroll(picked); setPicked([]); }}>
+              {picked.length ? `${picked.length}명 넣기` : "선택하세요"}
+            </button>
+          </div>
+        </>}
+  </div>;
 }
 
 export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { companyId: string; storedStage?: string; onStageChange?: (stage: StoredStage) => void }) {
@@ -51,13 +160,17 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const [form, setForm] = useState({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
   const [stage, setStage] = useState<StoredStage>((storedStage as StoredStage) || "research_complete");
+  const [progress, setProgress] = useState<Progress | null>(null);
+  const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
+  const [rosterFor, setRosterFor] = useState<string | null>(null);
 
   const reload = () => fetch(`/api/companies/${companyId}/sessions`)
     .then(async (response) => {
-      const result = await response.json() as { sessions?: SessionRow[]; instructors?: InstructorOption[] };
+      const result = await response.json() as { sessions?: SessionRow[]; instructors?: InstructorOption[]; progress?: Progress };
       if (!response.ok) throw new Error("교육 진행 정보 조회 실패");
       setSessions(result.sessions || []);
       setInstructors(result.instructors || []);
+      setProgress(result.progress || null);
     })
     .catch(() => undefined);
 
@@ -128,6 +241,58 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
     } finally { setBusyId(""); }
   };
 
+  const openRoster = async (sessionId: string) => {
+    if (rosterFor === sessionId) { setRosterFor(null); return; }
+    setRosterFor(sessionId); setRoster(null); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${sessionId}/learners`);
+      const result = await response.json() as { error?: string; enrolled?: EnrolledRow[]; available?: PoolRow[] };
+      if (!response.ok) throw new Error(result.error || "수강생을 불러오지 못했습니다.");
+      setRoster({ enrolled: result.enrolled || [], available: result.available || [] });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "수강생을 불러오지 못했습니다.", error: true });
+      setRosterFor(null);
+    }
+  };
+
+  const enroll = async (sessionId: string, learnerIds: string[]) => {
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${sessionId}/learners`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ learnerIds }),
+      });
+      const result = await response.json() as { error?: string; added?: number };
+      if (!response.ok) throw new Error(result.error || "수강생을 추가하지 못했습니다.");
+      await Promise.all([reload(), openRosterAgain(sessionId)]);
+      setFeedback({ message: `수강생 ${result.added}명을 넣었습니다.`, error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "수강생을 추가하지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  const changeEnrollment = async (sessionId: string, learnerId: string, patch: { status?: string; remove?: boolean }) => {
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${sessionId}/learners`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ learnerId, ...patch }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "수강생 정보를 바꾸지 못했습니다.");
+      await Promise.all([reload(), openRosterAgain(sessionId)]);
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "수강생 정보를 바꾸지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  /** 목록을 갱신하되 열려 있는 패널을 닫지 않는다. */
+  const openRosterAgain = async (sessionId: string) => {
+    const response = await fetch(`/api/course-sessions/${sessionId}/learners`);
+    const result = await response.json() as { enrolled?: EnrolledRow[]; available?: PoolRow[] };
+    if (response.ok) setRoster({ enrolled: result.enrolled || [], available: result.available || [] });
+  };
+
   const createContract = async (sessionId: string) => {
     setBusyId(sessionId); setFeedback(null);
     try {
@@ -193,6 +358,8 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
       </button>
     </div>
 
+    <CompanySteps progress={progress} sessions={sessions} />
+
     {/* 교육 완료·취소는 사람이 정한다. 일정이 지났다고 자동으로 넘어가지 않는다. */}
     <div className="stage-control">
       <div>
@@ -249,8 +416,12 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                     <p>{session.instructors?.name ? `${session.instructors.name} 강사` : "강사 미배정"}</p>
                   </div>
                   <div className="session-meta">
-                    {/* 준비 상태가 목록에서 바로 보여야 "누구를 재촉할지"가 눈에 들어온다. */}
-                    <small>{hasOutline ? "구성 접수" : "구성 대기"}{hasMaterials ? " · 자료 접수" : " · 자료 대기"}</small>
+                    {/* 진행이 목록에서 바로 보여야 "무엇이 밀렸는지"가 눈에 들어온다. */}
+                    <span className="course-progress">
+                      {([["강사", Boolean(session.instructor_id)], ["구성", hasOutline], ["자료", hasMaterials],
+                         ["수강생", (session.learners?.total || 0) > 0]] as Array<[string, boolean]>)
+                        .map(([label, complete]) => <i key={label} className={complete ? "done" : ""}>{label}</i>)}
+                    </span>
                     <small>{formatDate(session.held_on)}</small>
                     <span className={session.status === "delivered" ? "available" : "pending"}>
                       {STATUS_LABEL[session.status] || session.status}
@@ -262,6 +433,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                     <div><dt>강사</dt><dd>{session.instructors?.name || "미배정"}</dd></div>
                     <div><dt>인원</dt><dd>{session.headcount ? `${session.headcount}명` : "미정"}</dd></div>
                     <div><dt>시간</dt><dd>{session.duration_hours}시간</dd></div>
+                    <div><dt>수강생</dt><dd>{session.learners?.total ? `${session.learners.total}명${session.learners.attended ? ` · 참석 ${session.learners.attended}` : ""}` : "미등록"}</dd></div>
                     <div><dt>계약</dt><dd>{session.contract ? `${CONTRACT_STATUS_LABEL[session.contract.status]} · ${session.contract.contract_no}` : "미작성"}</dd></div>
                   </dl>
 
@@ -303,6 +475,9 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                         ? (hasOutline ? "강의 구성 다시 올리기" : "받은 강의 구성 올리기")
                         : (hasMaterials ? "강의 자료 다시 올리기" : "받은 강의 자료 올리기")}
                     </label>)}
+                    <button type="button" className="upload-chip" onClick={() => void openRoster(session.id)}>
+                      {rosterFor === session.id ? "수강생 닫기" : "수강생 등록"}
+                    </button>
                     {session.contract
                       ? <a className="upload-chip" href={`/api/contracts/${session.contract.id}/pdf`} target="_blank" rel="noreferrer">계약서 열기</a>
                       : <button type="button" className="upload-chip" disabled={busyId === session.id || !session.instructor_id}
@@ -312,6 +487,13 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange }: { 
                         </button>}
                   </div>
                   {busyId === session.id && <p className="body-text">처리 중</p>}
+
+                  {rosterFor === session.id && <SessionRoster
+                    roster={roster}
+                    busy={busyId === session.id}
+                    onEnroll={(ids) => void enroll(session.id, ids)}
+                    onChange={(learnerId, patch) => void changeEnrollment(session.id, learnerId, patch)}
+                  />}
                 </div>}
               </div>;
             })}
