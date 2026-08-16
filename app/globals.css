@@ -621,26 +621,23 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .searchbox input{min-height:26px;font-size:12.5px}
 
 /* ── 교육 카드 머리 줄 ─────────────────────────────────────────────────────
-   펼치기 버튼을 카드 뒤에 깔고, 고칠 수 있는 것(제목·강사·상태)만 위로 올린다. */
+   펼치기 버튼을 카드 뒤에 깔고, 누를 것(상태·수정·삭제)만 위로 올린다. 과정명과 강사는
+   읽는 값이다 — 고치는 자리는 정보 수정 한 곳뿐이라 카드 위에서는 흔들리지 않는다. */
 .session-head{position:relative;align-items:center}
 .session-toggle{position:absolute;inset:0;width:100%;height:100%;padding:0;border:0;background:transparent;cursor:pointer}
-.session-title{position:relative;z-index:1;flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;padding:12px 0}
-.session-name{width:100%;border:1px solid transparent;border-radius:8px;background:transparent;padding:3px 8px;margin-left:-8px;font-size:14px;font-weight:700;letter-spacing:-.02em;color:var(--ink);text-overflow:ellipsis}
-.session-name:hover{border-color:#e2e8ee;background:#fbfcfd}
-.session-name:focus{border-color:#7f9db8;background:#fff;box-shadow:0 0 0 3px #e8eff6;outline:0}
-.session-instructor select{border:1px solid transparent;border-radius:7px;background:transparent;padding:2px 6px;margin-left:-6px;min-height:0;height:24px;font-size:11.5px;color:#606e77;max-width:100%}
-.session-instructor select:hover{border-color:#e2e8ee;background:#fbfcfd}
-.session-instructor select:focus{border-color:#7f9db8;background:#fff;box-shadow:0 0 0 3px #e8eff6;outline:0}
-.session-head .session-meta,.session-head .stage-pick,.session-head .session-delete{position:relative;z-index:1}
+.session-title{position:relative;z-index:0;flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;padding:13px 0;pointer-events:none}
+.session-name{display:block;font-size:14px;font-weight:700;letter-spacing:-.02em;color:var(--ink);overflow-wrap:anywhere}
+.session-instructor{display:block;font-size:11.5px;color:#606e77}
+.session-instructor.none{color:#7a8894}
+.session-head .session-meta,.session-head .stage-pick,.session-head .session-edit,.session-head .session-delete{position:relative;z-index:1}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
-/* 회색 카드 안에서 바로 고치는 숫자 */
-.session-facts .editable dd{margin-top:2px}
-.inline-number{position:relative;display:inline-flex;align-items:center}
-.inline-number input{width:82px;height:30px;border:1px solid #dfe5ec;border-radius:7px;background:#fff;padding:0 30px 0 9px;font-size:12.5px;color:var(--ink);outline:0}
-.inline-number input:hover{border-color:#c3cfdb}
-.inline-number input:focus{border-color:#7f9db8;box-shadow:0 0 0 3px #e8eff6}
-.inline-number em{position:absolute;right:9px;font-style:normal;font-size:11px;color:#65727e;pointer-events:none}
+/* 수정은 삭제 옆에 둔다. 같은 크기·같은 자리에 두되, 색으로 갈린다 — 삭제만 빨갛다. */
+.session-edit{flex:none;display:grid;place-items:center;width:34px;height:34px;min-width:34px;min-height:34px;padding:0;border:0;border-radius:9px;background:transparent;color:#65727e;transition:background-color var(--motion-fast),color var(--motion-fast)}
+.session-edit:hover{background:#eef3f8;color:#2f4356}
+.session-edit:focus-visible{outline:3px solid #cfe0ef;outline-offset:1px;color:#2f4356}
+.session-edit[aria-pressed="true"]{background:#e8eff6;color:#2f4356}
+.session-edit:disabled{cursor:wait;opacity:.6}
 
 /* ── 강사가 낸 강의 구성 ───────────────────────────────────────────────── */
 .outline-block{margin-top:18px}

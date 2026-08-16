@@ -98,52 +98,6 @@ function formatDate(session: { held_on: string | null; start_time?: string | nul
   return formatHeldOn(session.held_on, session.start_time, session.duration_hours) || "일자 미정";
 }
 
-/**
- * 그 자리에서 고치는 숫자 칸. 값이 바뀐 채로 칸을 벗어날 때만 저장한다 — 타이핑 도중에
- * 보내면 '2'를 지우고 '25'를 치는 사이에 2명짜리 교육이 잠깐 저장된다.
- *
- * 서버 값이 바뀌면 부모가 key 를 갈아 이 컴포넌트를 다시 만든다. effect 로 값을 되돌리는
- * 것보다 단순하고, 저장 중에 화면이 앞서 나가지 않는다.
- */
-function NumberField({ suffix, value, min, step, disabled, ariaLabel, onSave }: {
-  suffix: string; value: number | null | undefined;
-  min: number; step: number; disabled: boolean; ariaLabel: string; onSave: (next: string) => void;
-}) {
-  const initial = value === null || value === undefined ? "" : String(value);
-  const [draft, setDraft] = useState(initial);
-  const commit = () => { if (draft !== initial) onSave(draft); };
-  return <span className="inline-number">
-    <input type="number" min={min} step={step} value={draft} disabled={disabled} aria-label={ariaLabel}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); } }} />
-    <em>{suffix}</em>
-  </span>;
-}
-
-/**
- * 제목처럼 보이지만 눌러서 고치는 칸. 카드를 열지 않고 이름을 고칠 수 있어야 한다 —
- * 오타 하나 때문에 수정 폼을 여는 것은 과하다. 비우면 저장하지 않고 원래 이름으로 돌린다.
- */
-function TextField({ value, placeholder, ariaLabel, disabled, onSave }: {
-  value: string; placeholder: string; ariaLabel: string; disabled: boolean; onSave: (next: string) => void;
-}) {
-  const [draft, setDraft] = useState(value);
-  const commit = () => {
-    const next = draft.trim();
-    if (!next) return setDraft(value);
-    if (next !== value) onSave(next);
-  };
-  return <input className="session-name" value={draft} placeholder={placeholder} aria-label={ariaLabel}
-    disabled={disabled}
-    onChange={(event) => setDraft(event.target.value)}
-    onBlur={commit}
-    onKeyDown={(event) => {
-      if (event.key === "Enter") { event.preventDefault(); event.currentTarget.blur(); }
-      if (event.key === "Escape") { setDraft(value); event.currentTarget.blur(); }
-    }} />;
-}
-
 /** 교육과정별 수강생. 사람은 기업 수강생 목록에서 고르고, 여기서는 연결과 출결만 다룬다. */
 function SessionRoster({ roster, busy, onEnroll, onChange }: {
   roster: { enrolled: EnrolledRow[]; available: PoolRow[] } | null;
@@ -230,23 +184,6 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
-  /** 카드에서 바로 고친 값 하나를 저장한다. 수정 폼과 같은 라우트를 쓴다. */
-  const patchSession = async (session: SessionRow, body: Record<string, unknown>, label: string) => {
-    setBusyId(session.id); setFeedback(null);
-    try {
-      const response = await fetch(`/api/course-sessions/${session.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || `${label}을 저장하지 못했습니다.`);
-      await reload();
-      onDataChanged?.();
-      setFeedback({ message: `${label}을 바꿨습니다.`, error: false });
-    } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : `${label}을 저장하지 못했습니다.`, error: true });
-    } finally { setBusyId(""); }
-  };
-
   /**
    * 교육과정 상태. 예정 → 교육 완료·취소는 사람이 판단한다(일정이 지났다고 자동으로 넘어가지
    * 않는다 — 미룬 교육, 당일 취소가 전부 완료로 보이게 된다). 회사 단계는 이 값들에서 읽는다.
@@ -272,14 +209,18 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
   /**
    * 수정. 지우고 다시 만들면 붙어 있던 수강생 배정과 설문지·응답까지 사라지므로, 날짜가
    * 밀리거나 장소가 바뀌는 흔한 일에는 수정이 맞는 길이다.
+   *
+   * 과정에 관한 값은 강사까지 포함해 여기 한 곳에서만 고친다. 카드 위에서 곧바로 고치는
+   * 칸을 따로 두면 같은 일을 하는 자리가 둘이 되고, 어느 쪽이 정본인지 알 수 없어진다.
    */
   const [editId, setEditId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
+  const [editForm, setEditForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4", instructorId: "" });
 
   const startEdit = (session: SessionRow) => {
     setEditId(session.id);
     setEditForm({
       title: session.title,
+      instructorId: session.instructor_id || "",
       heldOn: session.held_on ? String(session.held_on).slice(0, 10) : "",
       // DB 의 time 은 "14:00:00" 으로 온다. input[type=time] 은 분까지만 받는다.
       startTime: session.start_time ? String(session.start_time).slice(0, 5) : "",
@@ -295,6 +236,18 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     if (!editForm.title.trim()) return setFeedback({ message: "과정명을 입력해 주세요.", error: true });
     setBusyId(editId); setFeedback(null);
     try {
+      // 강사는 계약서와 묶여 있어 라우트가 다르다(계약이 나간 뒤에는 바꿀 수 없다). 그쪽이
+      // 더 엄격하니 먼저 부른다 — 막힐 일이면 나머지 값을 건드리기 전에 막히는 편이 낫다.
+      const current = sessions.find((row) => row.id === editId);
+      if (current && editForm.instructorId !== (current.instructor_id || "")) {
+        const assigned = await fetch(`/api/course-sessions/${editId}/assign`, {
+          method: "PATCH", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instructorId: editForm.instructorId || null }),
+        });
+        const assignResult = await assigned.json() as { error?: string };
+        if (!assigned.ok) throw new Error(assignResult.error || "강사를 배정하지 못했습니다.");
+      }
+
       const response = await fetch(`/api/course-sessions/${editId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -335,25 +288,6 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
       setFeedback({ message: "교육과정을 만들었습니다.", error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "교육과정을 만들지 못했습니다.", error: true });
-    } finally { setBusyId(""); }
-  };
-
-  const assignInstructor = async (sessionId: string, instructorId: string) => {
-    setBusyId(sessionId); setFeedback(null);
-    try {
-      const response = await fetch(`/api/course-sessions/${sessionId}/assign`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instructorId: instructorId || null }),
-      });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || "강사를 배정하지 못했습니다.");
-      await reload();
-      setFeedback({
-        message: instructorId ? "강사를 배정했습니다." : "강사 배정을 해제했습니다.",
-        error: false,
-      });
-    } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "강사를 배정하지 못했습니다.", error: true });
     } finally { setBusyId(""); }
   };
 
@@ -597,26 +531,18 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
               const hasMaterials = Boolean(session.materials?.caseExamples?.length || session.materials?.toolsUsed?.length);
               return <div className={open ? "session open" : "session"} key={session.id}>
                 <div className="session-head">
-                  {/* 펼치기 버튼을 뒤에 깔고 고칠 수 있는 것들을 그 위에 올린다 — 버튼 안에
-                      입력을 넣을 수 없고, 그렇다고 카드를 여는 넓은 자리를 포기할 수도 없다. */}
+                  {/* 펼치기 버튼을 뒤에 깔고, 누를 것(상태·수정·삭제)만 그 위에 올린다 —
+                      버튼 안에 버튼을 넣을 수 없고, 카드를 여는 넓은 자리도 포기할 수 없다. */}
                   <button type="button" className="session-toggle" aria-expanded={open}
                     aria-label={`${session.title} ${open ? "접기" : "펼치기"}`}
                     onClick={() => setOpenId(open ? null : session.id)} />
                   <div className="session-title">
-                    <TextField key={`title-${session.id}-${session.title}`}
-                      value={session.title} ariaLabel="과정명" placeholder="과정명"
-                      disabled={busyId === session.id}
-                      onSave={(next) => void patchSession(session, { title: next }, "과정명")} />
-                    <label className="session-instructor">
-                      <span className="sr-only">담당 강사</span>
-                      <select value={session.instructor_id || ""} disabled={busyId === session.id}
-                        onChange={(event) => void assignInstructor(session.id, event.target.value)}>
-                        <option value="">강사 미배정</option>
-                        {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
-                          {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
-                        </option>)}
-                      </select>
-                    </label>
+                    <b className="session-name">{session.title}</b>
+                    <small className={session.instructors?.name ? "session-instructor" : "session-instructor none"}>
+                      {session.instructors?.name
+                        ? [session.instructors.name, session.instructors.affiliation].filter(Boolean).join(" · ")
+                        : "강사 미배정"}
+                    </small>
                   </div>
                   <div className="session-meta">
                     <span className="course-progress">
@@ -640,6 +566,18 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                       <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </label>
+                  {/* 수정은 카드를 펼쳐야 나오던 것이라, 고칠 일이 있는 사람이 두 번 찾아야
+                      했다. 삭제와 나란히 머리 줄에 둔다 — 누르면 카드를 열고 폼까지 편다. */}
+                  <button type="button" className="session-edit" disabled={busyId === session.id}
+                    aria-pressed={editId === session.id}
+                    aria-label={`${session.title} 정보 수정`} title="교육과정 정보 수정"
+                    onClick={() => {
+                      if (editId === session.id) return setEditId(null);
+                      setOpenId(session.id);
+                      startEdit(session);
+                    }}>
+                    <Icon name="pencil" size={16} />
+                  </button>
                   <button type="button" className="session-delete" disabled={busyId === session.id}
                     onClick={() => void deleteSession(session)} aria-label={`${session.title} 삭제`} title="교육과정 삭제">
                     {busyId === session.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}
@@ -663,6 +601,15 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                             onChange={(event) => setEditForm((current) => ({ ...current, location: event.target.value }))} /></label>
                           <label>참석 인원<input type="number" min="1" value={editForm.headcount} placeholder="30" disabled={busyId === session.id}
                             onChange={(event) => setEditForm((current) => ({ ...current, headcount: event.target.value }))} /></label>
+                          <label>담당 강사
+                            <select value={editForm.instructorId} disabled={busyId === session.id}
+                              onChange={(event) => setEditForm((current) => ({ ...current, instructorId: event.target.value }))}>
+                              <option value="">미배정</option>
+                              {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
+                                {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
+                              </option>)}
+                            </select>
+                          </label>
                         </div>
                         <div className="modal-actions">
                           <button type="button" onClick={() => setEditId(null)} disabled={busyId === session.id}>취소</button>
@@ -674,18 +621,8 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     : null}
                   <dl className="session-facts">
                     <div><dt>장소</dt><dd>{session.location || "미정"}</dd></div>
-                    <div className="editable"><dt>인원</dt><dd>
-                      <NumberField key={`headcount-${session.id}-${session.headcount ?? ""}`}
-                        suffix="명" min={1} step={1} value={session.headcount}
-                        ariaLabel="참석 인원" disabled={busyId === session.id}
-                        onSave={(next) => void patchSession(session, { headcount: next }, "인원")} />
-                    </dd></div>
-                    <div className="editable"><dt>교육 시간</dt><dd>
-                      <NumberField key={`duration-${session.id}-${session.duration_hours}`}
-                        suffix="시간" min={0.5} step={0.5} value={session.duration_hours}
-                        ariaLabel="교육 시간" disabled={busyId === session.id}
-                        onSave={(next) => void patchSession(session, { durationHours: next }, "교육 시간")} />
-                    </dd></div>
+                    <div><dt>인원</dt><dd>{session.headcount ? `${session.headcount}명` : "미정"}</dd></div>
+                    <div><dt>교육 시간</dt><dd>{session.duration_hours}시간</dd></div>
                     <div><dt>수강생</dt><dd>{session.learners?.total ? `${session.learners.total}명${session.learners.attended ? ` · 참석 ${session.learners.attended}` : ""}` : "미등록"}</dd></div>
                     <div><dt>계약</dt><dd>{session.contract ? `${CONTRACT_STATUS_LABEL[session.contract.status]} · ${session.contract.contract_no}` : "미작성"}</dd></div>
                   </dl>
@@ -727,10 +664,6 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                   </p>}
 
                   <div className="session-actions">
-                    <button type="button" className="upload-chip" disabled={busyId === session.id}
-                      onClick={() => (editId === session.id ? setEditId(null) : startEdit(session))}>
-                      {editId === session.id ? "수정 닫기" : "과정 정보 수정"}
-                    </button>
                     <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer">
                       강사용 브리프 내려받기
                     </a>
