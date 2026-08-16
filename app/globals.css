@@ -574,3 +574,10 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 /* 브랜드가 남색으로 옮겨 갔는데 기본 버튼만 예전 초록으로 남아 있었다. 토큰 이름(--green)은
    그대로 두고 값만 남색으로 맞춘다 — 이 토큰은 버튼 배경으로만 쓰인다. */
 :root{--green:#173452}
+
+/* 교육 하나가 카드 하나다. 한 상자 안에 줄로 나눠 두면 두 번째 교육이 첫 교육의 딸린 항목처럼
+   읽힌다 — 실제로는 서로 다른 날, 다른 강사, 다른 수강생을 가진 별개의 수업이다. */
+.company-sessions{background:transparent;border:0;border-radius:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.company-sessions .session{border:1px solid #dce3ec;border-radius:12px;background:#fff;padding:0 18px;box-shadow:var(--shadow-sm);transition:border-color var(--motion-base),box-shadow var(--motion-base)}
+.company-sessions .session:hover{border-color:#a9bed2}
+.company-sessions .session.open{border-color:#8eabc4;box-shadow:var(--shadow-md)}
