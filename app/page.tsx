@@ -216,7 +216,7 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
 
 function Header({ view, onNew, selectedCompany, selectedInstructorName }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string }) {
   const titles: Record<View, [string, string]> = {
-    companies: ["기업", "기업 정보와 교육 수요 조사"],
+    companies: ["기업", "기업 조사와 교육 진행 상황"],
     company: [displayCompanyName(selectedCompany.name), ""],
     instructors: ["강사", "강사 프로필과 강의 이력"],
     instructor: [selectedInstructorName || "강사", ""],
