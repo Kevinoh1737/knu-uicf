@@ -537,6 +537,13 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
               const ratio = tailoredCaseRatio(session.materials);
               const hasOutline = Boolean(session.outline?.modules?.length);
               const hasMaterials = Boolean(session.materials?.caseExamples?.length || session.materials?.toolsUsed?.length);
+              // 지금 이 과정에 비어 있는 칸 하나. 실제 순서(구성 → 자료 → 수강생 → 계약)를
+              // 그대로 따라가므로, 진한 칩 하나만 좇으면 교육 하나가 끝난다.
+              const leadAction = !hasOutline ? "outline"
+                : !hasMaterials ? "materials"
+                : (session.learners?.total || 0) === 0 ? "roster"
+                : !session.contract && session.instructor_id ? "contract"
+                : "";
               return <div className={open ? "session open" : "session"} key={session.id}>
                 <div className="session-head">
                   {/* 펼치기 버튼을 뒤에 깔고, 누를 것(상태·수정·삭제)만 그 위에 올린다 —
@@ -630,6 +637,43 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     <div><dt>계약</dt><dd>{session.contract ? `${CONTRACT_STATUS_LABEL[session.contract.status]} · ${session.contract.contract_no}` : "미작성"}</dd></div>
                   </dl>
 
+                  {/* 할 일은 읽을거리 위에 둔다. 강의 구성이 길면 작업 줄이 카드 700px 아래로
+                      밀려, 무언가 하려고 카드를 연 사람이 스크롤부터 해야 했다.
+                      다섯 개를 똑같은 무게로 늘어놓지 않고, 지금 비어 있는 칸을 채우는 것
+                      하나만 진하게 한다 — 나머지는 있되 부르지 않는다. */}
+                  <div className="session-actions">
+                    {(["outline", "materials"] as const).map((kind) => <label
+                      className={`upload-chip${leadAction === kind ? " lead" : ""}`} key={kind}>
+                      <input className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busyId === session.id}
+                        onChange={(event) => {
+                          const file = event.target.files?.[0];
+                          event.target.value = "";
+                          if (file) void uploadDocument(session.id, kind, file);
+                        }} />
+                      {kind === "outline"
+                        ? (hasOutline ? "강의 구성 다시 올리기" : "받은 강의 구성 올리기")
+                        : (hasMaterials ? "강의 자료 다시 올리기" : "받은 강의 자료 올리기")}
+                    </label>)}
+                    <button type="button" className={`upload-chip${leadAction === "roster" ? " lead" : ""}`}
+                      onClick={() => void openRoster(session.id)}>
+                      {rosterFor === session.id ? "수강생 닫기" : "수강생 등록"}
+                    </button>
+                    {session.contract
+                      ? <a className="upload-chip" href={`/api/contracts/${session.contract.id}/pdf`} target="_blank" rel="noreferrer">계약서 열기</a>
+                      : <button type="button" className={`upload-chip${leadAction === "contract" ? " lead" : ""}`}
+                          disabled={busyId === session.id || !session.instructor_id}
+                          onClick={() => void createContract(session.id)}>
+                          계약서 만들기
+                        </button>}
+                    <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer">
+                      강사용 브리프 내려받기
+                    </a>
+                  </div>
+                  {/* 못 누르는 이유는 마우스를 올려야 보이는 말풍선이 아니라 글로 적는다 —
+                      휴대폰에는 hover 가 없어 이유를 볼 방법이 아예 없었다. */}
+                  {!session.contract && !session.instructor_id &&
+                    <p className="action-hint">계약서는 강사를 배정한 뒤에 만들 수 있습니다. 강사는 연필 아이콘에서 고릅니다.</p>}
+
                   {/* 강사가 낸 자료에서 뽑은 것을 다 보여 준다. 도구·성과·사전 준비까지 있어야
                       "이 수업이 무엇을 남기는가"를 담당자가 고객사에 설명할 수 있다. */}
                   {session.outline?.objective && <div className="outline-block">
@@ -666,32 +710,6 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     {ratio < 50 && " — 일반 사례 비중이 높습니다"}
                   </p>}
 
-                  <div className="session-actions">
-                    <a className="upload-chip" href={`/api/course-sessions/${session.id}/brief`} target="_blank" rel="noreferrer">
-                      강사용 브리프 내려받기
-                    </a>
-                    {(["outline", "materials"] as const).map((kind) => <label className="upload-chip" key={kind}>
-                      <input className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busyId === session.id}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = "";
-                          if (file) void uploadDocument(session.id, kind, file);
-                        }} />
-                      {kind === "outline"
-                        ? (hasOutline ? "강의 구성 다시 올리기" : "받은 강의 구성 올리기")
-                        : (hasMaterials ? "강의 자료 다시 올리기" : "받은 강의 자료 올리기")}
-                    </label>)}
-                    <button type="button" className="upload-chip" onClick={() => void openRoster(session.id)}>
-                      {rosterFor === session.id ? "수강생 닫기" : "수강생 등록"}
-                    </button>
-                    {session.contract
-                      ? <a className="upload-chip" href={`/api/contracts/${session.contract.id}/pdf`} target="_blank" rel="noreferrer">계약서 열기</a>
-                      : <button type="button" className="upload-chip" disabled={busyId === session.id || !session.instructor_id}
-                          title={session.instructor_id ? undefined : "강사를 배정하면 만들 수 있습니다"}
-                          onClick={() => void createContract(session.id)}>
-                          계약서 만들기
-                        </button>}
-                  </div>
                   {busyId === session.id && <p className="body-text">처리 중</p>}
 
                   <SessionSurvey session={session} busy={busyId === session.id}

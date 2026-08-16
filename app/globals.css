@@ -632,6 +632,23 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .session-head .session-meta,.session-head .stage-pick,.session-head .session-edit,.session-head .session-delete{position:relative;z-index:1}
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
+/* ── 교육 카드 작업 줄 (ui-ux-pro-max 점검 결과) ──────────────────────────
+   [Accessibility · 초점 표시, CRITICAL] '강의 구성/자료 올리기'는 label 안에 숨긴 file
+   input 이라, 탭으로 옮겨 가도 화면에 아무 표시가 없었다 — 키보드로는 어디에 있는지
+   알 수 없는 버튼이었다. 숨은 입력의 초점을 칩이 대신 보여 준다.
+   [Typography · 11px, MEDIUM] 본문 최소 12px 아래였다.
+   [Touch · 표적 크기, HIGH] 36~40px 은 손가락 기준 44px 에 못 미친다 — 좁은 화면에서 올린다. */
+.session-actions .upload-chip,.session-survey .upload-chip{height:40px;font-size:12px}
+.upload-chip:focus-visible,.upload-chip:has(.pdf-file-input:focus-visible){outline:3px solid #cfe0ef;outline-offset:2px;border-color:#7ea597}
+/* [Layout · 시각 위계, HIGH] 다섯 개가 같은 무게면 무엇부터 할지 화면이 답해 주지 못한다.
+   지금 비어 있는 칸 하나만 진하게 둔다. */
+.upload-chip.lead{background:var(--green);border-color:transparent;color:#fff;font-weight:650}
+.upload-chip.lead:hover{background:#0f2c25}
+.action-hint{margin:8px 0 0;font-size:11.5px;color:#5a6672}
+@media(max-width:640px){
+  .session-actions .upload-chip,.session-survey .upload-chip{height:44px}
+}
+
 /* 창 뒤를 덮는 .modal-scrim 은 position:absolute 인데 .modal 은 static 이라, 닫기용
    덮개가 창 위에 얹혀 안쪽 버튼이 전부 먹히고 있었다(누르면 그냥 닫혔다). 창을 올린다 —
    이 앱의 모든 모달에 해당한다. */
