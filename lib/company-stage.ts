@@ -45,17 +45,58 @@ export function isStoredStage(value: unknown): value is StoredStage {
  * 교육과정을 만든 것과 강사를 배정한 것은 다른 단계다. 과정 수만 세면 강사가 없는데도
  * '강사 배정 완료'로 보인다 — 실제 순서가 과정 생성 → 강사 배정이므로 둘을 가른다.
  */
-export function resolveStage(stored: unknown, sessionCount: number, assignedCount = sessionCount): CompanyStage {
-  if (stored === "training_complete" || stored === "cancelled") return stored;
+export function resolveStage(
+  stored: unknown,
+  sessionCount: number,
+  assignedCount = sessionCount,
+  deliveredCount = 0,
+  cancelledCount = 0,
+): CompanyStage {
+  // 완료·취소는 교육과정마다 매겨진다. 회사 단계는 그 과정들에서 읽는다 — 과정이 둘인데
+  // 하나만 끝났을 때 회사 전체가 끝난 것으로 보이면 남은 하나가 목록에서 사라진다.
+  //
+  // sessionCount 는 '취소를 뺀 살아 있는 과정 수'다. 그래서 취소 판정은 취소 수를 sessionCount
+  // 와 견주는 게 아니라 '살아 있는 과정이 하나도 없는가'로 한다 — 하나 끝내고 하나 취소한
+  // 회사를 취소로 적으면 끝낸 교육이 없던 일이 된다.
+  if (cancelledCount > 0 && sessionCount === 0) return "cancelled";
+  if (sessionCount > 0 && deliveredCount >= sessionCount) return "training_complete";
+  // 과정이 생기기 전에 사람이 손으로 매겨 둔 값은 그대로 존중한다(예전 방식으로 남은 데이터).
+  if (sessionCount === 0 && (stored === "training_complete" || stored === "cancelled")) return stored;
   // '배정 완료'는 남김없이 배정됐을 때만이다. 하나라도 배정되면 완료로 보던 때에는, 과정
   // 2개 중 1개만 강사가 있어도 '강사 배정 완료'가 떠서 남은 하나가 목록에서 사라졌다.
   if (sessionCount > 0 && assignedCount >= sessionCount) return "instructor_assigned";
   return sessionCount > 0 ? "course_created" : "research_complete";
 }
 
-export function stageLabel(stored: unknown, sessionCount: number, assignedCount = sessionCount) {
-  return STAGE_LABEL[resolveStage(stored, sessionCount, assignedCount)];
+export function stageLabel(
+  stored: unknown,
+  sessionCount: number,
+  assignedCount = sessionCount,
+  deliveredCount = 0,
+  cancelledCount = 0,
+) {
+  return STAGE_LABEL[resolveStage(stored, sessionCount, assignedCount, deliveredCount, cancelledCount)];
 }
+
+/** 교육과정 하나의 상태. 담당자가 직접 고르는 것은 이 셋뿐이다. */
+export type SessionStatus = "planned" | "delivered" | "cancelled";
+
+export const SESSION_STATUS_CHOICES: SessionStatus[] = ["planned", "delivered", "cancelled"];
+
+export const SESSION_STATUS_LABEL: Record<string, string> = {
+  planned: "교육 예정",
+  contracted: "계약 완료",
+  delivered: "교육 완료",
+  cancelled: "교육 취소",
+};
+
+/** 배지 색은 회사 단계와 같은 계열을 쓴다 — 같은 뜻이 자리마다 다른 색이면 다시 배워야 한다. */
+export const SESSION_STATUS_TONE: Record<string, string> = {
+  planned: "neutral",
+  contracted: "progress",
+  delivered: "done",
+  cancelled: "stopped",
+};
 
 /**
  * '로' / '으로' 를 가른다. 받침이 없거나 ㄹ 받침이면 '로'다 — '교육 완료로', '교육 취소로',

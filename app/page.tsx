@@ -63,6 +63,8 @@ type CompanyItem = {
   learnerCount?: number;
   consultationCount?: number;
   pastSessionCount?: number;
+  deliveredCount?: number;
+  cancelledCount?: number;
   nextSession?: { heldOn: string; instructorName: string } | null;
   updatedAt?: string;
   contact?: CompanyContact;
@@ -261,7 +263,9 @@ function Header({ view, onNew, selectedCompany, selectedInstructorName, contactS
 function CompanyCard({ company, onOpen, onDelete, deleting }: { company: CompanyItem; onOpen: (company: CompanyItem, intent?: "contact") => void; onDelete: (company: CompanyItem) => void; deleting: boolean }) {
   const sessionCount = company.sessionCount || 0;
   const assignedCount = company.assignedCount || 0;
-  const stage = resolveStage(company.storedStage, sessionCount, assignedCount);
+  const delivered = company.deliveredCount || 0;
+  const cancelled = company.cancelledCount || 0;
+  const stage = resolveStage(company.storedStage, sessionCount, assignedCount, delivered, cancelled);
   const name = displayCompanyName(company.name);
 
   // 교육이 잡혀 있으면 날짜가 가장 급한 정보다. 없으면 다음에 할 일을 보여 준다.
@@ -293,7 +297,7 @@ function CompanyCard({ company, onOpen, onDelete, deleting }: { company: Company
     <button type="button" className="company-card-open" onClick={() => onOpen(company)} aria-label={`${name} 조사 결과 열기`}>
       <div className="company-card-heading">
         <h3>{name}</h3>
-        <span className={`stage ${STAGE_TONE[stage]}`}>{stageLabel(company.storedStage, sessionCount, assignedCount)}</span>
+        <span className={`stage ${STAGE_TONE[stage]}`}>{stageLabel(company.storedStage, sessionCount, assignedCount, delivered, cancelled)}</span>
       </div>
       <p>{company.field}</p>
       <p className="company-card-next">
@@ -339,7 +343,7 @@ function Companies({ companyItems, onSelectCompany, onCompanyDeleted }: { compan
   </section>;
 }
 
-function CompanyDetail({ company, companies, onSelectCompany, onStageChange }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void; onStageChange?: (id: string, stage: string) => void }) {
+function CompanyDetail({ company, companies, onSelectCompany }: { company: CompanyItem; companies: CompanyItem[]; onSelectCompany: (company: CompanyItem) => void }) {
   const [tab, setTab] = useState("research");
   // 탭 표시에 쓰는 숫자. 탭을 열기 전에도 보여야 해서 상세 진입 시 한 번 읽는다.
   const [summary, setSummary] = useState({ consultations: 0, sessions: 0, learners: 0 });
@@ -494,7 +498,7 @@ function CompanyDetail({ company, companies, onSelectCompany, onStageChange }: {
       exportSlot={company.research ? <ExportButton label="조사 결과 PDF" busy={exportState === "pdf"} message={exportState === "pdf" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("pdf")} /> : null} />}
     {tab === "questions" && <section className="tab-content questions"><div className="content-title"><div><h2>니즈 질문지</h2><p>상담에서 물어볼 질문</p></div><div className="title-actions"><ExportButton label="질문지 Excel" busy={exportState === "xlsx"} disabled={!questions.length} message={exportState === "xlsx" || exportState === "error" ? exportMessage : ""} error={exportState === "error"} onClick={() => downloadExport("xlsx")} /><button onClick={addQuestion}>＋ 질문 추가</button></div></div>{questions.map((q,i)=><article key={i} data-question-index={i} className={[draggingQuestion === i && "dragging",draggingQuestion !== null && dragInsertAt === i && "drop-before",draggingQuestion !== null && dragInsertAt === questions.length && i === questions.length-1 && "drop-after"].filter(Boolean).join(" ")}><button type="button" className="question-grip" aria-label={`${i+1}번 질문 순서 이동`} title="드래그하여 순서 변경" onPointerDown={(event)=>startQuestionDrag(event,i)} onPointerMove={moveQuestionDrag} onPointerUp={endQuestionDrag} onPointerCancel={cancelQuestionDrag} onKeyDown={(event)=>{if(event.key === "ArrowUp" && i > 0){event.preventDefault();reorderQuestion(i,i-1,true);}else if(event.key === "ArrowDown" && i < questions.length-1){event.preventDefault();reorderQuestion(i,i+1,true);}}}><Icon name="grip" size={20}/></button><span>{String(i+1).padStart(2,"0")}</span><textarea rows={1} aria-label={`${i+1}번 질문`} value={q} onChange={(e)=>{setQuestions(questions.map((x,j)=>j===i?e.target.value:x));setSaveState("idle");}}/><button type="button" className="question-delete" aria-label={`${i+1}번 질문 삭제`} onClick={()=>{setQuestions(questions.filter((_,j)=>j!==i));setSaveState("idle");}}>×</button></article>)}<span className="sr-only" role="status" aria-live="polite">{reorderMessage}</span><div className="savebar"><span className={saveState === "error" ? "save-error" : ""}>{saveState === "saving" ? "저장 중…" : saveState === "saved" ? "저장 완료" : saveState === "error" ? "저장 실패 · 다시 시도" : "수정 후 저장"}</span><button onClick={saveQuestions} disabled={!company.id || saveState === "saving"}>{saveState === "saving" ? "저장 중…" : "질문지 저장"}</button></div></section>}
     {tab === "consultation" && <ConsultingTab company={company} />}
-    {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} storedStage={company.storedStage} onStageChange={(stage) => onStageChange?.(company.id as string, stage)} onDataChanged={() => setDataVersion(current => current + 1)} />}
+    {tab === "sessions" && company.id && <CompanySessionsTab companyId={company.id} onDataChanged={() => setDataVersion(current => current + 1)} />}
     {tab === "learners" && company.id && <CompanyLearnersTab companyId={company.id} companyName={displayCompanyName(company.name)} onDataChanged={() => setDataVersion(current => current + 1)} />}
   </section>;
 }
@@ -893,15 +897,12 @@ export default function Home() {
   };
   const selectInstructor = (instructor: InstructorItem) => { setSelectedInstructor(instructor); setView("instructor"); };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
-  // 상세에서 바꾼 상태를 목록 카드에도 즉시 반영한다. 다시 불러오지 않으면 배지가 옛값으로 남는다.
-  const updateStage = (id: string, stage: string) => setCompanyItems(current => current.map(item =>
-    item.id === id ? { ...item, storedStage: stage, stage: stageLabel(stage, item.sessionCount || 0, item.assignedCount || 0) } : item));
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
     fetch("/api/companies").then(async response => {
-      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; learnerCount: number; consultationCount: number; pastSessionCount: number; nextSession: CompanyItem["nextSession"]; updated_at: string; contact: CompanyContact; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
+      const result = await response.json() as { companies?: Array<{ id: string; name: string; website_url: string; industry: string; stage: string; sessionCount: number; assignedCount: number; deliveredCount: number; cancelledCount: number; learnerCount: number; consultationCount: number; pastSessionCount: number; nextSession: CompanyItem["nextSession"]; updated_at: string; contact: CompanyContact; research: ResearchReport; intelligence: CompanyIntelligence; crawl: CompanyItem["crawl"]; questions: string[] }> };
       if (!response.ok) throw new Error("기업 목록 조회 실패");
-      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, learnerCount: item.learnerCount || 0, consultationCount: item.consultationCount || 0, pastSessionCount: item.pastSessionCount || 0, nextSession: item.nextSession || null, updatedAt: item.updated_at, contact: item.contact, progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
+      setCompanyItems((result.companies || []).map(item => ({ id: item.id, name: item.name, field: item.industry, stage: stageLabel(item.stage, item.sessionCount || 0, item.assignedCount || 0, item.deliveredCount || 0, item.cancelledCount || 0), storedStage: item.stage, sessionCount: item.sessionCount || 0, assignedCount: item.assignedCount || 0, deliveredCount: item.deliveredCount || 0, cancelledCount: item.cancelledCount || 0, learnerCount: item.learnerCount || 0, consultationCount: item.consultationCount || 0, pastSessionCount: item.pastSessionCount || 0, nextSession: item.nextSession || null, updatedAt: item.updated_at, contact: item.contact, progress: 25, date: "저장됨", color: "blue", websiteUrl: item.website_url, research: sanitizeResearchReport({ ...item.research, questions: item.questions }), intelligence: sanitizeCompanyIntelligence(item.intelligence), crawl: item.crawl })));
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", progress: 0, date: "", color: "blue" };
@@ -913,6 +914,6 @@ export default function Home() {
     ? <InstructorDetail key={selectedInstructor.id} instructor={selectedInstructor} onBack={() => setView("instructors")}/>
     : view === "instructors"
       ? <InstructorsPanel onSelect={selectInstructor}/>
-      : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany} onStageChange={updateStage}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
+      : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
   return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""} contactSignal={contactSignal}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }

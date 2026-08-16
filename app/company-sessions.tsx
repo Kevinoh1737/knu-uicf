@@ -12,7 +12,9 @@ import {
   resolveInstructorDocument,
   tailoredCaseRatio,
 } from "@/lib/instructors";
-import { STAGE_TONE, STORED_STAGES, StoredStage, stageChoiceLabel, withRo } from "@/lib/company-stage";
+import {
+  SESSION_STATUS_CHOICES, SESSION_STATUS_LABEL, SESSION_STATUS_TONE, SessionStatus, withRo,
+} from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
@@ -92,10 +94,6 @@ function SessionSurvey({ session, busy, onSend, onCreate }: {
   </div>;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  planned: "예정", contracted: "계약 완료", delivered: "진행 완료", cancelled: "취소",
-};
-
 function formatDate(session: { held_on: string | null; start_time?: string | null; duration_hours?: number }) {
   return formatHeldOn(session.held_on, session.start_time, session.duration_hours) || "일자 미정";
 }
@@ -158,7 +156,7 @@ function SessionRoster({ roster, busy, onEnroll, onChange }: {
   </div>;
 }
 
-export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDataChanged }: { companyId: string; storedStage?: string; onStageChange?: (stage: StoredStage) => void; onDataChanged?: () => void }) {
+export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: string; onDataChanged?: () => void }) {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [instructors, setInstructors] = useState<InstructorOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,7 +165,6 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
   const [busyId, setBusyId] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const [form, setForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
-  const [stage, setStage] = useState<StoredStage>((storedStage as StoredStage) || "research_complete");
   const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
   const [rosterFor, setRosterFor] = useState<string | null>(null);
 
@@ -187,19 +184,23 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);
 
-  const changeStage = async (next: StoredStage) => {
-    if (next === stage) return;
-    setBusyId("stage"); setFeedback(null);
+  /**
+   * 교육과정 상태. 예정 → 교육 완료·취소는 사람이 판단한다(일정이 지났다고 자동으로 넘어가지
+   * 않는다 — 미룬 교육, 당일 취소가 전부 완료로 보이게 된다). 회사 단계는 이 값들에서 읽는다.
+   */
+  const changeSessionStatus = async (session: SessionRow, next: string) => {
+    if (next === session.status) return;
+    setBusyId(session.id); setFeedback(null);
     try {
-      const response = await fetch(`/api/companies/${companyId}/stage`, {
+      const response = await fetch(`/api/course-sessions/${session.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ stage: next }),
+        body: JSON.stringify({ status: next }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "상태를 바꾸지 못했습니다.");
-      setStage(next);
-      onStageChange?.(next);
-      setFeedback({ message: `${withRo(stageChoiceLabel(next))} 바꿨습니다.`, error: false });
+      await reload();
+      onDataChanged?.();
+      setFeedback({ message: `${withRo(SESSION_STATUS_LABEL[next] || next)} 바꿨습니다.`, error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "상태를 바꾸지 못했습니다.", error: true });
     } finally { setBusyId(""); }
@@ -479,9 +480,6 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
   const set = (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((current) => ({ ...current, [key]: event.target.value }));
 
-  // 과정이 하나도 없으면 완료로 표시할 것이 없다. 이미 완료·취소로 바꿔 둔 경우에는 되돌릴
-  // 길이 있어야 하므로 계속 보여 준다.
-  const showStageControl = sessions.some((session) => session.status !== "cancelled") || stage !== "research_complete";
 
   return <section className="tab-content">
     <div className="content-title">
@@ -492,18 +490,6 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
         {/* 교육 완료·취소는 사람이 정한다(일정이 지났다고 자동으로 넘어가지 않는다). 다만
             한 과정에서 많아야 한 번 누르는 것이라 카드로 세워 두지 않고, 지금 상태가 보이는
             선택 하나로 둔다. 만들어 둔 과정이 없으면 완료로 표시할 것도 없어 나오지 않는다. */}
-        {showStageControl && <label className={`stage-pick ${STAGE_TONE[stage]}`}>
-          {/* 버튼이 아니라 상태다. 색 점과 상태색 글자로 지금 상태를 먼저 읽히고, 누르면
-              바뀐다는 것은 오른쪽 화살표로만 알린다. */}
-          <i className="stage-dot" aria-hidden="true" />
-          <select value={stage} disabled={busyId === "stage"} aria-label="진행 상태"
-            onChange={(event) => void changeStage(event.target.value as StoredStage)}>
-            {STORED_STAGES.map((value) => <option key={value} value={value}>{stageChoiceLabel(value)}</option>)}
-          </select>
-          <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
-            <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </label>}
         <button type="button" onClick={() => setAdding((current) => !current)}>
           {adding ? "닫기" : "＋ 교육과정 생성"}
         </button>
@@ -561,8 +547,8 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                         .map(([label, complete]) => <i key={label} className={complete ? "done" : ""}>{label}</i>)}
                     </span>
                     <small>{formatDate(session)}</small>
-                    <span className={session.status === "delivered" ? "available" : "pending"}>
-                      {STATUS_LABEL[session.status] || session.status}
+                    <span className={`stage ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
+                      {SESSION_STATUS_LABEL[session.status] || session.status}
                     </span>
                   </div>
                 </button>
@@ -618,6 +604,23 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                   </p>}
 
                   <div className="assign-row">
+                    {/* 상태는 과정마다 다르다. 회사 단위로 하나만 두면 과정 2개 중 하나만
+                        끝났을 때 나머지가 목록에서 사라진다. */}
+                    <label className={`stage-pick ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>
+                      <i className="stage-dot" aria-hidden="true" />
+                      <select value={session.status} disabled={busyId === session.id} aria-label="교육 상태"
+                        onChange={(event) => void changeSessionStatus(session, event.target.value)}>
+                        {SESSION_STATUS_CHOICES.map((value) => <option key={value} value={value}>
+                          {SESSION_STATUS_LABEL[value]}
+                        </option>)}
+                        {/* 예전 값(계약 완료)이 들어 있으면 고를 수는 없어도 보이기는 해야 한다. */}
+                        {!SESSION_STATUS_CHOICES.includes(session.status as SessionStatus) &&
+                          <option value={session.status}>{SESSION_STATUS_LABEL[session.status] || session.status}</option>}
+                      </select>
+                      <svg className="stage-caret" width="10" height="6" viewBox="0 0 10 6" aria-hidden="true">
+                        <path d="M1 1l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </label>
                     <label>담당 강사
                       <select value={session.instructor_id || ""} disabled={busyId === session.id}
                         onChange={(event) => void assignInstructor(session.id, event.target.value)}>

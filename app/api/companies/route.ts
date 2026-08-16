@@ -28,11 +28,13 @@ export async function GET() {
 
     const today = new Date().toISOString().slice(0, 10);
     type Next = { heldOn: string; instructorName: string };
-    const counts = new Map<string, { total: number; assigned: number; past: number; next: Next | null }>();
+    const counts = new Map<string, { total: number; assigned: number; past: number; delivered: number; cancelled: number; next: Next | null }>();
     (sessionsResult.data || []).forEach((session) => {
-      if (session.status === "cancelled") return;
       const key = session.company_id as string;
-      const current = counts.get(key) || { total: 0, assigned: 0, past: 0, next: null };
+      const current = counts.get(key) || { total: 0, assigned: 0, past: 0, delivered: 0, cancelled: 0, next: null };
+      // 취소된 과정도 회사 단계 계산에는 필요하다 — 전부 취소면 회사도 취소다.
+      if (session.status === "cancelled") { current.cancelled += 1; counts.set(key, current); return; }
+      if (session.status === "delivered") current.delivered += 1;
       current.total += 1;
       if (session.instructor_id) current.assigned += 1;
 
@@ -62,12 +64,14 @@ export async function GET() {
     return Response.json({
       companies: (data || []).map((company) => {
         const id = company.id as string;
-        const count = counts.get(id) || { total: 0, assigned: 0, past: 0, next: null };
+        const count = counts.get(id) || { total: 0, assigned: 0, past: 0, delivered: 0, cancelled: 0, next: null };
         return {
           ...company,
           sessionCount: count.total,
           assignedCount: count.assigned,
           pastSessionCount: count.past,
+          deliveredCount: count.delivered,
+          cancelledCount: count.cancelled,
           nextSession: count.next,
           learnerCount: learnerCounts.get(id) || 0,
           consultationCount: consultationCounts.get(id) || 0,
