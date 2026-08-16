@@ -7,7 +7,6 @@ import {
   INSTRUCTOR_FORMAT_LABEL,
   InstructorProfile,
   MAX_INSTRUCTOR_DOCUMENT_SIZE,
-  NON_PARSABLE_NOTICE,
   resolveInstructorDocument,
   tailoredCaseRatio,
   CONTRACT_STATUS_LABEL,
@@ -16,6 +15,7 @@ import {
   CourseOutline,
 } from "@/lib/instructors";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
+import { Icon, formatFileSize } from "./ui";
 
 export type InstructorStats = { delivered: number; planned: number; lastHeldOn: string | null };
 
@@ -162,8 +162,8 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
     <div className="import-callout">
       <span>↥</span>
       <div>
-        <b>강사가 제출한 프로필 파일을 올리면 양식이 자동으로 채워집니다</b>
-        <p>{INSTRUCTOR_FORMAT_LABEL} · 자동 추출은 PDF · 주민등록번호·계좌번호는 추출하지 않습니다</p>
+        <b>강사가 제출한 프로필 PDF를 올리면 양식이 자동으로 채워집니다</b>
+        <p>최대 50MB · 한글·워드는 &lsquo;PDF로 저장&rsquo; 후 올려 주세요</p>
       </div>
       <button type="button" onClick={() => setModal(true)}>파일로 등록</button>
     </div>
@@ -182,6 +182,7 @@ type Phase = "pick" | "uploading" | "extracting" | "review" | "saving";
 function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCreated: (instructor: InstructorItem) => void }) {
   const [phase, setPhase] = useState<Phase>("pick");
   const [mode, setMode] = useState<"file" | "manual">("file");
+  const [picked, setPicked] = useState<File | null>(null);
   const [profile, setProfile] = useState<InstructorProfile>(EMPTY_PROFILE);
   const [source, setSource] = useState<{ storagePath: string; fileName: string; mimeType: string; fileSize: number; parsed: boolean } | null>(null);
   const [notice, setNotice] = useState("");
@@ -198,9 +199,13 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
     if (fileInputRef.current) fileInputRef.current.value = "";
     setError(""); setNotice("");
 
-    const resolved = resolveInstructorDocument(file.name);
-    if (!resolved) return setError(`${INSTRUCTOR_FORMAT_LABEL} 파일만 올릴 수 있습니다.`);
+    // 프로필은 PDF 만 받는다. 읽지 못하는 형식을 받아 두면 "올렸는데 아무것도 안 채워짐"이 되고,
+    // 그건 이 화면이 하려는 일과 정반대다. 한글·워드는 'PDF로 저장' 후 올린다.
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      return setError("PDF 파일만 올릴 수 있습니다. 한글·워드는 'PDF로 저장' 후 올려 주세요.");
+    }
     if (file.size > MAX_INSTRUCTOR_DOCUMENT_SIZE) return setError("파일은 최대 50MB까지 올릴 수 있습니다.");
+    setPicked(file);
 
     try {
       setPhase("uploading");
@@ -213,16 +218,10 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
 
       const { error: uploadError } = await createSupabaseBrowser()
         .storage.from(token.bucket)
-        .uploadToSignedUrl(token.path, token.token, file, { contentType: resolved.mimeType });
+        .uploadToSignedUrl(token.path, token.token, file, { contentType: "application/pdf" });
       if (uploadError) throw new Error(uploadError.message);
 
-      const uploaded = { storagePath: token.path, fileName: file.name, mimeType: resolved.mimeType, fileSize: file.size, parsed: false };
-
-      // 파싱은 PDF 만 된다. 원본은 이미 올라갔으므로 직접 입력으로 이어간다.
-      if (!token.parsable) {
-        setSource(uploaded); setNotice(NON_PARSABLE_NOTICE); setPhase("review");
-        return;
-      }
+      const uploaded = { storagePath: token.path, fileName: file.name, mimeType: "application/pdf", fileSize: file.size, parsed: false };
 
       setPhase("extracting");
       const extractResponse = await fetch("/api/instructors/extract-profile", {
@@ -291,20 +290,31 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
         <button className="modal-close" type="button" onClick={onClose} aria-label="닫기" disabled={busy}>×</button>
       </div>
 
-      {phase === "pick" && <div className="input-tabs" role="tablist" aria-label="강사 등록 방법">
-        {([["file", "01", "프로필 파일"], ["manual", "02", "직접 입력"]] as const).map(([id, number, label]) =>
-          <button type="button" role="tab" key={id} aria-selected={mode === id} className={mode === id ? "active" : ""}
-            onClick={() => { setMode(id); setError(""); setNotice(""); }} disabled={busy}>
-            <span>{number}</span>{label}
-          </button>)}
-      </div>}
-
-      {phase === "pick" && mode === "file" && <label className="drop-mini">
-        <input ref={fileInputRef} className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT} disabled={busy}
-          onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} />
-        프로필 파일 선택
-        <small>{INSTRUCTOR_FORMAT_LABEL} · 최대 50MB · 자동 추출은 PDF</small>
-      </label>}
+      {phase === "pick" && <>
+        <div className="input-tabs" role="tablist" aria-label="강사 등록 방법">
+          {([["file", "01", "프로필 PDF"], ["manual", "02", "직접 입력"]] as const).map(([id, number, label]) =>
+            <button type="button" role="tab" key={id} aria-selected={mode === id} className={mode === id ? "active" : ""}
+              onClick={() => { setMode(id); setError(""); setNotice(""); }} disabled={busy}>
+              <span>{number}</span>{label}
+            </button>)}
+        </div>
+        {mode === "file" && <div className="input-panel" role="tabpanel">
+          <div className="pdf-field">
+            <div className="pdf-label-line"><span>강사 프로필 PDF</span><small className="pdf-limit">최대 50MB</small></div>
+            <label className="pdf-upload-label">
+              <input ref={fileInputRef} className="pdf-file-input" type="file" accept="application/pdf,.pdf" disabled={busy}
+                onChange={(event) => { const file = event.target.files?.[0]; if (file) void handleFile(file); }} />
+              <span className="pdf-upload-control">
+                <Icon name="upload" size={20} />
+                <span className="pdf-upload-copy">
+                  <b>{picked?.name || "PDF 파일 선택"}</b>
+                  {picked && <small>{formatFileSize(picked.size)}</small>}
+                </span>
+              </span>
+            </label>
+          </div>
+        </div>}
+      </>}
 
       {showForm && <div className="profile-form">
         {field("이름", "name", "홍길동")}

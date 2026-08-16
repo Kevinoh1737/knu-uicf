@@ -85,16 +85,16 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
 .company-discovery .input-panel{height:124px;min-height:124px;box-sizing:border-box;overflow:hidden}
 .company-discovery .input-panel>label{display:block;height:100%;box-sizing:border-box}
 @media(max-width:600px){.company-discovery .input-panel{height:132px;min-height:132px}}
-.company-discovery .pdf-file-input{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-.company-discovery .pdf-upload-control{display:flex;align-items:center;gap:10px;height:48px;margin-top:9px;padding:0 14px;border:1px dashed #aebdb7;border-radius:10px;background:#f8faf9;color:#315f50;cursor:pointer;transition:border-color .18s ease,background .18s ease}
-.company-discovery .pdf-upload-copy{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;width:100%;overflow:hidden}
-.company-discovery .pdf-upload-copy>b{min-width:0;overflow:hidden;color:#26342f;font-size:13px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
-.company-discovery .pdf-upload-copy>small{flex:none;color:#68736e;font-size:11px;font-weight:600}
-.company-discovery label:focus-within .pdf-upload-control,.company-discovery .pdf-upload-control:hover{border-color:#2563eb;background:#f5f8ff}
-.company-discovery .pdf-field{position:relative;height:100%}
-.company-discovery .pdf-label-line{display:flex;align-items:center;gap:6px;height:18px;color:#26342f;font-size:12px;font-weight:600}
-.company-discovery .pdf-limit{color:#7a8580;font-size:10px;font-weight:500}
-.company-discovery .pdf-upload-label{display:block;height:auto;margin:0}
+.company-discovery .pdf-file-input,.instructor-modal .pdf-file-input,.session-actions .pdf-file-input{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.company-discovery .pdf-upload-control,.instructor-modal .pdf-upload-control{display:flex;align-items:center;gap:10px;height:48px;margin-top:9px;padding:0 14px;border:1px dashed #aebdb7;border-radius:10px;background:#f8faf9;color:#315f50;cursor:pointer;transition:border-color .18s ease,background .18s ease}
+.company-discovery .pdf-upload-copy,.instructor-modal .pdf-upload-copy{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;width:100%;overflow:hidden}
+.company-discovery .pdf-upload-copy>b,.instructor-modal .pdf-upload-copy>b{min-width:0;overflow:hidden;color:#26342f;font-size:13px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.company-discovery .pdf-upload-copy>small,.instructor-modal .pdf-upload-copy>small{flex:none;color:#68736e;font-size:11px;font-weight:600}
+.company-discovery label:focus-within .pdf-upload-control,.instructor-modal label:focus-within .pdf-upload-control,.company-discovery .pdf-upload-control:hover,.instructor-modal .pdf-upload-control:hover{border-color:#2563eb;background:#f5f8ff}
+.company-discovery .pdf-field,.instructor-modal .pdf-field{position:relative;height:100%}
+.company-discovery .pdf-label-line,.instructor-modal .pdf-label-line{display:flex;align-items:center;gap:6px;height:18px;color:#26342f;font-size:12px;font-weight:600}
+.company-discovery .pdf-limit,.instructor-modal .pdf-limit{color:#7a8580;font-size:10px;font-weight:500}
+.company-discovery .pdf-upload-label,.instructor-modal .pdf-upload-label{display:block;height:auto;margin:0}
 
 /* Keep Korean words intact and wrap only at natural boundaries. */
 html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textarea,dt,dd,li{word-break:keep-all;overflow-wrap:break-word}
@@ -238,9 +238,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 @media(max-width:760px){.instructor-columns{grid-template-columns:1fr}.instructor-hero{flex-wrap:wrap}.instructor-counts{gap:18px}.session-body dl{grid-template-columns:1fr 1fr}.form-row{grid-template-columns:1fr}}
 .modal-scrim{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;cursor:default}
 .instructor-modal{position:relative;z-index:1}
-/* 원래 규칙은 .company-discovery 안으로 한정돼 있었다. 파일 입력을 감추는 것은 어느 화면에서나
-   같은 요구라 전역 유틸리티로 둔다 — 새 화면마다 선택자를 하나씩 늘리면 매번 빠뜨린다. */
-.pdf-file-input{position:absolute;width:1px;height:1px;margin:0;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .drop-mini{cursor:pointer;padding:20px 15px}
 .drop-mini:hover{border-color:#7ea597;background:#eaf2ee}
 .section-head{display:flex;justify-content:space-between;align-items:baseline}
@@ -255,3 +252,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .upload-chip{display:inline-flex;align-items:center;border:1px solid var(--line);background:#fff;border-radius:8px;padding:9px 12px;font-size:11px;color:#3b6a5b;cursor:pointer;text-decoration:none}
 .upload-chip:hover{border-color:#7ea597;background:#f2f8f5}
 .upload-chip:disabled{opacity:.5;cursor:wait}
+/* 공용 .input-tabs 는 3열 고정(!important)이라 두 갈래인 이 모달에서는 열 수를 맞춰 준다. */
+.instructor-modal .input-tabs{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+.instructor-modal .input-panel{height:auto;min-height:0;padding-top:18px}
