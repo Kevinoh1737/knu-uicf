@@ -18,7 +18,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createSupabaseAdmin();
     const { data: survey, error } = await supabase
       .from("surveys")
-      .select(`${COLUMNS},course_sessions(id,title,held_on,location,headcount,company_research(id,name),instructors(name))`)
+      .select(`${COLUMNS},course_sessions(id,title,held_on,start_time,location,headcount,company_research(id,name),instructors(name))`)
       .eq("id", id)
       .single();
     if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");

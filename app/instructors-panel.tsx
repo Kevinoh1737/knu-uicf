@@ -15,6 +15,7 @@ import {
   CourseOutline,
 } from "@/lib/instructors";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
+import { formatHeldOn } from "@/lib/course-time";
 import { Feedback, Icon, formatFileSize, useEscapeClose } from "./ui";
 
 export type InstructorStats = { delivered: number; planned: number; lastHeldOn: string | null };
@@ -43,6 +44,7 @@ type SessionRow = {
   id: string;
   title: string;
   held_on: string | null;
+  start_time: string | null;
   location: string;
   headcount: number | null;
   duration_hours: number;
@@ -79,9 +81,8 @@ function surname(name: string) {
   return COMPOUND_SURNAMES.includes(leading) ? leading : cleaned.slice(0, 1);
 }
 
-function formatDate(value: string | null) {
-  if (!value) return "미정";
-  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(value));
+function formatDate(session: { held_on: string | null; start_time?: string | null; duration_hours?: number }) {
+  return formatHeldOn(session.held_on, session.start_time, session.duration_hours) || "미정";
 }
 
 const SESSION_STATUS_LABEL: Record<string, string> = {
@@ -563,7 +564,7 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
                         <p>{session.title}</p>
                       </div>
                       <div className="session-meta">
-                        <small>{formatDate(session.held_on)}</small>
+                        <small>{formatDate(session)}</small>
                         <span className={session.status === "delivered" ? "available" : "pending"}>
                           {SESSION_STATUS_LABEL[session.status] || session.status}
                         </span>

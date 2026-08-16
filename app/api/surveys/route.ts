@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const SESSION_COLUMNS =
-  "id,title,held_on,location,headcount,status,company_id,instructor_id,company_research(id,name),instructors(name)";
+  "id,title,held_on,start_time,duration_hours,location,headcount,status,company_id,instructor_id,company_research(id,name),instructors(name)";
 
 /**
  * 만족도 화면의 목록. 설문지가 아니라 '교육과정'을 먼저 세운다 — 설문지는 과정에 매달린
@@ -75,6 +75,8 @@ export async function GET() {
         sessionId: session.id,
         title: session.title,
         heldOn: session.held_on,
+        startTime: session.start_time,
+        durationHours: session.duration_hours,
         location: session.location,
         headcount: session.headcount,
         companyId: company?.id || session.company_id,

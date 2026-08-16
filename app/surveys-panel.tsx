@@ -8,6 +8,7 @@ import {
   SurveyStatus,
   SurveySummary,
 } from "@/lib/surveys";
+import { formatHeldOn } from "@/lib/course-time";
 import { Feedback, Icon } from "./ui";
 
 type SurveyBrief = {
@@ -16,7 +17,7 @@ type SurveyBrief = {
 };
 
 type SurveyItem = {
-  sessionId: string; title: string; heldOn: string | null; location: string; headcount: number | null;
+  sessionId: string; title: string; heldOn: string | null; startTime: string | null; durationHours: number | null; location: string; headcount: number | null;
   companyId: string; companyName: string; instructorName: string; learnerCount: number;
   survey: SurveyBrief | null;
 };
@@ -31,9 +32,8 @@ const TYPE_LABEL: Record<SurveyQuestion["type"], string> = {
   scale: "5점 척도", choice: "보기 선택", text: "서술형",
 };
 
-function formatDate(value: string | null) {
-  if (!value) return "미정";
-  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(value));
+function formatDate(value: string | null, startTime?: string | null, durationHours?: number | null) {
+  return formatHeldOn(value, startTime, durationHours) || "미정";
 }
 
 /**
@@ -103,7 +103,7 @@ export function SurveysPanel() {
                     : <span className="stage neutral">설문지 없음</span>}
                 </div>
                 <p className="survey-row-meta">
-                  {[item.companyName, formatDate(item.heldOn), item.instructorName ? `${item.instructorName} 강사` : ""].filter(Boolean).join(" · ")}
+                  {[item.companyName, formatDate(item.heldOn, item.startTime, item.durationHours), item.instructorName ? `${item.instructorName} 강사` : ""].filter(Boolean).join(" · ")}
                 </p>
                 <p className="survey-row-meta">
                   {item.survey

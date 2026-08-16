@@ -1,4 +1,5 @@
 import { requireTeamSession } from "@/lib/auth/guard";
+import { sanitizeStartTime } from "@/lib/course-time";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
@@ -11,7 +12,7 @@ export async function POST(request: Request) {
   if (unauthorized) return unauthorized;
   try {
     const body = await request.json() as {
-      companyId?: string; instructorId?: string; title?: string; heldOn?: string;
+      companyId?: string; instructorId?: string; title?: string; heldOn?: string; startTime?: string;
       location?: string; headcount?: number; durationHours?: number; status?: string;
     };
     if (!UUID.test(body.companyId || "")) {
@@ -34,13 +35,14 @@ export async function POST(request: Request) {
         instructor_id: body.instructorId || null,
         title,
         held_on: heldOn,
+        start_time: sanitizeStartTime(body.startTime) || null,
         location: (body.location || "").trim().slice(0, 200),
         headcount: Number.isFinite(Number(body.headcount)) && Number(body.headcount) > 0
           ? Math.min(10_000, Math.round(Number(body.headcount))) : null,
         duration_hours: Math.max(0.5, Math.min(99, Number(body.durationHours) || 4)),
         status: STATUSES.has(body.status || "") ? body.status : "planned",
       })
-      .select("id,title,held_on,location,headcount,duration_hours,status,outline,materials,company_id,instructor_id,instructors(id,name,affiliation,job_title),company_research(id,name)")
+      .select("id,title,held_on,start_time,location,headcount,duration_hours,status,outline,materials,company_id,instructor_id,instructors(id,name,affiliation,job_title),company_research(id,name)")
       .single();
     if (error) throw error;
     return Response.json({ session: data });

@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import { requireTeamSession } from "@/lib/auth/guard";
+import { formatHeldOn } from "@/lib/course-time";
 import { ConsultationBriefing } from "@/lib/consultations";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -83,7 +84,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createSupabaseAdmin();
     const { data: session, error } = await supabase
       .from("course_sessions")
-      .select("id,title,held_on,location,headcount,duration_hours,instructors(name),company_research(name,industry,research,consultation_briefing)")
+      .select("id,title,held_on,start_time,location,headcount,duration_hours,instructors(name),company_research(name,industry,research,consultation_briefing)")
       .eq("id", id)
       .single();
     if (error || !session) throw error || new Error("강의를 찾지 못했습니다.");
@@ -120,7 +121,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     heading(writer, "교육 개요");
     const held = session.held_on
-      ? new Intl.DateTimeFormat("ko-KR", { dateStyle: "long", timeZone: "Asia/Seoul" }).format(new Date(session.held_on as string))
+      ? formatHeldOn(session.held_on as string, session.start_time, session.duration_hours as number, "long")
       : "협의 후 확정";
     [
       ["담당 강사", instructor?.name || "미배정"],

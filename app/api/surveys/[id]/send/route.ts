@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { requireTeamSession } from "@/lib/auth/guard";
+import { formatHeldOn } from "@/lib/course-time";
 import { emailConfigured, sendEmail, surveyInviteEmail } from "@/lib/email";
 import { sanitizeQuestions } from "@/lib/surveys";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
@@ -45,7 +46,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const { data: survey, error } = await supabase
       .from("surveys")
-      .select("id,title,questions,status,course_session_id,course_sessions(id,title,held_on,company_research(name))")
+      .select("id,title,questions,status,course_session_id,course_sessions(id,title,held_on,start_time,duration_hours,company_research(name))")
       .eq("id", id)
       .single();
     if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
@@ -54,7 +55,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!questions.length) return Response.json({ error: "문항이 없습니다. 설문지를 먼저 완성해 주세요." }, { status: 400 });
 
     const session = survey.course_sessions as {
-      id?: string; title?: string; held_on?: string | null; company_research?: { name?: string } | null;
+      id?: string; title?: string; held_on?: string | null; start_time?: string | null; duration_hours?: number | null;
+      company_research?: { name?: string } | null;
     } | null;
 
     // 받는 사람은 그 교육과정에 배정된 수강생이다. 회사 전체 명단이 아니다.
@@ -114,9 +116,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         learnerName: learner.name || "수강생",
         companyName: session?.company_research?.name || "",
         courseTitle: session?.title || String(survey.title || "교육"),
-        heldOn: session?.held_on
-          ? new Intl.DateTimeFormat("ko-KR", { dateStyle: "long", timeZone: "Asia/Seoul" }).format(new Date(session.held_on))
-          : "",
+        heldOn: formatHeldOn(session?.held_on, session?.start_time, session?.duration_hours, "long"),
         link: `${base}/survey/${invite.token}`,
         questionCount: questions.length,
       });

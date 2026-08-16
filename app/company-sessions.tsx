@@ -15,6 +15,7 @@ import {
 import { STORED_STAGES, StoredStage, stageChoiceLabel, withRo } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
+import { formatHeldOn } from "@/lib/course-time";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { Feedback } from "./ui";
 
@@ -31,6 +32,7 @@ type SessionRow = {
   id: string;
   title: string;
   held_on: string | null;
+  start_time: string | null;
   location: string;
   headcount: number | null;
   duration_hours: number;
@@ -94,9 +96,8 @@ const STATUS_LABEL: Record<string, string> = {
   planned: "예정", contracted: "계약 완료", delivered: "진행 완료", cancelled: "취소",
 };
 
-function formatDate(value: string | null) {
-  if (!value) return "일자 미정";
-  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeZone: "Asia/Seoul" }).format(new Date(value));
+function formatDate(session: { held_on: string | null; start_time?: string | null; duration_hours?: number }) {
+  return formatHeldOn(session.held_on, session.start_time, session.duration_hours) || "일자 미정";
 }
 
 /** 교육과정별 수강생. 사람은 기업 수강생 목록에서 고르고, 여기서는 연결과 출결만 다룬다. */
@@ -165,7 +166,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
-  const [form, setForm] = useState({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
+  const [form, setForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
   const [stage, setStage] = useState<StoredStage>((storedStage as StoredStage) || "research_complete");
   const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
   const [rosterFor, setRosterFor] = useState<string | null>(null);
@@ -212,7 +213,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       const response = await fetch("/api/course-sessions", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          companyId, title: form.title, heldOn: form.heldOn,
+          companyId, title: form.title, heldOn: form.heldOn, startTime: form.startTime,
           location: form.location, headcount: Number(form.headcount) || undefined,
           durationHours: Number(form.durationHours) || 4,
         }),
@@ -221,7 +222,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       if (!response.ok) throw new Error(result.error || "교육과정을 만들지 못했습니다.");
       await reload();
       setAdding(false);
-      setForm({ title: "", heldOn: "", location: "", headcount: "", durationHours: "4" });
+      setForm({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
       setFeedback({ message: "교육과정을 만들었습니다.", error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "교육과정을 만들지 못했습니다.", error: true });
@@ -438,6 +439,8 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
       <label>과정명<input value={form.title} onChange={set("title")} placeholder="생성형 AI 업무 적용" required disabled={busyId === "new"} /></label>
       <div className="form-row">
         <label>교육 일자<input type="date" value={form.heldOn} onChange={set("heldOn")} disabled={busyId === "new"} /></label>
+        {/* 4시간 특강이라 오전·오후가 갈린다. 끝나는 시각은 교육 시간으로 계산해 보여 준다. */}
+        <label>시작 시각<input type="time" step={300} value={form.startTime} onChange={set("startTime")} disabled={busyId === "new"} /></label>
         <label>교육 시간<input type="number" min="0.5" step="0.5" value={form.durationHours} onChange={set("durationHours")} disabled={busyId === "new"} /></label>
       </div>
       <div className="form-row">
@@ -476,7 +479,7 @@ export function CompanySessionsTab({ companyId, storedStage, onStageChange, onDa
                          ["수강생", (session.learners?.total || 0) > 0]] as Array<[string, boolean]>)
                         .map(([label, complete]) => <i key={label} className={complete ? "done" : ""}>{label}</i>)}
                     </span>
-                    <small>{formatDate(session.held_on)}</small>
+                    <small>{formatDate(session)}</small>
                     <span className={session.status === "delivered" ? "available" : "pending"}>
                       {STATUS_LABEL[session.status] || session.status}
                     </span>

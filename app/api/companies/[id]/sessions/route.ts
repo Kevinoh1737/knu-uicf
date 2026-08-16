@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createSupabaseAdmin();
     const { data: sessions, error } = await supabase
       .from("course_sessions")
-      .select("id,title,held_on,location,headcount,duration_hours,status,outline,materials,instructor_id,instructors(id,name,affiliation,job_title,email)")
+      .select("id,title,held_on,start_time,location,headcount,duration_hours,status,outline,materials,instructor_id,instructors(id,name,affiliation,job_title,email)")
       .eq("company_id", id)
       .order("held_on", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });

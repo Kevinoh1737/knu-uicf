@@ -22,7 +22,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     // 강의 이력은 회사 이름과 함께여야 의미가 있다. 강사 페이지의 "어떤 회사에 어떤 수업을 언제".
     const { data: sessions, error: sessionsError } = await supabase
       .from("course_sessions")
-      .select("id,title,held_on,location,headcount,duration_hours,status,outline,materials,company_id,company_research(id,name)")
+      .select("id,title,held_on,start_time,location,headcount,duration_hours,status,outline,materials,company_id,company_research(id,name)")
       .eq("instructor_id", id)
       .order("held_on", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false });

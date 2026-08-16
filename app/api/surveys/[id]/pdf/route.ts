@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import { requireTeamSession } from "@/lib/auth/guard";
+import { formatHeldOn } from "@/lib/course-time";
 import { SCALE_LABELS, sanitizeQuestions } from "@/lib/surveys";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -59,13 +60,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const { data: survey, error } = await createSupabaseAdmin()
       .from("surveys")
-      .select("id,title,intro,questions,course_sessions(title,held_on,company_research(name),instructors(name))")
+      .select("id,title,intro,questions,course_sessions(title,held_on,start_time,duration_hours,company_research(name),instructors(name))")
       .eq("id", id)
       .single();
     if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
 
     const session = survey.course_sessions as {
-      title?: string; held_on?: string | null;
+      title?: string; held_on?: string | null; start_time?: string | null; duration_hours?: number | null;
       company_research?: { name?: string } | null; instructors?: { name?: string } | null;
     } | null;
     const questions = sanitizeQuestions(survey.questions);
@@ -82,9 +83,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const writer: Writer = { pdf, page: pdf.addPage([PAGE.width, PAGE.height]), y: PAGE.height - MARGIN };
 
     line(writer, String(survey.title || "교육 만족도 조사"), bold, 21, 12);
-    const heldOn = session?.held_on
-      ? new Intl.DateTimeFormat("ko-KR", { dateStyle: "long", timeZone: "Asia/Seoul" }).format(new Date(session.held_on))
-      : "";
+    const heldOn = formatHeldOn(session?.held_on, session?.start_time, session?.duration_hours, "long");
     line(writer, [session?.company_research?.name, session?.title, heldOn].filter(Boolean).join("  ·  "), regular, 10, 6, MUTED);
     if (session?.instructors?.name) line(writer, `강사 ${session.instructors.name}`, regular, 10, 6, MUTED);
 

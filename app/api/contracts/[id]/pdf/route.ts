@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import { requireTeamSession } from "@/lib/auth/guard";
+import { formatHeldOn } from "@/lib/course-time";
 import { ContractTerms, sanitizeTerms } from "@/lib/instructors";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -20,9 +21,8 @@ function won(value: number) {
   return `${value.toLocaleString("ko-KR")}원`;
 }
 
-function heldOnLabel(value: string | null) {
-  if (!value) return "협의 후 확정";
-  return new Intl.DateTimeFormat("ko-KR", { dateStyle: "long", timeZone: "Asia/Seoul" }).format(new Date(value));
+function heldOnLabel(value: string | null, startTime?: string | null, durationHours?: number | null) {
+  return formatHeldOn(value, startTime, durationHours, "long") || "협의 후 확정";
 }
 
 /** pdf-lib 은 줄바꿈을 해주지 않는다. 폭에 맞춰 직접 자른다. */
@@ -69,14 +69,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createSupabaseAdmin();
     const { data: contract, error } = await supabase
       .from("contracts")
-      .select("id,contract_no,status,terms,created_at,instructors(name,affiliation,job_title),course_sessions(title,held_on,location,headcount,duration_hours,company_research(name))")
+      .select("id,contract_no,status,terms,created_at,instructors(name,affiliation,job_title),course_sessions(title,held_on,start_time,location,headcount,duration_hours,company_research(name))")
       .eq("id", id)
       .single();
     if (error || !contract) throw error || new Error("계약서를 찾지 못했습니다.");
 
     const instructor = contract.instructors as { name?: string; affiliation?: string; job_title?: string } | null;
     const session = contract.course_sessions as {
-      title?: string; held_on?: string | null; location?: string; headcount?: number | null;
+      title?: string; held_on?: string | null; start_time?: string | null; location?: string; headcount?: number | null;
       duration_hours?: number; company_research?: { name?: string } | null;
     } | null;
     const terms: ContractTerms = sanitizeTerms(contract.terms);
@@ -107,7 +107,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       ["강사", [instructor?.name, instructor?.affiliation, instructor?.job_title].filter(Boolean).join(" · ") || "확인 필요"],
       ["교육 대상", session?.company_research?.name || "확인 필요"],
       ["과정명", session?.title || "확인 필요"],
-      ["교육 일자", heldOnLabel(session?.held_on ?? null)],
+      ["교육 일자", heldOnLabel(session?.held_on ?? null, session?.start_time, session?.duration_hours)],
       ["교육 시간", `${session?.duration_hours ?? 4}시간`],
       ["교육 장소", session?.location || "협의 후 확정"],
       ["참석 인원", session?.headcount ? `${session.headcount}명` : "협의 후 확정"],
