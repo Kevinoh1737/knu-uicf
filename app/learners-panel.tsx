@@ -16,6 +16,8 @@ type LearnerRow = {
   notes: string;
   company_research?: { id: string; name: string } | null;
   stats?: { total: number; attended: number };
+  /** 들었던 교육. 최근 것이 앞이다. */
+  courses?: Array<{ id: string; title: string; heldOn: string | null; status: string }>;
 };
 
 type CompanyOption = { id: string; name: string };
@@ -110,14 +112,25 @@ export function LearnersPanel() {
         : <div className="learner-table">
             <table>
               <thead>
-                <tr><th>이름</th><th>부서 · 직급</th><th>기업</th><th>이메일</th><th>수강</th><th /></tr>
+                <tr><th>이름</th><th>부서 · 직급</th><th>기업</th><th>수강한 교육</th><th>수강</th><th /></tr>
               </thead>
               <tbody>
                 {visible.map((learner) => <tr key={learner.id}>
-                  <td><b>{learner.name}</b></td>
+                  <td><b>{learner.name}</b><small className="row-sub">{learner.email || "이메일 미수집"}</small></td>
                   <td>{[learner.department, learner.job_title].filter(Boolean).join(" · ") || "—"}</td>
                   <td>{learner.company_research?.name || "—"}</td>
-                  <td>{learner.email || <span className="muted">미수집</span>}</td>
+                  {/* 횟수만으로는 무엇을 들었는지 알 수 없다. 두 번째 교육을 권할 때
+                      담당자가 여는 화면이 여기다 — 과정 이름을 그대로 보여 준다. */}
+                  <td>{learner.courses?.length
+                    ? <span className="course-tags">
+                        {learner.courses.slice(0, 2).map((course) => <i key={course.id}
+                          className={course.status === "attended" ? "done" : ""}
+                          title={course.heldOn ? `${course.title} · ${String(course.heldOn).slice(0, 10)}` : course.title}>
+                          {course.title}
+                        </i>)}
+                        {learner.courses.length > 2 && <em>+{learner.courses.length - 2}</em>}
+                      </span>
+                    : <span className="muted">없음</span>}</td>
                   <td>
                     <span className={(learner.stats?.attended || 0) > 0 ? "attend" : "check"}>
                       {learner.stats?.total || 0}회{(learner.stats?.attended || 0) > 0 ? ` · 참석 ${learner.stats?.attended}` : ""}

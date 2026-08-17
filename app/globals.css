@@ -640,6 +640,17 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .roster-tools .searchbox{flex:1 1 180px;width:auto;max-width:280px;height:40px}
 .roster-tools .searchbox input{font-size:12px}
 .roster-count{font-size:11.5px;color:#5a6672}
+/* 이 교육에 넣는 세 갈래. 고객사가 준 엑셀이 첫째다. */
+.roster-intake{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.roster-intake .upload-chip{height:40px;font-size:12px}
+.roster-manual{margin:12px 0 4px;padding:14px;border:1px solid var(--line);border-radius:12px;background:#fbfcfd}
+.roster-manual label{margin-top:0}
+/* 수강생 목록: 사람마다 들었던 교육 */
+.course-tags{display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.course-tags i{font-style:normal;max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:#eef2f7;color:#41505d;border-radius:5px;padding:3px 7px;font-size:10.5px}
+.course-tags i.done{background:#dcece4;color:#2f6a52}
+.course-tags em{font-style:normal;font-size:10.5px;color:#69736e}
+.learner-table .row-sub{display:block;margin-top:2px;font-size:10.5px;color:#79838c}
 .roster-table .pick-col{width:34px;padding-right:0}
 .roster-table tr.picked{background:#f4f8fb}
 .upload-chip.danger{color:#b42318;border-color:#efd1cd}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   CONTRACT_STATUS_LABEL,
   ContractStatus,
@@ -15,7 +15,7 @@ import {
 import {
   SESSION_STATUS_CHOICES, SESSION_STATUS_LABEL, SESSION_STATUS_TONE, SessionStatus, withRo,
 } from "@/lib/company-stage";
-import { LEARNER_STATUS_LABEL, LearnerStatus } from "@/lib/learners";
+import { LEARNER_STATUS_LABEL, LearnerInput, LearnerStatus } from "@/lib/learners";
 import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
@@ -29,6 +29,8 @@ type EnrolledRow = {
 };
 
 type PoolRow = { id: string; name: string; department: string; job_title: string; email: string };
+
+const EMPTY_LEARNER: LearnerInput = { name: "", department: "", jobTitle: "", email: "", notes: "" };
 
 type SessionRow = {
   id: string;
@@ -104,16 +106,22 @@ function formatDate(session: { held_on: string | null; start_time?: string | nul
  * 들어오는가'만 고른다 — 한 회사가 교육을 여러 번 하면 회차마다 오는 사람이 다르다.
  * 그래서 기업 명단 전체가 자동으로 들어오지 않는다.
  */
-function SessionRoster({ roster, busy, onEnroll, onChange, onRemoveMany }: {
+function SessionRoster({ roster, busy, onEnroll, onChange, onRemoveMany, onSheet, onAddOne }: {
   roster: { enrolled: EnrolledRow[]; available: PoolRow[] } | null;
   busy: boolean;
   onEnroll: (learnerIds: string[]) => void;
   onChange: (learnerId: string, patch: { status?: string; remove?: boolean }) => void;
   onRemoveMany: (learnerIds: string[]) => void;
+  onSheet: (file: File) => void;
+  onAddOne: (learner: LearnerInput) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [dropped, setDropped] = useState<string[]>([]);
+  const [manual, setManual] = useState(false);
+  const [draft, setDraft] = useState<LearnerInput>(EMPTY_LEARNER);
+  const [fromList, setFromList] = useState(false);
+  const sheetInputRef = useRef<HTMLInputElement>(null);
   if (!roster) return <p className="body-text">수강생 불러오는 중</p>;
 
   const toggle = (id: string) => setPicked((current) =>
@@ -181,7 +189,52 @@ function SessionRoster({ roster, busy, onEnroll, onChange, onRemoveMany }: {
         </table>
       </>}
 
-    <h4>기업 명단에서 고르기 <small>{roster.available.length}명 대기</small></h4>
+    {/* 명단은 대개 고객사가 정해서 엑셀로 넘겨 준다. 그러니 그 길이 첫 번째다 —
+        올리면 이 교육에 바로 들어가고, 기업 명단에도 같이 쌓인다(같은 사람은 이메일로
+        알아보고 겹쳐 쓴다). 손으로 넣는 길과 기존 명단에서 고르는 길은 그 뒤에 둔다. */}
+    <h4>이 교육에 넣기</h4>
+    <div className="roster-intake">
+      <label className="upload-chip lead">
+        <input ref={sheetInputRef} className="pdf-file-input" type="file" accept=".xlsx" disabled={busy}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) onSheet(file);
+          }} />
+        <Icon name="upload" size={15} />명단 엑셀 올리기
+      </label>
+      <button type="button" className="upload-chip" disabled={busy}
+        onClick={() => { setManual((current) => !current); setDraft(EMPTY_LEARNER); }}>
+        <Icon name="plus" size={15} />한 명 직접 추가
+      </button>
+      <button type="button" className="upload-chip" disabled={busy || roster.available.length === 0}
+        onClick={() => setFromList((current) => !current)}>
+        기업 명단에서 고르기{roster.available.length ? ` (${roster.available.length})` : ""}
+      </button>
+    </div>
+    <p className="action-hint">엑셀 첫 줄에 이름·부서·직급·이메일 머리글이 있으면 됩니다. 이미 있는 사람은 새로 만들지 않고 정보만 갱신합니다.</p>
+
+    {manual && <div className="session-form roster-manual">
+      <div className="form-row">
+        <label>이름<input value={draft.name} disabled={busy} placeholder="홍길동"
+          onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></label>
+        <label>부서<input value={draft.department} disabled={busy} placeholder="인재개발팀"
+          onChange={(event) => setDraft((current) => ({ ...current, department: event.target.value }))} /></label>
+      </div>
+      <div className="form-row">
+        <label>직급 · 직책<input value={draft.jobTitle} disabled={busy} placeholder="과장"
+          onChange={(event) => setDraft((current) => ({ ...current, jobTitle: event.target.value }))} /></label>
+        <label>이메일<input value={draft.email} disabled={busy} placeholder="name@example.com"
+          onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} /></label>
+      </div>
+      <div className="modal-actions">
+        <button type="button" onClick={() => setManual(false)} disabled={busy}>취소</button>
+        <button type="button" className="primary-small" disabled={busy || !draft.name.trim()}
+          onClick={() => { onAddOne(draft); setDraft(EMPTY_LEARNER); setManual(false); }}>넣기</button>
+      </div>
+    </div>}
+
+    {fromList && roster.available.length > 0 && <><h4>기업 명단에서 고르기 <small>{roster.available.length}명 대기</small></h4>
     {/* 빈 이유를 갈라 말한다. 예전에는 둘 다 '명단을 먼저 등록하세요'로 나와서, 이미 다
         넣은 상태인데도 아무것도 안 한 것처럼 보였다. */}
     {roster.available.length === 0
@@ -217,7 +270,7 @@ function SessionRoster({ roster, busy, onEnroll, onChange, onRemoveMany }: {
               {picked.length ? `고른 ${picked.length}명 넣기` : "고른 사람 넣기"}
             </button>
           </div>
-        </>}
+        </>}</>}
   </div>;
 }
 
@@ -400,6 +453,69 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "수강생 정보를 바꾸지 못했습니다.", error: true });
     } finally { setBusyId(""); }
+  };
+
+  /**
+   * 고객사가 보낸 명단 엑셀을 이 교육에 그대로 들인다. 읽기(회사 라우트)와 저장(수강생
+   * 라우트)을 잇는 것뿐이고, 같은 사람 판정은 서버가 한다 — 이메일이 같으면 같은 사람이라
+   * 새로 만들지 않고 정보만 갱신한다(이메일이 없으면 이름+부서). 그래서 같은 명단을 두 번
+   * 올려도 사람이 두 배가 되지 않는다.
+   */
+  const uploadRoster = async (sessionId: string, file: File) => {
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const read = await fetch(`/api/companies/${companyId}/learners`, { method: "POST", body: form });
+      const parsed = await read.json() as { error?: string; learners?: LearnerInput[] };
+      if (!read.ok || !parsed.learners) throw new Error(parsed.error || "엑셀을 읽지 못했습니다.");
+      if (!parsed.learners.length) throw new Error("명단에서 사람을 찾지 못했습니다. 첫 줄 머리글을 확인해 주세요.");
+
+      const saveResult = await saveLearners(sessionId, parsed.learners);
+      const notes = [
+        `명단 ${parsed.learners.length}명을 읽었습니다`,
+        saveResult.enrolled ? `이 교육에 ${saveResult.enrolled}명 추가` : "이 교육에 새로 들어온 사람 없음",
+        saveResult.updated ? `기존 ${saveResult.updated}명 정보 갱신` : "",
+        saveResult.withoutEmail ? `이메일 없는 ${saveResult.withoutEmail}명은 이름·부서로 맞췄습니다` : "",
+      ].filter(Boolean);
+      setFeedback({ message: notes.join(" · "), error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "명단을 올리지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  /** 한 명 직접 추가. 엑셀과 같은 길을 쓰므로 중복 판정도 똑같이 걸린다. */
+  const addOneLearner = async (sessionId: string, learner: LearnerInput) => {
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const result = await saveLearners(sessionId, [learner]);
+      setFeedback({
+        message: result.enrolled
+          ? `${learner.name} 님을 이 교육에 넣었습니다.`
+          : `${learner.name} 님은 이미 이 교육에 있습니다.`,
+        error: false,
+      });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "수강생을 넣지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  /** 기업 명단에 쌓고 이 교육에 잇는 한 번의 저장. 화면 갱신까지 포함한다. */
+  const saveLearners = async (sessionId: string, learners: LearnerInput[]) => {
+    const response = await fetch("/api/learners", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ companyId, courseSessionId: sessionId, learners }),
+    });
+    const result = await response.json() as {
+      error?: string; saved?: number; updated?: number; enrolled?: number; withoutEmail?: number;
+    };
+    if (!response.ok) throw new Error(result.error || "수강생을 등록하지 못했습니다.");
+    await Promise.all([reload(), openRosterAgain(sessionId)]);
+    onDataChanged?.();
+    return {
+      saved: result.saved || 0, updated: result.updated || 0,
+      enrolled: result.enrolled || 0, withoutEmail: result.withoutEmail || 0,
+    };
   };
 
   /**
@@ -819,6 +935,8 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     onEnroll={(ids) => void enroll(session.id, ids)}
                     onChange={(learnerId, patch) => void changeEnrollment(session.id, learnerId, patch)}
                     onRemoveMany={(ids) => void removeMany(session.id, ids)}
+                    onSheet={(file) => void uploadRoster(session.id, file)}
+                    onAddOne={(learner) => void addOneLearner(session.id, learner)}
                   />}
                 </div>}
               </div>;
