@@ -100,6 +100,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .single();
     if (sessionError || !session) throw sessionError || new Error("강의를 찾지 못했습니다.");
 
+    // 강의 구성·자료는 '누가 낸 것인가'가 함께 남아야 강사별 이력이 된다(instructor_documents
+    // .instructor_id 는 not null). 강사가 없는 교육에 올리면 여기서 막히는데, 예전에는 그 사실이
+    // "자료를 등록하지 못했습니다" 한 줄로만 나와서 무엇을 해야 하는지 알 수 없었다.
+    if (!session.instructor_id) {
+      return Response.json(
+        { error: "담당 강사를 먼저 배정해 주세요. 강의 구성·자료는 강사별 이력으로 쌓입니다 — 카드 오른쪽 연필에서 강사를 고른 뒤 다시 올려 주세요." },
+        { status: 409 },
+      );
+    }
+
     const companyName = (session.company_research as { name?: string } | null)?.name || "고객사";
     const parsable = storagePath.toLowerCase().endsWith(".pdf");
 
@@ -167,9 +177,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return Response.json({ documentId: document.id, parsed: false, error: message }, { status: 422 });
     }
   } catch (error) {
-    return Response.json(
-      { error: error instanceof Error ? error.message : "자료를 등록하지 못했습니다." },
-      { status: 422 },
-    );
+    // Supabase 오류는 Error 인스턴스가 아니다. instanceof 로만 거르면 원인이 통째로 사라져
+    // 화면에는 "자료를 등록하지 못했습니다" 한 줄만 남는다(실제로 그렇게 한 번 헤맸다).
+    const message = error instanceof Error ? error.message
+      : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message)
+      : "";
+    console.error(`[documents] 등록 실패: ${message}`);
+    return Response.json({ error: message || "자료를 등록하지 못했습니다." }, { status: 422 });
   }
 }
