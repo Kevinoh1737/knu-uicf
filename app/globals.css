@@ -670,9 +670,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .upload-chip.lead{background:var(--green);border-color:transparent;color:#fff;font-weight:650}
 .upload-chip.lead:hover{background:#0f2c25}
 .action-hint{margin:8px 0 0;font-size:11.5px;color:#5a6672}
-/* 잠긴 올리기 칩. 파일 선택창 자체가 열리지 않으므로 눌러도 되는 것처럼 보이면 안 된다. */
-.upload-chip.locked{opacity:.5;cursor:default;color:#5f6b74}
-.upload-chip.locked:hover{border-color:var(--line);background:#fff}
 @media(max-width:640px){
   .session-actions .upload-chip,.session-survey .upload-chip{height:44px}
 }

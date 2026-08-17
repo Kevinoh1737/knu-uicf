@@ -64,6 +64,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       .select("id,instructor_id,instructors(id,name,affiliation,job_title,email)")
       .single();
     if (error) throw error;
+
+    // 강사보다 자료가 먼저 올라올 수 있다. 주인 없이 기다리던 자료에 이제 주인을 적는다 —
+    // 그래야 강사별 이력(instructor_documents_instructor_idx)에 그대로 잡힌다. 이미 다른
+    // 강사 이름이 적힌 자료는 건드리지 않는다.
+    if (instructorId) {
+      const { error: adoptError } = await supabase
+        .from("instructor_documents")
+        .update({ instructor_id: instructorId, updated_at: new Date().toISOString() })
+        .eq("course_session_id", id)
+        .is("instructor_id", null);
+      // 자료에 주인을 못 적었다고 배정 자체를 되돌리지는 않는다. 배정은 이미 끝났다.
+      if (adoptError) console.error(`[assign] 자료 강사 연결 실패: ${adoptError.message}`);
+    }
+
     return Response.json({ session: data });
   } catch (error) {
     const detail = error instanceof Error ? error.message

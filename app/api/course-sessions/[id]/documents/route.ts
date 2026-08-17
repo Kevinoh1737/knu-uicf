@@ -100,20 +100,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .single();
     if (sessionError || !session) throw sessionError || new Error("강의를 찾지 못했습니다.");
 
-    // 강의 구성·자료는 '누가 낸 것인가'가 함께 남아야 강사별 이력이 된다(instructor_documents
-    // .instructor_id 는 not null). 강사가 없는 교육에 올리면 여기서 막히는데, 예전에는 그 사실이
-    // "자료를 등록하지 못했습니다" 한 줄로만 나와서 무엇을 해야 하는지 알 수 없었다.
-    if (!session.instructor_id) {
-      return Response.json(
-        { error: "담당 강사를 먼저 배정해 주세요. 강의 구성·자료는 강사별 이력으로 쌓입니다 — 카드 오른쪽 연필에서 강사를 고른 뒤 다시 올려 주세요." },
-        { status: 409 },
-      );
-    }
-
     const companyName = (session.company_research as { name?: string } | null)?.name || "고객사";
     const parsable = storagePath.toLowerCase().endsWith(".pdf");
 
     // 원본은 무조건 기록한다. 파싱 여부와 무관하게 자료가 있었다는 사실이 자산이다.
+    // 강사는 아직 없어도 된다 — 실제 순서가 '자료 먼저, 강사 나중'인 경우가 흔하다.
+    // 배정되는 순간 이 행의 빈 instructor_id 가 채워진다(assign 라우트).
     const { data: document, error: documentError } = await supabase
       .from("instructor_documents")
       .insert({
@@ -183,6 +175,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message)
       : "";
     console.error(`[documents] 등록 실패: ${message}`);
+
+    // 아직 마이그레이션(20260817120000)이 적용되지 않은 DB 는 강사 없는 자료를 거부한다.
+    // 그때 사장님이 읽는 것은 Postgres 문장이 아니라 지금 할 수 있는 일이어야 한다.
+    if (/instructor_id/.test(message) && /null/i.test(message)) {
+      return Response.json(
+        { error: "이 데이터베이스는 아직 강사 없는 자료를 받지 못합니다. 담당 강사를 먼저 배정하시거나, 관리자에게 문의해 주세요." },
+        { status: 409 },
+      );
+    }
     return Response.json({ error: message || "자료를 등록하지 못했습니다." }, { status: 422 });
   }
 }

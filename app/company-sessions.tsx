@@ -747,10 +747,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
               const hasMaterials = Boolean(session.materials?.caseExamples?.length || session.materials?.toolsUsed?.length);
               // 지금 이 과정에 비어 있는 칸 하나. 실제 순서(구성 → 자료 → 수강생 → 계약)를
               // 그대로 따라가므로, 진한 칩 하나만 좇으면 교육 하나가 끝난다.
-              // 강사가 없으면 자료도 계약서도 잠긴다. 그때는 진하게 부를 것이 없다 —
-              // 다음 할 일은 이 줄이 아니라 연필 아이콘(강사 배정)에 있다.
-              const leadAction = !session.instructor_id ? ""
-                : !hasOutline ? "outline"
+              const leadAction = !hasOutline ? "outline"
                 : !hasMaterials ? "materials"
                 : (session.learners?.total || 0) === 0 ? "roster"
                 : !session.contract && session.instructor_id ? "contract"
@@ -858,13 +855,12 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     {(["outline", "materials"] as const).map((kind) => {
                       const label = kind === "outline" ? "강의 구성" : "강의 자료";
                       const done = kind === "outline" ? hasOutline : hasMaterials;
-                      // 자료는 강사별 이력으로 쌓이므로 강사 없이는 서버가 받지 않는다.
-                      // 파일을 다 올리고 나서 막히면 그때까지의 기다림이 통째로 헛것이 된다.
-                      return <label className={`upload-chip${leadAction === kind ? " lead" : ""}${session.instructor_id ? "" : " locked"}`} key={kind}
-                        aria-disabled={session.instructor_id ? undefined : true}
+                      // 강사 배정을 기다리지 않는다 — 자료부터 받아 두는 순서가 실제로 흔하다.
+                      // 강사가 정해지면 그때 올려 둔 자료에 주인이 적힌다(assign 라우트).
+                      return <label className={`upload-chip${leadAction === kind ? " lead" : ""}`} key={kind}
                         aria-label={`${label} ${done ? "다시 " : ""}올리기`} title={`${label} ${done ? "다시 " : ""}올리기`}>
                         <input className="pdf-file-input" type="file" accept={INSTRUCTOR_DOCUMENT_ACCEPT}
-                          disabled={busyId === session.id || !session.instructor_id}
+                          disabled={busyId === session.id}
                           onChange={(event) => {
                             const file = event.target.files?.[0];
                             event.target.value = "";
@@ -892,8 +888,8 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                   </div>
                   {/* 못 누르는 이유는 마우스를 올려야 보이는 말풍선이 아니라 글로 적는다 —
                       휴대폰에는 hover 가 없어 이유를 볼 방법이 아예 없었다. */}
-                  {!session.instructor_id &&
-                    <p className="action-hint">강의 구성·자료와 계약서는 담당 강사를 배정한 뒤에 쓸 수 있습니다. 강사는 카드 오른쪽 연필에서 고릅니다.</p>}
+                  {!session.contract && !session.instructor_id &&
+                    <p className="action-hint">계약서는 담당 강사를 배정한 뒤에 만들 수 있습니다. 강사는 카드 오른쪽 연필에서 고릅니다.</p>}
 
                   {/* 강사가 낸 자료에서 뽑은 것을 다 보여 준다. 도구·성과·사전 준비까지 있어야
                       "이 수업이 무엇을 남기는가"를 담당자가 고객사에 설명할 수 있다. */}
