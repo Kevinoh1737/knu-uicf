@@ -104,14 +104,16 @@ function formatDate(session: { held_on: string | null; start_time?: string | nul
  * 들어오는가'만 고른다 — 한 회사가 교육을 여러 번 하면 회차마다 오는 사람이 다르다.
  * 그래서 기업 명단 전체가 자동으로 들어오지 않는다.
  */
-function SessionRoster({ roster, busy, onEnroll, onChange }: {
+function SessionRoster({ roster, busy, onEnroll, onChange, onRemoveMany }: {
   roster: { enrolled: EnrolledRow[]; available: PoolRow[] } | null;
   busy: boolean;
   onEnroll: (learnerIds: string[]) => void;
   onChange: (learnerId: string, patch: { status?: string; remove?: boolean }) => void;
+  onRemoveMany: (learnerIds: string[]) => void;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [dropped, setDropped] = useState<string[]>([]);
   if (!roster) return <p className="body-text">수강생 불러오는 중</p>;
 
   const toggle = (id: string) => setPicked((current) =>
@@ -132,14 +134,37 @@ function SessionRoster({ roster, busy, onEnroll, onChange }: {
 
   const total = roster.enrolled.length + roster.available.length;
 
+  // 들어와 있는 사람 쪽에도 같은 손잡이를 준다 — 한 번에 넣었다가 몇 명만 남기는 일이
+  // 실제로 잦은데, 한 줄씩 '제외'를 스무 번 누르게 두면 아무도 고치지 않는다.
+  const allDropped = roster.enrolled.length > 0 && roster.enrolled.every((row) => dropped.includes(row.learner_id));
+  const toggleAllDropped = () => setDropped(allDropped ? [] : roster.enrolled.map((row) => row.learner_id));
+
   return <div className="roster">
     <h4>이 교육 수강생 {roster.enrolled.length}명 <small>기업 명단 {total}명 중</small></h4>
     {roster.enrolled.length === 0
       ? <p className="body-text">아직 없습니다. 아래에서 골라 넣으세요.</p>
-      : <table className="roster-table">
-          <thead><tr><th>이름</th><th>부서 · 직급</th><th>출결</th><th /></tr></thead>
+      : <>
+        <div className="roster-tools">
+          <button type="button" className="upload-chip" onClick={toggleAllDropped} disabled={busy}>
+            {allDropped ? "선택 해제" : "전체 선택"}
+          </button>
+          <button type="button" className="upload-chip danger" disabled={busy || !dropped.length}
+            onClick={() => { onRemoveMany(dropped); setDropped([]); }}>
+            선택한 {dropped.length}명 빼기
+          </button>
+          <span className="roster-count">{dropped.length ? `${dropped.length}명 선택함` : "빼려면 왼쪽 칸을 고르세요"}</span>
+        </div>
+        <table className="roster-table">
+          <thead><tr><th className="pick-col"><span className="sr-only">선택</span></th><th>이름</th><th>부서 · 직급</th><th>출결</th><th /></tr></thead>
           <tbody>
-            {roster.enrolled.map((row) => <tr key={row.id}>
+            {roster.enrolled.map((row) => <tr key={row.id} className={dropped.includes(row.learner_id) ? "picked" : ""}>
+              <td className="pick-col">
+                <input type="checkbox" checked={dropped.includes(row.learner_id)} disabled={busy}
+                  aria-label={`${row.learners?.name || "수강생"} 선택`}
+                  onChange={() => setDropped((current) => current.includes(row.learner_id)
+                    ? current.filter((id) => id !== row.learner_id)
+                    : [...current, row.learner_id])} />
+              </td>
               <td><b>{row.learners?.name || "—"}</b></td>
               <td>{[row.learners?.department, row.learners?.job_title].filter(Boolean).join(" · ") || "—"}</td>
               <td>
@@ -153,7 +178,8 @@ function SessionRoster({ roster, busy, onEnroll, onChange }: {
                 onClick={() => onChange(row.learner_id, { remove: true })}>제외</button></td>
             </tr>)}
           </tbody>
-        </table>}
+        </table>
+      </>}
 
     <h4>기업 명단에서 고르기 <small>{roster.available.length}명 대기</small></h4>
     {/* 빈 이유를 갈라 말한다. 예전에는 둘 다 '명단을 먼저 등록하세요'로 나와서, 이미 다
@@ -373,6 +399,33 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
       await Promise.all([reload(), openRosterAgain(sessionId)]);
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "수강생 정보를 바꾸지 못했습니다.", error: true });
+    } finally { setBusyId(""); }
+  };
+
+  /**
+   * 여럿을 한 번에 이 교육에서 뺀다. 사람 자체는 기업 명단에 그대로 남는다 — 다음 회차에
+   * 다시 부를 수 있어야 하고, 다른 과정의 수강 이력도 건드리면 안 된다.
+   */
+  const removeMany = async (sessionId: string, learnerIds: string[]) => {
+    const agreed = await ask({
+      title: `선택한 ${learnerIds.length}명을 이 교육에서 뺄까요?`,
+      message: "기업 명단에는 그대로 남습니다. 이 교육의 출결 기록만 사라집니다.",
+      confirmLabel: "빼기", danger: true,
+    });
+    if (!agreed) return;
+
+    setBusyId(sessionId); setFeedback(null);
+    try {
+      const response = await fetch(`/api/course-sessions/${sessionId}/learners`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ learnerIds, remove: true }),
+      });
+      const result = await response.json() as { error?: string; removed?: number };
+      if (!response.ok) throw new Error(result.error || "수강생을 빼지 못했습니다.");
+      await Promise.all([reload(), openRosterAgain(sessionId)]);
+      setFeedback({ message: `${result.removed}명을 이 교육에서 뺐습니다.`, error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "수강생을 빼지 못했습니다.", error: true });
     } finally { setBusyId(""); }
   };
 
@@ -765,6 +818,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                     busy={busyId === session.id}
                     onEnroll={(ids) => void enroll(session.id, ids)}
                     onChange={(learnerId, patch) => void changeEnrollment(session.id, learnerId, patch)}
+                    onRemoveMany={(ids) => void removeMany(session.id, ids)}
                   />}
                 </div>}
               </div>;

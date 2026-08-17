@@ -640,6 +640,11 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .roster-tools .searchbox{flex:1 1 180px;width:auto;max-width:280px;height:40px}
 .roster-tools .searchbox input{font-size:12px}
 .roster-count{font-size:11.5px;color:#5a6672}
+.roster-table .pick-col{width:34px;padding-right:0}
+.roster-table tr.picked{background:#f4f8fb}
+.upload-chip.danger{color:#b42318;border-color:#efd1cd}
+.upload-chip.danger:hover:not(:disabled){background:#fef2f2;border-color:#e5a9a2}
+.upload-chip.danger:disabled{opacity:.45;cursor:default;color:#8b949c;border-color:var(--line)}
 
 /* ── 교육 카드 작업 줄 (ui-ux-pro-max 점검 결과) ──────────────────────────
    [Accessibility · 초점 표시, CRITICAL] '강의 구성/자료 올리기'는 label 안에 숨긴 file

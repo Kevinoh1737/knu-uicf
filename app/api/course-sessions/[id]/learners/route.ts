@@ -98,10 +98,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { id } = await context.params;
     if (!UUID.test(id)) return Response.json({ error: "교육과정을 확인하지 못했습니다." }, { status: 400 });
 
-    const body = await request.json() as { learnerId?: string; status?: string; remove?: boolean };
+    const body = await request.json() as { learnerId?: string; learnerIds?: unknown; status?: string; remove?: boolean };
+
+    // 여럿을 한 번에 빼기. 서른 명짜리 명단에서 스무 명을 손으로 빼면 스무 번의 왕복이
+    // 되고, 중간에 하나가 실패하면 어디까지 지워졌는지 알 수 없다.
+    const supabase = createSupabaseAdmin();
+    if (body.remove && Array.isArray(body.learnerIds)) {
+      const learnerIds = body.learnerIds
+        .filter((value): value is string => typeof value === "string" && UUID.test(value)).slice(0, 500);
+      if (!learnerIds.length) return Response.json({ error: "뺄 수강생을 선택해 주세요." }, { status: 400 });
+      const { data, error } = await supabase.from("session_learners").delete()
+        .eq("course_session_id", id).in("learner_id", learnerIds).select("id");
+      if (error) throw error;
+      return Response.json({ removed: (data || []).length });
+    }
+
     if (!UUID.test(body.learnerId || "")) return Response.json({ error: "수강생을 확인하지 못했습니다." }, { status: 400 });
 
-    const supabase = createSupabaseAdmin();
     if (body.remove) {
       const { error } = await supabase.from("session_learners").delete()
         .eq("course_session_id", id).eq("learner_id", body.learnerId);
