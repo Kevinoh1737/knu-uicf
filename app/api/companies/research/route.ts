@@ -32,6 +32,11 @@ function withTimeout<T>(work: Promise<T>, limitMs: number, onTimeout: () => T): 
   ]);
 }
 
+/** 상호 비교용. 표기 차이(주식회사·공백·대소문자)만 걷어낸다 — dart.ts 와 같은 규칙이다. */
+function normalizeName(value: string) {
+  return value.replace(/\(주\)|㈜|주식회사|\s+/g, "").toLowerCase();
+}
+
 function normalizeUrl(value: string) {
   return new URL(/^https?:\/\//i.test(value.trim()) ? value.trim() : `https://${value.trim()}`);
 }
@@ -167,15 +172,31 @@ export async function POST(request: Request) {
     }
     if (!documents.length) throw new Error("분석할 홈페이지 본문을 찾지 못했습니다.");
     const inferredName = companyName || first.html.match(/<meta[^>]+property=["']og:site_name["'][^>]+content=["']([^"']+)/i)?.[1] || first.html.match(/<title[^>]*>([^<]+)/i)?.[1]?.split(/[|·–—-]/)[0]?.trim() || start.hostname.replace(/^www\./, "").split(".")[0];
-    const [dart, recruiting] = await Promise.all([
-      withTimeout(researchDart(inferredName).catch(error => ({ available: false, reason: String(error) })), INTELLIGENCE_BUDGET_MS, () => ({ available: false, reason: "공시 조회 시간 초과" })),
-      withTimeout(researchRecruiting(inferredName).catch(error => ({ available: false, reason: String(error) })), INTELLIGENCE_BUDGET_MS, () => ({ available: false, reason: "채용정보 조회 시간 초과" })),
+    const lookupIntelligence = (name: string) => Promise.all([
+      withTimeout(researchDart(name).catch(error => ({ available: false, reason: String(error) })), INTELLIGENCE_BUDGET_MS, () => ({ available: false, reason: "공시 조회 시간 초과" })),
+      withTimeout(researchRecruiting(name).catch(error => ({ available: false, reason: String(error) })), INTELLIGENCE_BUDGET_MS, () => ({ available: false, reason: "채용정보 조회 시간 초과" })),
     ]);
+    let [dart, recruiting] = await lookupIntelligence(inferredName);
     const sources = documents.map((doc, index) => `\n[SOURCE ${index + 1}] ${doc.url}\n${doc.text}`).join("\n");
     const attachments = [...attachmentSet].slice(0, 20);
     const prompt = `당신은 강원대학교 산학협력단 교육사업팀의 기업 이해 및 교육기획 담당자입니다. 사용자는 AI와 조사 대상 산업에 익숙하지 않은 교육프로그램 운영 관리자입니다. 아래 자료를 대신 읽고, 회사를 처음 접한 사람도 업무 모습을 그릴 수 있게 정리하세요.\n\n규칙:\n1. 기업 사실은 제공된 자료에서만 단정하고 evidence에 정확한 URL을 연결하세요. 공시 수치는 OpenDART 자료에 한정하세요.\n2. headline과 summary는 업종명이 아니라 '누구에게 무엇을 제공하는 회사인지' 일상적인 표현으로 설명하세요.\n3. business.whatTheyDo는 중학생도 이해할 표현으로 작성하고, offerings는 핵심 제품·서비스 3~5개, customers는 주요 고객 유형, workFlow는 제품이나 서비스가 만들어져 고객에게 전달되는 흐름을 설명하세요.\n4. 생소한 산업 용어는 glossary에 최대 4개만 넣고, 전문용어를 다시 사용하지 말고 쉬운 뜻으로 설명하세요.\n5. 채용정보에서 모집 부서·직무와 내부 IT 개발·데이터·인프라 인력 신호를 읽으세요. IT 채용이 보이지 않아도 IT 인력이 없다고 단정하지 마세요.\n6. educationContext는 예상 교육 대상, 현재 업무 방식, 쉬운 교육 시작점, 상담에서 반드시 확인할 불확실성을 구분하세요. 근거가 부족하면 '상담에서 확인 필요'로 표시하세요.\n7. opportunities는 제조업을 포함한 레거시 산업의 AX 관점에서, 기술명이 아니라 실제 업무 문제를 중심으로 작성하세요. 모든 교육 제안은 AI 활용과 직접 연결하고, 각 항목에 추천 대상과 4시간 교육 후 가능한 결과물을 포함하세요.\n8. 사실, 자료를 바탕으로 한 해석, 확인이 필요한 내용을 섞지 마세요. 한국어로 짧고 구체적으로 답하세요.\n\n회사소개 자료에서 추출한 핵심 정보:\n${documentSummary?.trim() || "없음"}\n\nOpenDART 자료:\n${JSON.stringify(dart)}\n\n공개 채용정보:\n${JSON.stringify(recruiting)}\n\n발견된 첨부파일 URL:\n${attachments.join("\n") || "없음"}\n\n수집 원문:${sources}`;
     const generated = await generateWithGemini({ role: "companyResearch", prompt: `${prompt}\n\n출력 문체: 화면에 바로 표시할 짧은 명사형·구문 중심으로 작성하세요. '~합니다', '~습니다', '~됩니다', '~한다', '~된다', '~이다'로 끝나는 서술형 문장은 피하고, 중복 설명은 제외하세요. comparisonTags는 업종, 제품 유형, 고객 유형, 업무 방식 기준의 표준화된 짧은 태그 4~6개로 작성하세요.`, responseSchema, temperature: 0.15, timeoutMs: RESEARCH_CALL_MS, budgetMs: Math.min(RESEARCH_CALL_MS * 2, remainingMs()) });
     const report = JSON.parse(generated.text) as { companyName?: string; industry?: string; business?: unknown; educationContext?: unknown; opportunities?: Array<{ title?: string; detail?: string; audience?: string; outcome?: string }>; questions?: string[] };
+
+    /**
+     * 홈페이지만 받은 경우 처음 쓸 수 있는 이름은 og:site_name 뿐인데, 그것은 상호가 아니다
+     * ("Samsung sec"). 조사가 끝나면 본문에서 읽은 진짜 상호가 생기므로 그 이름으로 공시를
+     * 다시 찾는다 — 기업목록은 이미 메모리에 있어 한 번 더 찾는 값이 싸다.
+     */
+    const reportName = (report.companyName || "").trim();
+    if (reportName && normalizeName(reportName) !== normalizeName(inferredName)) {
+      const [retryDart, retryRecruiting] = await lookupIntelligence(reportName);
+      // 이름을 바꿔 찾아 실제로 찾아냈을 때만 갈아 끼운다. 첫 조회가 맞았을 수도 있다.
+      // 채용 조회는 성공했을 때 available 필드 자체가 없다(공고 목록을 돌려준다).
+      const found = (value: unknown) => Boolean(value) && (value as { available?: boolean }).available !== false;
+      if (found(retryDart)) dart = retryDart;
+      if (!found(recruiting) && found(retryRecruiting)) recruiting = retryRecruiting;
+    }
     const questionnairePrompt = `당신은 강원대학교 산학협력단 교육사업팀의 기업 대상 AI·AX 교육 니즈 인터뷰 설계자입니다. 교육 신청 기업은 제조업을 포함한 레거시 산업이 많고, 제공하는 모든 교육은 반드시 AI 활용과 직접 연결되어야 합니다. 아래 기업 조사 결과를 읽고 공통 질문만으로는 알 수 없는 회사 맞춤 질문 3개를 작성하세요.\n\n목적:\n- 어떤 AI·AX 주제로 4시간 과정을 설계할지 결정\n- 과정 난이도와 실습 수준 결정\n- 적합한 강사의 산업·업무·AI 전문성 판단\n- 강사가 수업을 준비할 때 필요한 실제 업무 사례와 자료 확보\n\n작성 규칙:\n1. 아래 공통 질문에서 이미 묻는 내용은 반복하지 마세요.\n2. 조사에서 확인된 제품, 생산·품질·설비·영업·사무 업무, 채용 신호, 디지털 환경 또는 불확실성 중 이 회사에만 의미 있는 내용을 선택하세요.\n3. 조사 결과에 이미 답이 있는 사실을 다시 묻지 말고, 실제 업무 방식·문제·예외·자료 형태를 확인하세요.\n4. 질문 하나에는 판단 목적 하나만 담고, 비전문가도 바로 이해할 짧은 한국어로 작성하세요.\n5. 일반 경영교육이나 직무교육이 아닌 AI 활용 교육으로 연결되는 질문만 작성하세요.\n6. 확인할 회사 특성이 부족해도 내용을 지어내지 말고, 조사 결과에 표시된 불확실성을 구체적으로 확인하세요.\n7. 조사 자료에 없는 챗봇, 시스템 연동, 예측 모델 같은 기술 해법을 먼저 정하지 말고 업무 문제와 사용 가능한 자료부터 확인하세요.\n8. 전문용어나 약어는 조사 자료에 등장하더라도 담당자가 바로 이해할 수 있는 표현과 함께 사용하세요.\n\n항상 사용하는 공통 질문:\n${AX_FOUNDATION_QUESTIONS.map((question, index) => `${index + 1}. ${question}`).join("\n")}\n\n기업 조사 결과:\n${JSON.stringify({ report, dart, recruiting })}`;
     let draftTailoredQuestions: string[] = [];
     try {

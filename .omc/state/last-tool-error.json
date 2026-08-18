@@ -1,7 +1,7 @@
 {
   "tool_name": "mcp__Claude_Browser__javascript_tool",
-  "tool_input_preview": "{\"action\":\"javascript_exec\",\"tabId\":\"tab-2\",\"text\":\"(async () => {\\n  const res = await fetch('/api/survey-templates');\\n  return { status: res.status, body: await res.json() };\\n})()\"}",
-  "error": "Preview tab tab-2 is no longer open.",
-  "timestamp": "2026-08-18T01:08:22.527Z",
+  "tool_input_preview": "{\"action\":\"javascript_exec\",\"tabId\":\"tab-1\",\"text\":\"(async () => {\\n  const res = await fetch('/api/companies/discover', { method: 'POST', headers: {'Content-Type':'application/json'},\\n    body: JSON...",
+  "error": "Preview tab tab-1 is no longer open.",
+  "timestamp": "2026-08-18T05:16:51.255Z",
   "retry_count": 1
 }
