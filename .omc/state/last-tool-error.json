@@ -1,7 +1,7 @@
 {
   "tool_name": "mcp__Claude_Browser__javascript_tool",
-  "tool_input_preview": "{\"action\":\"javascript_exec\",\"tabId\":\"tab-1\",\"text\":\"(async () => {\\n  const wait = (ms) => new Promise(r => setTimeout(r, ms));\\n  location.reload(); await wait(3400);\\n  const out = {};\\n  // 1) 사업 대...",
+  "tool_input_preview": "{\"action\":\"javascript_exec\",\"tabId\":\"tab-1\",\"text\":\"(async () => {\\n  const wait = (ms) => new Promise(r => setTimeout(r, ms));\\n  location.reload(); await wait(3400);\\n  const out = {};\\n  // 강사 화면\\n...",
   "error": "javascript_tool failed: Inspected target navigated or closed",
-  "timestamp": "2026-08-18T06:47:41.988Z",
+  "timestamp": "2026-08-18T06:52:04.868Z",
   "retry_count": 1
 }

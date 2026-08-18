@@ -117,7 +117,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
     if (!keyword) return instructors;
     return instructors.filter((instructor) => {
       const haystack = [
-        instructor.name, instructor.affiliation, instructor.job_title,
+        instructor.name, instructor.job_title,
         ...(instructor.expertise?.industries || []), ...(instructor.expertise?.topics || []),
         ...(instructor.expertise?.tools || []),
       ].join(" ").toLowerCase();
@@ -142,7 +142,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
     </div>
 
     <div className="toolbar">
-      <div className="searchbox">⌕ <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="강사명, 소속 또는 전문분야 검색" aria-label="강사 검색" /></div>
+      <div className="searchbox">⌕ <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="강사명, 직함 또는 전문분야 검색" aria-label="강사 검색" /></div>
       <div><button type="button" className="primary-small" onClick={() => setModal(true)}>강사 등록</button></div>
     </div>
 
@@ -155,7 +155,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
               <span className={`avatar ${toneFor(instructor.name)}`}>{surname(instructor.name)}</span>
               <div className="instructor-name">
                 <h3>{instructor.name}</h3>
-                <p>{[instructor.affiliation, instructor.job_title].filter(Boolean).join(" · ") || "소속 미입력"}</p>
+                <p>{instructor.job_title || "프리랜서 강사"}</p>
               </div>
               <div className="rating">
                 <b>{instructor.stats?.delivered || 0}</b><small>진행 완료</small>
@@ -314,8 +314,10 @@ function NewInstructorModal({ onClose, onCreated }: { onClose: () => void; onCre
 
       {showForm && <div className="profile-form">
         {field("이름", "name", "홍길동")}
-        <div className="form-row">{field("소속", "affiliation", "○○컨설팅")}{field("직함", "jobTitle", "대표 강사")}</div>
-        <div className="form-row">{field("업무 이메일", "email", "name@example.com")}{field("연락처", "phone", "010-0000-0000")}</div>
+        {/* 소속은 받지 않는다. 프리랜서 자격으로 계약하므로 소속이 계약·강의 어느 쪽에도
+            근거가 되지 않는다(옛 값은 DB 에 남지만 화면에서는 쓰지 않는다). */}
+        <div className="form-row">{field("직함", "jobTitle", "AI 교육 강사")}{field("업무 이메일", "email", "name@example.com")}</div>
+        {field("연락처", "phone", "010-0000-0000")}
         {tagField("산업 경험", "industries", "제조, 공공, 의료")}
         {tagField("강의 주제", "topics", "생성형 AI 활용, 업무 자동화")}
         {tagField("도구", "tools", "ChatGPT, Copilot, Excel")}
@@ -504,7 +506,7 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
     <div className="instructor-hero">
       <span className={`avatar ${toneFor(instructor.name)}`}>{surname(instructor.name)}</span>
       <div>
-        <p>{[instructor.affiliation, instructor.job_title].filter(Boolean).join(" · ") || "소속 미입력"}</p>
+        <p>{instructor.job_title || "프리랜서 강사"}</p>
         <p className="contact">{[instructor.email, instructor.phone].filter(Boolean).join(" · ") || "연락처 미입력"}</p>
       </div>
       <div className="instructor-counts">

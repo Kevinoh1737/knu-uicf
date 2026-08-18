@@ -104,7 +104,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const rows: Array<[string, string]> = [
       ["발주기관", "강원대학교 산학협력단 교육사업팀"],
-      ["강사", [instructor?.name, instructor?.affiliation, instructor?.job_title].filter(Boolean).join(" · ") || "확인 필요"],
+      // 계약 상대는 프리랜서 개인이다. 소속을 적으면 계약 당사자가 회사인 것처럼 읽힌다.
+      ["강사", [instructor?.name, instructor?.job_title].filter(Boolean).join(" · ") || "확인 필요"],
       ["교육 대상", session?.company_research?.name || "확인 필요"],
       ["과정명", session?.title || "확인 필요"],
       ["교육 일자", heldOnLabel(session?.held_on ?? null, session?.start_time, session?.duration_hours)],

@@ -798,9 +798,9 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                   <div className="session-title">
                     <b className="session-name">{session.title}</b>
                     <small className={session.instructors?.name ? "session-instructor" : "session-instructor none"}>
-                      {session.instructors?.name
-                        ? [session.instructors.name, session.instructors.affiliation].filter(Boolean).join(" · ")
-                        : "강사 미배정"}
+                      {/* 소속은 적지 않는다 — 프리랜서 자격으로 오는 강사라 소속이
+                          강사를 가리키는 정보가 아니다. */}
+                      {session.instructors?.name || "강사 미배정"}
                     </small>
                   </div>
                   {/* 머리 줄에 남기는 것은 일시와 상태뿐이다. 구성·자료·수강생을 칩으로
@@ -860,7 +860,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
                               onChange={(event) => setEditForm((current) => ({ ...current, instructorId: event.target.value }))}>
                               <option value="">미배정</option>
                               {instructors.map((instructor) => <option key={instructor.id} value={instructor.id}>
-                                {[instructor.name, instructor.affiliation].filter(Boolean).join(" · ")}
+                                {instructor.name}
                               </option>)}
                             </select>
                           </label>
