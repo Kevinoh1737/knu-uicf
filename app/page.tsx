@@ -20,13 +20,14 @@ import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructor
 import { CompanySessionsTab } from "./company-sessions";
 import { LearnersPanel } from "./learners-panel";
 import { SurveysPanel } from "./surveys-panel";
+import { ProgramDashboard } from "./program-dashboard";
 import { CompanyContactPanel } from "./company-contact";
 import { CompanyLearnersTab } from "./company-learners";
 import { CompanyContact } from "@/lib/contacts";
 import { STAGE_TONE, STALE_AFTER_DAYS, daysSince, heldOnLabel, nextAction, resolveStage, stageLabel } from "@/lib/company-stage";
 import { Icon, IconName, formatFileSize, useConfirm, useEscapeClose } from "./ui";
 
-type View = "companies" | "company" | "instructors" | "instructor" | "learners" | "surveys";
+type View = "program" | "companies" | "company" | "instructors" | "instructor" | "learners" | "surveys";
 
 type ResearchReport = {
   companyName: string; industry: string; headline: string; summary: string; keywords: string[]; comparisonTags?: string[];
@@ -225,7 +226,10 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
     <nav aria-label="주 메뉴">
       {/* 사업 단위로 묶는다. 지금 만든 것은 전부 K-하이테크 플랫폼 사업이고,
           미래내일 일경험 사업은 프로그램 구조가 달라 따로 만든다 — 자리만 보여 준다. */}
-      <p className="nav-label program">K-하이테크 플랫폼 사업</p>
+      {/* 사업 이름 자체가 그 사업의 대시보드다 — 아래 메뉴가 '무엇을 관리하나'라면,
+          여기는 '지금 무엇이 돌아가나'다. */}
+      <button type="button" className={view === "program" ? "nav-label program active" : "nav-label program"}
+        onClick={() => setView("program")}>K-하이테크 플랫폼 사업</button>
       {nav.map((item) => <button key={item.id} className={view === item.id || (view === "company" && item.id === "companies") || (view === "instructor" && item.id === "instructors") ? "nav-item active" : "nav-item"} onClick={() => setView(item.id)}><span><Icon name={item.icon} /></span>{item.label}</button>)}
       <p className="nav-label program second">미래내일 일경험 사업<em>준비 중</em></p>
       {/* 자리만 잡아 둔다. 확인된 구성(참여기업이 과제를 내고, 청년이 지원·선발되고,
@@ -240,6 +244,7 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
 
 function Header({ view, onNew, selectedCompany, selectedInstructorName, contactSignal }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string; contactSignal?: number }) {
   const titles: Record<View, [string, string]> = {
+    program: ["K-하이테크 플랫폼 사업", "월·주 단위 교육 일정과 진행 현황"],
     companies: ["기업", "기업 조사와 교육 진행 상황"],
     company: [displayCompanyName(selectedCompany.name), [selectedCompany.field, parsePublicWebsite(selectedCompany.websiteUrl)?.host].filter(Boolean).join(" · ")],
     instructors: ["강사", "강사 프로필과 강의 이력"],
@@ -921,7 +926,12 @@ export default function Home() {
     }).catch(() => setCompanyItems([])).finally(() => setLoadingCompanies(false));
   }, []);
   const visibleCompany = selectedCompany || companyItems[0] || { name: "기업 조사", field: "", stage: "", progress: 0, date: "", color: "blue" };
-  const content = view === "surveys"
+  const content = view === "program"
+    ? <ProgramDashboard onOpenCompany={(companyId) => {
+        const target = companyItems.find(item => item.id === companyId);
+        if (target) selectCompany(target);
+      }}/>
+    : view === "surveys"
     ? <SurveysPanel/>
     : view === "learners"
     ? <LearnersPanel/>
@@ -930,5 +940,5 @@ export default function Home() {
     : view === "instructors"
       ? <InstructorsPanel onSelect={selectInstructor}/>
       : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
-  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""} contactSignal={contactSignal}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴">{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
+  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""} contactSignal={contactSignal}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴"><button className={view === "program" ? "active" : ""} onClick={() => setView("program")}><span><Icon name="calendar"/></span>사업</button>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }
