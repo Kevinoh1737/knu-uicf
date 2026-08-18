@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SESSION_STATUS_LABEL, SESSION_STATUS_TONE } from "@/lib/company-stage";
 import { timeRange } from "@/lib/course-time";
 import { Feedback, Icon } from "./ui";
+import { displayCompanyName } from "@/lib/company-name";
 
 type ProgramSession = {
   id: string; title: string; heldOn: string | null; startTime: string | null; durationHours: number;
@@ -152,7 +153,7 @@ export function ProgramDashboard({ onOpenCompany }: { onOpenCompany: (companyId:
     onClick={() => onOpenCompany(session.companyId)}>
     <span className={`stage ${SESSION_STATUS_TONE[session.status] || "neutral"}`}>{SESSION_STATUS_LABEL[session.status] || session.status}</span>
     <b>{session.title}</b>
-    <small>{[session.companyName, timeLabel(session), session.instructorName ? `${session.instructorName} 강사` : "강사 미배정"].filter(Boolean).join(" · ")}</small>
+    <small>{[displayCompanyName(session.companyName), timeLabel(session), session.instructorName ? `${session.instructorName} 강사` : "강사 미배정"].filter(Boolean).join(" · ")}</small>
     <small className="muted">{[session.location || "장소 미정", `수강생 ${session.learnerCount}명`].join(" · ")}</small>
   </button>;
 
@@ -199,9 +200,9 @@ export function ProgramDashboard({ onOpenCompany }: { onOpenCompany: (companyId:
               <span className="calendar-date">{day.getDate()}</span>
               {items.map((session) => <button type="button" key={session.id}
                 className={`calendar-chip ${SESSION_STATUS_TONE[session.status] || "neutral"}`}
-                title={`${session.companyName} · ${session.title} · ${timeLabel(session)}`}
+                title={`${displayCompanyName(session.companyName)} · ${session.title} · ${timeLabel(session)}`}
                 onClick={() => onOpenCompany(session.companyId)}>
-                {session.startTime ? session.startTime.slice(0, 5) : ""} {session.companyName || session.title}
+                {session.startTime ? session.startTime.slice(0, 5) : ""} {displayCompanyName(session.companyName) || session.title}
               </button>)}
             </div>;
           })}

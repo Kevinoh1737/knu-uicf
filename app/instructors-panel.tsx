@@ -17,6 +17,7 @@ import {
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { formatHeldOn } from "@/lib/course-time";
 import { Feedback, Icon, formatFileSize, useEscapeClose } from "./ui";
+import { displayCompanyName } from "@/lib/company-name";
 
 export type InstructorStats = { delivered: number; planned: number; lastHeldOn: string | null };
 
@@ -392,7 +393,7 @@ function NewSessionForm({ instructorId, onCreated }: { instructorId: string; onC
     <label>기업
       <select value={form.companyId} onChange={set("companyId")} disabled={saving} required>
         <option value="">선택하세요</option>
-        {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+        {companies.map((company) => <option key={company.id} value={company.id}>{displayCompanyName(company.name)}</option>)}
       </select>
     </label>
     <label>과정명<input value={form.title} onChange={set("title")} placeholder="생성형 AI 업무 적용" disabled={saving} required /></label>
@@ -556,7 +557,7 @@ export function InstructorDetail({ instructor, onBack }: { instructor: Instructo
                   return <div className={open ? "session open" : "session"} key={session.id}>
                     <button type="button" onClick={() => setOpenSession(open ? null : session.id)}>
                       <div>
-                        <b>{session.company_research?.name || "기업 미상"}</b>
+                        <b>{session.company_research?.name ? displayCompanyName(session.company_research.name) : "기업 미상"}</b>
                         <p>{session.title}</p>
                       </div>
                       <div className="session-meta">

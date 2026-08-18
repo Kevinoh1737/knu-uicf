@@ -5,6 +5,7 @@ import { INSTRUCTOR_DOCUMENTS_BUCKET, MAX_INSTRUCTOR_DOCUMENT_SIZE } from "@/lib
 import { LearnerInput } from "@/lib/learners";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { Feedback, Icon, formatFileSize, useConfirm, useEscapeClose } from "./ui";
+import { displayCompanyName } from "@/lib/company-name";
 
 type LearnerRow = {
   id: string;
@@ -95,7 +96,7 @@ export function LearnersPanel() {
       <div>
         <select className="filter" value={companyFilter} onChange={(event) => setCompanyFilter(event.target.value)} aria-label="기업 선택">
           <option value="">모든 기업</option>
-          {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+          {companies.map((company) => <option key={company.id} value={company.id}>{displayCompanyName(company.name)}</option>)}
         </select>
         <button type="button" className="primary-small" onClick={() => setModal(true)} disabled={!companies.length}>명단 등록</button>
       </div>
@@ -118,7 +119,7 @@ export function LearnersPanel() {
                 {visible.map((learner) => <tr key={learner.id}>
                   <td><b>{learner.name}</b><small className="row-sub">{learner.email || "이메일 미수집"}</small></td>
                   <td>{[learner.department, learner.job_title].filter(Boolean).join(" · ") || "—"}</td>
-                  <td>{learner.company_research?.name || "—"}</td>
+                  <td>{learner.company_research?.name ? displayCompanyName(learner.company_research.name) : "—"}</td>
                   {/* 횟수만으로는 무엇을 들었는지 알 수 없다. 두 번째 교육을 권할 때
                       담당자가 여는 화면이 여기다 — 과정 이름을 그대로 보여 준다. */}
                   <td>{learner.courses?.length

@@ -10,6 +10,7 @@ import {
 } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
 import { Feedback, Icon, useConfirm } from "./ui";
+import { displayCompanyName } from "@/lib/company-name";
 
 type SurveyBrief = {
   id: string; title: string; status: SurveyStatus; questionCount: number;
@@ -111,7 +112,7 @@ export function SurveysPanel() {
                     : <span className="stage neutral">설문지 없음</span>}
                 </div>
                 <p className="survey-row-meta">
-                  {[item.companyName, formatDate(item.heldOn, item.startTime, item.durationHours), item.instructorName ? `${item.instructorName} 강사` : ""].filter(Boolean).join(" · ")}
+                  {[displayCompanyName(item.companyName), formatDate(item.heldOn, item.startTime, item.durationHours), item.instructorName ? `${item.instructorName} 강사` : ""].filter(Boolean).join(" · ")}
                 </p>
                 <p className="survey-row-meta">
                   {item.survey

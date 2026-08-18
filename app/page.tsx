@@ -21,6 +21,7 @@ import { CompanySessionsTab } from "./company-sessions";
 import { LearnersPanel } from "./learners-panel";
 import { SurveysPanel } from "./surveys-panel";
 import { ProgramDashboard } from "./program-dashboard";
+import { displayCompanyName } from "@/lib/company-name";
 import { CompanyContactPanel } from "./company-contact";
 import { CompanyLearnersTab } from "./company-learners";
 import { CompanyContact } from "@/lib/contacts";
@@ -133,11 +134,6 @@ function compactCopy(value?: string) {
     .replace(/없다\./g, "없음")
     .replace(/\s{2,}/g, " ")
     .trim();
-}
-
-function displayCompanyName(value: string) {
-  const name = value.replace(/주식회사|㈜|\(\s*주\s*\)|（\s*주\s*）/g, " ").replace(/\s{2,}/g, " ").trim();
-  return name || value.trim();
 }
 
 function sanitizeResearchReport(report: ResearchReport): ResearchReport {
