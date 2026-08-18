@@ -110,7 +110,9 @@ export async function POST(request: Request) {
   const unauthorized = await requireTeamSession();
   if (unauthorized) return unauthorized;
   try {
-    const body = await request.json() as { courseSessionId?: string; questions?: unknown; title?: string };
+    const body = await request.json() as {
+      courseSessionId?: string; questions?: unknown; title?: string; templateId?: string;
+    };
     if (!UUID.test(body.courseSessionId || "")) {
       return Response.json({ error: "교육과정을 확인하지 못했습니다." }, { status: 400 });
     }
@@ -120,13 +122,24 @@ export async function POST(request: Request) {
       .from("surveys").select("id").eq("course_session_id", body.courseSessionId).maybeSingle();
     if (existing) return Response.json({ survey: existing, created: false });
 
-    const questions = sanitizeQuestions(body.questions);
+    // 표준 질문지를 베껴 온다. 고르지 않았으면 기본 질문지를 쓴다 — 아무것도 없을 때만
+    // 코드 안의 기본 문항으로 내려간다(질문지 표가 아직 없는 DB 도 돌아가야 한다).
+    const { data: template } = UUID.test(body.templateId || "")
+      ? await supabase.from("survey_templates").select("id,name,intro,questions").eq("id", body.templateId).maybeSingle()
+      : await supabase.from("survey_templates").select("id,name,intro,questions").eq("is_default", true).eq("archived", false).maybeSingle();
+
+    const fromTemplate = template ? sanitizeQuestions(template.questions).map((question) => ({ ...question, source: "standard" as const })) : [];
+    const given = sanitizeQuestions(body.questions);
+    const questions = given.length ? given : fromTemplate;
+
     const { data, error } = await supabase
       .from("surveys")
       .insert({
         course_session_id: body.courseSessionId,
         title: (body.title || "").trim().slice(0, 120) || "교육 만족도 조사",
+        intro: template?.intro || "",
         questions: questions.length ? questions : DEFAULT_QUESTIONS,
+        ...(template ? { template_id: template.id } : {}),
       })
       .select("id,course_session_id,title,intro,questions,status,updated_at")
       .single();

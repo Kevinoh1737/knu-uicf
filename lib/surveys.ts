@@ -14,6 +14,11 @@ export type SurveyQuestion = {
   text: string;
   options: string[];
   required: boolean;
+  /**
+   * 표준 질문지에서 온 문항인가, 이 과정에만 더한 문항인가. 견주기의 기준선이라 화면에서
+   * 갈라 보여 준다 — 표준 문항을 고치면 그 과정만 축이 어긋나므로 알고 고쳐야 한다.
+   */
+  source: "standard" | "custom";
 };
 
 export type SurveyStatus = "draft" | "open" | "closed";
@@ -65,6 +70,8 @@ export function sanitizeQuestions(value: unknown): SurveyQuestion[] {
       text,
       options: resolved === "choice" ? options : [],
       required: source.required !== false,
+      // 표시가 없으면 이 과정에만 있는 문항으로 본다. 표준은 질문지에서 내려올 때만 붙는다.
+      source: source.source === "standard" ? "standard" : "custom",
     });
   });
   // id 가 겹치면 답이 서로를 덮어쓴다. 뒤에 온 것을 밀어낸다.
@@ -77,16 +84,20 @@ export function sanitizeQuestions(value: unknown): SurveyQuestion[] {
   });
 }
 
-/** 초안이 실패해도 빈 화면을 주지 않기 위한 기본 문항. 교육 만족도의 표준 축이다. */
+/**
+ * 초안이 실패해도 빈 화면을 주지 않기 위한 기본 문항. 교육 만족도의 표준 축이다.
+ * 질문지 템플릿(survey_templates)의 첫 장도 같은 문항·같은 id 로 심는다 —
+ * 문구가 같아도 id 가 다르면 과정끼리 견줄 수 없다.
+ */
 export const DEFAULT_QUESTIONS: SurveyQuestion[] = sanitizeQuestions([
-  { id: "content_useful", type: "scale", text: "교육 내용이 실제 업무에 도움이 되었다" },
-  { id: "level_fit", type: "scale", text: "교육의 난이도와 진행 속도가 적절했다" },
-  { id: "delivery", type: "scale", text: "강사의 설명이 이해하기 쉬웠다" },
-  { id: "relevance", type: "scale", text: "실습과 사례가 우리 회사 업무와 관련이 있었다" },
-  { id: "duration", type: "scale", text: "교육 시간과 분량이 적절했다" },
-  { id: "recommend", type: "scale", text: "이 교육을 동료에게 추천하고 싶다" },
-  { id: "best_part", type: "text", text: "가장 도움이 된 내용은 무엇이었습니까?", required: false },
-  { id: "improve", type: "text", text: "더 다뤘으면 하는 내용이나 개선점이 있다면 적어 주세요.", required: false },
+  { id: "content_useful", type: "scale", text: "교육 내용이 실제 업무에 도움이 되었다", source: "standard" },
+  { id: "level_fit", type: "scale", text: "교육의 난이도와 진행 속도가 적절했다", source: "standard" },
+  { id: "delivery", type: "scale", text: "강사의 설명이 이해하기 쉬웠다", source: "standard" },
+  { id: "relevance", type: "scale", text: "실습과 사례가 우리 회사 업무와 관련이 있었다", source: "standard" },
+  { id: "duration", type: "scale", text: "교육 시간과 분량이 적절했다", source: "standard" },
+  { id: "recommend", type: "scale", text: "이 교육을 동료에게 추천하고 싶다", source: "standard" },
+  { id: "best_part", type: "text", text: "가장 도움이 된 내용은 무엇이었습니까?", required: false, source: "standard" },
+  { id: "improve", type: "text", text: "더 다뤘으면 하는 내용이나 개선점이 있다면 적어 주세요.", required: false, source: "standard" },
 ]);
 
 export type SurveyAnswers = Record<string, number | string>;

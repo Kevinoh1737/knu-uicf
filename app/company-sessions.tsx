@@ -32,6 +32,9 @@ type PoolRow = { id: string; name: string; department: string; job_title: string
 
 const EMPTY_LEARNER: LearnerInput = { name: "", department: "", jobTitle: "", email: "", notes: "" };
 
+/** 만족도 메뉴에서 관리하는 표준 질문지. 여기서는 고르기만 한다. */
+type SurveyTemplateOption = { id: string; name: string; questionCount: number; isDefault: boolean };
+
 type SessionRow = {
   id: string;
   title: string;
@@ -57,9 +60,14 @@ type SessionRow = {
  * 교육과정 안의 만족도. 문항을 고치는 곳은 만족도 메뉴이고, 여기서는 '보내고 결과를 보는'
  * 두 가지만 한다 — 발송은 그 교육과정에 배정된 수강생에게만 나간다.
  */
-function SessionSurvey({ session, busy, onSend, onCreate }: {
-  session: SessionRow; busy: boolean; onSend: () => void; onCreate: () => void;
+function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
+  session: SessionRow; busy: boolean;
+  templates: SurveyTemplateOption[];
+  onSend: () => void; onCreate: (templateId: string) => void;
 }) {
+  // 기본 질문지를 미리 골라 둔다 — 대부분은 그대로 쓰고, 다른 것을 쓸 때만 손이 간다.
+  const [templateId, setTemplateId] = useState("");
+  const picked = templateId || templates.find((template) => template.isDefault)?.id || templates[0]?.id || "";
   const survey = session.survey;
   const learners = session.learners?.total || 0;
   return <div className="session-survey">
@@ -89,9 +97,21 @@ function SessionSurvey({ session, busy, onSend, onCreate }: {
       </div>
       <p className="survey-hint">문항 편집·응답 상세는 만족도 메뉴에서</p>
     </> : <>
-      <p className="body-text">아직 설문지가 없습니다.</p>
+      {/* 질문지는 만족도 메뉴에서 관리하고 여기서는 골라 오기만 한다 — 과정마다 새로 쓰면
+          문항 id 가 갈려서 과정끼리 견줄 수 없다. 회사별로 더 물을 것은 만든 뒤에 더한다. */}
+      <p className="body-text">표준 질문지를 불러와 만듭니다. 이 회사에만 물을 것은 만든 뒤에 문항을 더하면 됩니다.</p>
       <div className="session-actions">
-        <button type="button" className="upload-chip" disabled={busy} onClick={onCreate}>설문지 만들기</button>
+        {templates.length > 1 && <label className="survey-template-pick">
+          <span className="sr-only">질문지 고르기</span>
+          <select value={picked} disabled={busy} onChange={(event) => setTemplateId(event.target.value)}>
+            {templates.map((template) => <option key={template.id} value={template.id}>
+              {template.name}{template.isDefault ? " (기본)" : ""} · 문항 {template.questionCount}개
+            </option>)}
+          </select>
+        </label>}
+        <button type="button" className="upload-chip lead" disabled={busy} onClick={() => onCreate(picked)}>
+          {templates.length ? "이 질문지로 설문지 만들기" : "설문지 만들기"}
+        </button>
       </div>
     </>}
   </div>;
@@ -285,6 +305,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
   const [form, setForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
   const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
   const [rosterFor, setRosterFor] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<SurveyTemplateOption[]>([]);
   const { ask, confirmDialog } = useConfirm();
 
   const reload = () => fetch(`/api/companies/${companyId}/sessions`)
@@ -296,6 +317,21 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
       onDataChanged?.();
     })
     .catch(() => undefined);
+
+  // 질문지 목록은 만족도 메뉴가 주인이다. 여기서는 고를 것을 보여 주기 위해 읽기만 한다.
+  useEffect(() => {
+    void fetch("/api/survey-templates")
+      .then(async (response) => {
+        const result = await response.json() as { templates?: Array<{ id: string; name: string; questions: unknown[]; is_default: boolean }> };
+        if (!response.ok) return;
+        setTemplates((result.templates || []).map((template) => ({
+          id: template.id, name: template.name,
+          questionCount: Array.isArray(template.questions) ? template.questions.length : 0,
+          isDefault: Boolean(template.is_default),
+        })));
+      })
+      .catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     void reload().finally(() => setLoading(false));
@@ -603,12 +639,12 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     } finally { setBusyId(""); }
   };
 
-  const createSurvey = async (sessionId: string) => {
+  const createSurvey = async (sessionId: string, templateId?: string) => {
     setBusyId(sessionId); setFeedback(null);
     try {
       const response = await fetch("/api/surveys", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseSessionId: sessionId }),
+        body: JSON.stringify({ courseSessionId: sessionId, templateId }),
       });
       const result = await response.json() as { error?: string; survey?: { id: string } };
       if (!response.ok || !result.survey) throw new Error(result.error || "설문지를 만들지 못했습니다.");
@@ -929,8 +965,9 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
 
                   {busyId === session.id && <p className="body-text">처리 중</p>}
 
-                  <SessionSurvey session={session} busy={busyId === session.id}
-                    onSend={() => void sendSurvey(session)} onCreate={() => void createSurvey(session.id)} />
+                  <SessionSurvey session={session} busy={busyId === session.id} templates={templates}
+                    onSend={() => void sendSurvey(session)}
+                    onCreate={(templateId) => void createSurvey(session.id, templateId)} />
 
                   {rosterFor === session.id && <SessionRoster
                     roster={roster}

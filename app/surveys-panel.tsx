@@ -22,6 +22,11 @@ type SurveyItem = {
   survey: SurveyBrief | null;
 };
 
+type SurveyTemplate = {
+  id: string; name: string; intro: string; questions: SurveyQuestion[];
+  is_default: boolean; usedCount: number;
+};
+
 type Detail = {
   survey: { id: string; title: string; intro: string; questions: SurveyQuestion[]; status: SurveyStatus };
   invites: Array<{ id: string; sentAt: string | null; sendError: string | null; respondedAt: string | null; learnerName: string; learnerEmail: string }>;
@@ -85,6 +90,10 @@ export function SurveysPanel() {
 
     <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
+    {/* 질문지가 먼저다. 과정마다 새로 쓰는 것이 아니라 여기 있는 것을 불러다 쓴다 —
+        같은 문항 id 로 물어야 과정끼리 견줄 수 있다. */}
+    <SurveyTemplates onChanged={() => void reload()} />
+
     {loading ? <p className="body-text">불러오는 중</p>
       : items.length === 0
         ? <div className="company-empty"><span><Icon name="survey" size={26}/></span>
@@ -118,6 +127,216 @@ export function SurveysPanel() {
             </article>)}
           </div>}
   </section>;
+}
+
+/**
+ * 표준 질문지 관리. 만족도 설문은 과정마다 새로 쓰지 않고 이 몇 장을 계속 돌려 쓴다 —
+ * 같은 문항 id 로 물어야 과정끼리 견줄 수 있기 때문이다. 회사마다 따로 묻고 싶은 것은
+ * 그 과정 설문지에 문항을 더해 해결한다(여기서 늘리면 모든 과정이 함께 늘어난다).
+ */
+function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
+  const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<SurveyTemplate | null>(null);
+  const [draft, setDraft] = useState<{ name: string; intro: string; questions: SurveyQuestion[] }>({ name: "", intro: "", questions: [] });
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const { ask, confirmDialog } = useConfirm();
+
+  const [ready, setReady] = useState(true);
+  const load = () => fetch("/api/survey-templates")
+    .then(async (response) => {
+      const result = await response.json() as { templates?: SurveyTemplate[]; ready?: boolean; error?: string };
+      if (!response.ok) throw new Error(result.error || "질문지를 불러오지 못했습니다.");
+      setTemplates(result.templates || []);
+      setReady(result.ready !== false);
+    })
+    .catch((caught) => setFeedback({ message: caught instanceof Error ? caught.message : "질문지를 불러오지 못했습니다.", error: true }));
+
+  useEffect(() => { void load(); }, []);
+
+  const startNew = () => {
+    setEditing(null);
+    setDraft({ name: "", intro: "", questions: [] });
+    setOpen(true);
+  };
+  const startEdit = (template: SurveyTemplate) => {
+    setEditing(template);
+    setDraft({ name: template.name, intro: template.intro, questions: template.questions });
+    setOpen(true);
+  };
+
+  const save = async () => {
+    setBusy(true); setFeedback(null);
+    try {
+      const response = await fetch(editing ? `/api/survey-templates/${editing.id}` : "/api/survey-templates", {
+        method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: draft.name, intro: draft.intro, ...(editing || draft.questions.length ? { questions: draft.questions } : {}) }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "질문지를 저장하지 못했습니다.");
+      await load();
+      onChanged();
+      setOpen(false);
+      setFeedback({ message: editing ? "질문지를 저장했습니다." : "질문지를 만들었습니다.", error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "질문지를 저장하지 못했습니다.", error: true });
+    } finally { setBusy(false); }
+  };
+
+  const makeDefault = async (template: SurveyTemplate) => {
+    setBusy(true); setFeedback(null);
+    try {
+      const response = await fetch(`/api/survey-templates/${template.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isDefault: true }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "기본 질문지를 바꾸지 못했습니다.");
+      await load();
+      setFeedback({ message: `‘${template.name}’ 을 기본 질문지로 정했습니다.`, error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "기본 질문지를 바꾸지 못했습니다.", error: true });
+    } finally { setBusy(false); }
+  };
+
+  const archive = async (template: SurveyTemplate) => {
+    const agreed = await ask({
+      title: `‘${template.name}’ 질문지를 목록에서 치울까요?`,
+      message: template.usedCount
+        ? `이미 ${template.usedCount}개 교육이 이 질문지로 만들어졌습니다. 그 설문지와 응답은 그대로 남습니다.`
+        : "새 교육에서 고를 수 없게 됩니다.",
+      confirmLabel: "치우기", danger: true,
+    });
+    if (!agreed) return;
+    setBusy(true); setFeedback(null);
+    try {
+      const response = await fetch(`/api/survey-templates/${template.id}`, { method: "DELETE" });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "질문지를 치우지 못했습니다.");
+      await load();
+      setFeedback({ message: "질문지를 목록에서 치웠습니다.", error: false });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "질문지를 치우지 못했습니다.", error: true });
+    } finally { setBusy(false); }
+  };
+
+  const update = (index: number, patch: Partial<SurveyQuestion>) =>
+    setDraft((current) => ({ ...current, questions: current.questions.map((question, position) => position === index ? { ...question, ...patch } : question) }));
+  const move = (index: number, direction: -1 | 1) => setDraft((current) => {
+    const target = index + direction;
+    if (target < 0 || target >= current.questions.length) return current;
+    const next = [...current.questions];
+    [next[index], next[target]] = [next[target], next[index]];
+    return { ...current, questions: next };
+  });
+
+  return <div className="template-block">
+    {confirmDialog}
+    <div className="template-head">
+      <h3>표준 질문지 <small>{templates.length}장</small></h3>
+      <button type="button" className="upload-chip" onClick={startNew} disabled={busy || !ready}>
+        <Icon name="plus" size={15} /> 새 질문지
+      </button>
+    </div>
+    <p className="action-hint">교육마다 여기 있는 질문지를 불러다 씁니다. 회사별로 더 묻고 싶은 것은 그 교육 설문지에서 문항을 추가하세요.</p>
+
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
+
+    {!ready
+      ? <p className="body-text">질문지 보관함이 아직 준비되지 않았습니다(데이터베이스 준비 필요). 그동안에도 교육에서 설문지는 표준 문항으로 만들 수 있습니다.</p>
+      : templates.length === 0
+      ? <p className="body-text">아직 질문지가 없습니다. 새 질문지를 만들면 표준 문항으로 시작합니다.</p>
+      : <div className="template-list">
+          {templates.map((template) => <article key={template.id} className="template-row">
+            <div>
+              <b>{template.name}</b>
+              {template.is_default && <span className="question-tag standard">기본</span>}
+              <small>문항 {template.questions.length}개 · 사용 {template.usedCount}개 교육</small>
+            </div>
+            <div className="template-tools">
+              <button type="button" className="upload-chip" onClick={() => startEdit(template)} disabled={busy}>편집</button>
+              {!template.is_default && <button type="button" className="upload-chip" onClick={() => void makeDefault(template)} disabled={busy}>기본으로</button>}
+              {!template.is_default && <button type="button" className="upload-chip danger" onClick={() => void archive(template)} disabled={busy}>치우기</button>}
+            </div>
+          </article>)}
+        </div>}
+
+    {open && <div className="template-editor">
+      <div className="survey-fields">
+        <label>질문지 이름
+          <input value={draft.name} disabled={busy} placeholder="표준 교육 만족도"
+            onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
+        </label>
+        <label>안내 문구
+          <textarea rows={2} value={draft.intro} disabled={busy} placeholder="수강생이 처음 보는 안내"
+            onChange={(event) => setDraft((current) => ({ ...current, intro: event.target.value }))} />
+        </label>
+      </div>
+      {draft.questions.length === 0
+        ? <p className="body-text">저장하면 표준 문항 8개로 시작합니다. 문항을 직접 넣으려면 아래에서 추가하세요.</p>
+        : <QuestionRows questions={draft.questions} disabled={busy} onUpdate={update} onMove={move}
+            onRemove={(index) => setDraft((current) => ({ ...current, questions: current.questions.filter((_, position) => position !== index) }))} />}
+      <div className="savebar">
+        <button type="button" className="upload-chip" disabled={busy}
+          onClick={() => setDraft((current) => ({ ...current, questions: [...current.questions, {
+            id: `q_${Date.now().toString(36)}`, type: "scale", text: "", options: [], required: true, source: "standard",
+          }] }))}>
+          <Icon name="plus" size={15} /> 문항 추가
+        </button>
+        <span />
+        <button type="button" onClick={() => setOpen(false)} disabled={busy}>취소</button>
+        <button type="button" className="primary-small" disabled={busy || !draft.name.trim()} onClick={() => void save()}>
+          {busy ? "저장 중" : "질문지 저장"}
+        </button>
+      </div>
+    </div>}
+  </div>;
+}
+
+/**
+ * 문항 편집 줄. 과정 설문지와 표준 질문지가 같은 손놀림을 쓰도록 한 곳에 둔다 —
+ * 두 벌로 두면 한쪽만 고쳐져 서로 다르게 동작한다.
+ */
+function QuestionRows({ questions, disabled, showSource, onUpdate, onMove, onRemove }: {
+  questions: SurveyQuestion[];
+  disabled: boolean;
+  /** 표준 문항과 이 과정 전용 문항을 갈라 보여 줄 것인가. 질문지 편집에서는 전부 표준이라 끈다. */
+  showSource?: boolean;
+  onUpdate: (index: number, patch: Partial<SurveyQuestion>) => void;
+  onMove: (index: number, direction: -1 | 1) => void;
+  onRemove: (index: number) => void;
+}) {
+  return <div className="survey-questions">
+    {questions.map((question, index) => <article key={question.id} className="survey-edit-row">
+      <div className="survey-edit-head">
+        <span className="survey-number">{String(index + 1).padStart(2, "0")}</span>
+        {showSource && <span className={question.source === "standard" ? "question-tag standard" : "question-tag"}>
+          {question.source === "standard" ? "표준" : "이 교육"}
+        </span>}
+        <select value={question.type} disabled={disabled}
+          onChange={(event) => onUpdate(index, { type: event.target.value as SurveyQuestion["type"] })}>
+          {(Object.keys(TYPE_LABEL) as Array<SurveyQuestion["type"]>).map((type) =>
+            <option key={type} value={type}>{TYPE_LABEL[type]}</option>)}
+        </select>
+        <label className="survey-required">
+          <input type="checkbox" checked={question.required} disabled={disabled}
+            onChange={(event) => onUpdate(index, { required: event.target.checked })} />
+          필수
+        </label>
+        <div className="survey-edit-tools">
+          <button type="button" onClick={() => onMove(index, -1)} disabled={disabled || index === 0} aria-label="위로">↑</button>
+          <button type="button" onClick={() => onMove(index, 1)} disabled={disabled || index === questions.length - 1} aria-label="아래로">↓</button>
+          <button type="button" className="row-delete" disabled={disabled} onClick={() => onRemove(index)}>삭제</button>
+        </div>
+      </div>
+      <textarea rows={2} value={question.text} disabled={disabled} placeholder="문항을 적어 주세요"
+        onChange={(event) => onUpdate(index, { text: event.target.value })} />
+      {question.type === "choice" && <input value={question.options.join(", ")} disabled={disabled}
+        placeholder="보기를 쉼표로 구분해 적어 주세요"
+        onChange={(event) => onUpdate(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} />}
+      {question.type === "scale" && <p className="survey-hint">{SCALE_LABELS.map((label, score) => `${score + 1} ${label}`).join("  ·  ")}</p>}
+    </article>)}
+  </div>;
 }
 
 /** 문항 편집·초안 생성·PDF·발송·지표가 한 화면에 있다. 설문지는 이 네 가지 말고 할 일이 없다. */
@@ -233,9 +452,12 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     });
     setDirty(true);
   };
+  // 여기서 더하는 문항은 이 과정 전용이다. 표준 문항은 질문지에서만 늘어난다 —
+  // 한 과정에서 표준 축을 늘리면 다른 과정과 견줄 수 없는 문항이 축인 척하게 된다.
   const addQuestion = () => {
     setQuestions((current) => [...current, {
       id: `q_${Date.now().toString(36)}`, type: "scale", text: "", options: [], required: true,
+      source: "custom",
     }]);
     setDirty(true);
   };
@@ -298,35 +520,9 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
       </label>
     </div>
 
-    <div className="survey-questions">
-      {questions.map((question, index) => <article key={question.id} className="survey-edit-row">
-        <div className="survey-edit-head">
-          <span className="survey-number">{String(index + 1).padStart(2, "0")}</span>
-          <select value={question.type} disabled={Boolean(busy)}
-            onChange={(event) => update(index, { type: event.target.value as SurveyQuestion["type"] })}>
-            {(Object.keys(TYPE_LABEL) as Array<SurveyQuestion["type"]>).map((type) =>
-              <option key={type} value={type}>{TYPE_LABEL[type]}</option>)}
-          </select>
-          <label className="survey-required">
-            <input type="checkbox" checked={question.required} disabled={Boolean(busy)}
-              onChange={(event) => update(index, { required: event.target.checked })} />
-            필수
-          </label>
-          <div className="survey-edit-tools">
-            <button type="button" onClick={() => move(index, -1)} disabled={Boolean(busy) || index === 0} aria-label="위로">↑</button>
-            <button type="button" onClick={() => move(index, 1)} disabled={Boolean(busy) || index === questions.length - 1} aria-label="아래로">↓</button>
-            <button type="button" className="row-delete" disabled={Boolean(busy)}
-              onClick={() => { setQuestions((current) => current.filter((_, position) => position !== index)); setDirty(true); }}>삭제</button>
-          </div>
-        </div>
-        <textarea rows={2} value={question.text} disabled={Boolean(busy)} placeholder="문항을 적어 주세요"
-          onChange={(event) => update(index, { text: event.target.value })} />
-        {question.type === "choice" && <input value={question.options.join(", ")} disabled={Boolean(busy)}
-          placeholder="보기를 쉼표로 구분해 적어 주세요"
-          onChange={(event) => update(index, { options: event.target.value.split(",").map((option) => option.trim()).filter(Boolean) })} />}
-        {question.type === "scale" && <p className="survey-hint">{SCALE_LABELS.map((label, score) => `${score + 1} ${label}`).join("  ·  ")}</p>}
-      </article>)}
-    </div>
+    <QuestionRows questions={questions} disabled={Boolean(busy)} showSource
+      onUpdate={update} onMove={move}
+      onRemove={(index) => { setQuestions((current) => current.filter((_, position) => position !== index)); setDirty(true); }} />
 
     <div className="savebar">
       <button type="button" className="upload-chip" onClick={addQuestion} disabled={Boolean(busy)}><Icon name="plus" size={15} /> 문항 추가</button>
