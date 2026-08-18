@@ -40,7 +40,7 @@ type ResearchReport = {
 
 type CompanyIntelligence = {
   dart?: {
-    available: boolean; reason?: string; corpCode?: string; stockCode?: string | null; matchedName?: string;
+    available: boolean; reason?: string; corpCode?: string; stockCode?: string | null; matchedName?: string; financialSource?: string;
     profile?: { representative?: string; address?: string; industryCode?: string; establishedDate?: string; corporationClass?: string };
     financialYear?: number | null;
     financials?: { revenue?: number | null; operatingProfit?: number | null; netIncome?: number | null; assets?: number | null; liabilities?: number | null };
@@ -578,7 +578,7 @@ function ResearchTab({ company, companies, onSelectCompany, exportSlot }: { comp
         {company.intelligence && <div className="intelligence-grid">
           <article>
             <div className="intel-head"><div><small>공시자료</small><h3>회사 기본·재무 정보</h3></div><span className={dart?.available ? "verified" : "unavailable"}>{dart?.available ? "확인" : "자료 없음"}</span></div>
-            {dart?.available ? <><dl><div><dt>대표이사</dt><dd>{dart.profile?.representative || "확인 필요"}</dd></div><div><dt>설립일</dt><dd>{date(dart.profile?.establishedDate)}</dd></div><div><dt>본점 주소</dt><dd>{dart.profile?.address || "확인 필요"}</dd></div><div><dt>업종 코드</dt><dd>{dart.profile?.industryCode || "확인 필요"}</dd></div></dl>{dart.financialYear ? <div className="finance-row"><span><small>{dart.financialYear} 매출</small><b>{won(dart.financials?.revenue)}</b></span><span><small>영업이익</small><b>{won(dart.financials?.operatingProfit)}</b></span><span><small>자산</small><b>{won(dart.financials?.assets)}</b></span></div> : <p className="intel-empty">{dart.reason || "공시 재무 수치 없음"}</p>}{dart.matchedName && <p className="intel-note">공시 상호 {dart.matchedName}</p>}</> : <p className="intel-empty">{dart?.reason || "일치 기업 없음"}</p>}
+            {dart?.available ? <><dl><div><dt>대표이사</dt><dd>{dart.profile?.representative || "확인 필요"}</dd></div><div><dt>설립일</dt><dd>{date(dart.profile?.establishedDate)}</dd></div><div><dt>본점 주소</dt><dd>{dart.profile?.address || "확인 필요"}</dd></div><div><dt>업종 코드</dt><dd>{dart.profile?.industryCode || "확인 필요"}</dd></div></dl>{dart.financialYear ? <div className="finance-row"><span><small>{dart.financialYear} 매출</small><b>{won(dart.financials?.revenue)}</b></span><span><small>영업이익</small><b>{won(dart.financials?.operatingProfit)}</b></span><span><small>자산</small><b>{won(dart.financials?.assets)}</b></span></div> : <p className="intel-empty">{dart.reason || "공시 재무 수치 없음"}</p>}{(dart.matchedName || dart.financialSource) && <p className="intel-note">{[dart.matchedName && `공시 상호 ${dart.matchedName}`, dart.financialSource && `재무 출처 ${dart.financialSource}`].filter(Boolean).join(" · ")}</p>}</> : <p className="intel-empty">{dart?.reason || "일치 기업 없음"}</p>}
           </article>
           <article>
             <div className="intel-head"><div><small>공개 채용정보</small><h3>조직·IT 인력 단서</h3></div><span className={recruiting?.hasInternalItSignal ? "verified" : "unavailable"}>{recruiting?.hasInternalItSignal ? "IT 채용 확인" : "확인 필요"}</span></div>

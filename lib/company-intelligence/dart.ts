@@ -55,6 +55,101 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+// ─── 감사보고서에서 읽는 재무 ────────────────────────────────────────────────
+//
+// 사업보고서(정기공시)는 상장사가 내는 문서라, 비상장 기업은 fnlttSinglAcntAll 로 아무것도
+// 나오지 않는다. 그러나 외부감사 대상이면 감사보고서를 DART 에 낸다 — 그 안에 재무제표가
+// 그대로 있다(무료). 표준 XBRL 이 아니라 문서 XML 이라 글에서 항목을 뽑아야 하므로,
+// 뽑은 값은 대차평균(자산 = 부채 + 자본)으로 검산한 뒤에만 쓴다.
+const AUDIT_DEADLINE_MS = 15_000;
+const NUMBER = String.raw`\(?-?[\d,]{4,}\)?`;
+const UNIT_MARKER = /\(\s*단위\s*[:：]?\s*([가-힣]*)원\s*\)/g;
+
+/** "자 산 총 계" 처럼 글자 사이를 띄워 적는 표가 많다. 라벨을 띄어쓰기에 둔감하게 만든다. */
+function spacedLabel(label: string) {
+  return label.split("").map(character => character.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s*");
+}
+
+function parseAmount(raw: string) {
+  const negative = /^\(.*\)$/.test(raw);
+  const value = Number(raw.replace(/[(),]/g, ""));
+  if (!Number.isFinite(value)) return null;
+  return negative ? -value : value;
+}
+
+/** 표마다 단위가 다르다 — 본문은 원, 주석 표는 천원인 경우가 흔하다. 값 앞의 가장 가까운 표기를 쓴다. */
+function scaleAt(text: string, position: number) {
+  let scale = 1;
+  for (const match of text.matchAll(UNIT_MARKER)) {
+    if ((match.index ?? 0) > position) break;
+    scale = match[1] === "천" ? 1_000 : match[1] === "백만" ? 1_000_000 : 1;
+  }
+  return scale;
+}
+
+function amountFor(text: string, labels: string[]) {
+  for (const label of labels) {
+    const pattern = new RegExp(`${spacedLabel(label)}\\s*(?:\\(주[^)]*\\))?\\s*(${NUMBER})`, "g");
+    for (const match of text.matchAll(pattern)) {
+      const value = parseAmount(match[1]);
+      if (value !== null) return value * scaleAt(text, match.index ?? 0);
+    }
+  }
+  return null;
+}
+
+function parseAuditReport(xml: string) {
+  const text = xml.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/\s+/g, " ");
+  const revenue = amountFor(text, ["매출액", "영업수익", "수익(매출액)", "매출"]);
+  const operatingProfit = amountFor(text, ["영업이익(손실)", "영업이익", "영업손실"]);
+  const netIncome = amountFor(text, ["당기순이익(손실)", "당기순이익", "당기순손실"]);
+  const assets = amountFor(text, ["자산총계"]);
+  const liabilities = amountFor(text, ["부채총계"]);
+  const equity = amountFor(text, ["자본총계"]);
+  // 대차가 맞지 않으면 재무상태표를 잘못 읽은 것이다. 손익은 살리고 그 셋만 버린다.
+  const balanced = assets !== null && liabilities !== null && equity !== null
+    && Math.abs(assets - (liabilities + equity)) <= Math.max(1_000, Math.abs(assets) * 0.005);
+  if (!revenue && !operatingProfit && !netIncome && !balanced) return null;
+  return {
+    revenue, operatingProfit, netIncome,
+    assets: balanced ? assets : null,
+    liabilities: balanced ? liabilities : null,
+    balanced,
+  };
+}
+
+async function auditFinancials(corpCode: string) {
+  const key = process.env.OPENDART_API_KEY;
+  if (!key) return null;
+  const deadline = Date.now() + AUDIT_DEADLINE_MS;
+  const year = new Date().getFullYear();
+  const list = await dartJson("list.json", {
+    corp_code: corpCode,
+    bgn_de: `${year - 3}0101`,
+    end_de: `${year}1231`,
+    page_count: "30",
+  }) as { status?: string; list?: Array<Record<string, string>> } | null;
+  const reports = (list?.list || [])
+    .filter(item => /감사보고서/.test(String(item.report_nm)))
+    .sort((left, right) => String(right.rcept_dt).localeCompare(String(left.rcept_dt)));
+
+  for (const report of reports.slice(0, 2)) {
+    if (Date.now() >= deadline) break;
+    try {
+      const response = await fetch(`${BASE}/document.xml?crtfc_key=${key}&rcept_no=${report.rcept_no}`, { signal: AbortSignal.timeout(12_000) });
+      if (!response.ok) continue;
+      const zip = new AdmZip(Buffer.from(await response.arrayBuffer()));
+      const entry = zip.getEntries().find(item => item.entryName.toLowerCase().endsWith(".xml"));
+      if (!entry) continue;
+      const parsed = parseAuditReport(entry.getData().toString("utf8"));
+      if (!parsed) continue;
+      const reportYear = Number(String(report.report_nm).match(/\((\d{4})\.\d{2}\)/)?.[1]) || null;
+      return { ...parsed, year: reportYear, reportName: String(report.report_nm), receiptNo: String(report.rcept_no) };
+    } catch { /* 한 건이 실패해도 다음 감사보고서를 본다. */ }
+  }
+  return null;
+}
+
 /** Bounds the year x consolidation search, which is otherwise eight sequential retrying calls. */
 const FINANCIALS_DEADLINE_MS = 25_000;
 
@@ -117,15 +212,31 @@ export async function researchDart(companyName: string) {
     const item = financials.find(row => names.includes(String(row.account_nm)) || names.includes(String(row.account_id)));
     return item ? numberValue(item.thstrm_amount) : null;
   };
-  // 상호는 찾았는데 사업보고서가 없는 경우가 흔하다(비상장·외부감사 대상). 재무가 비어 있는
-  // 이유를 적어 두지 않으면 화면에서는 '자료 없음'과 구분되지 않는다.
-  const reason = financials.length ? "" : (match.stockCode?.trim()
+  // 사업보고서가 없으면 감사보고서를 본다. 비상장이라도 외부감사 대상이면 여기에 재무제표가
+  // 그대로 들어 있다 — 지금까지는 이 절반을 그냥 '자료 없음'으로 비워 두고 있었다.
+  const audit = financials.length ? null : await auditFinancials(match.corpCode);
+
+  const reason = financials.length || audit ? "" : (match.stockCode?.trim()
     ? "최근 사업보고서에서 재무 수치를 찾지 못함"
-    : "비상장 기업이라 사업보고서 재무 수치 없음 (기본 정보만 제공)");
+    : "공시 의무가 없어 재무 수치 없음 (사업보고서·감사보고서 모두 없음)");
+
+  if (audit) {
+    return {
+      available: true, corpCode: match.corpCode, stockCode: match.stockCode || null,
+      matchedName: match.corpName, reason: "",
+      profile: { companyName: profile?.corp_name, representative: profile?.ceo_nm, legalName: profile?.corp_name, address: profile?.adres, homepage: profile?.hm_url, phone: profile?.phn_no, industryCode: profile?.induty_code, establishedDate: profile?.est_dt, fiscalMonth: profile?.acc_mt, corporationClass: profile?.corp_cls },
+      financialYear: audit.year,
+      financials: { revenue: audit.revenue, operatingProfit: audit.operatingProfit, netIncome: audit.netIncome, assets: audit.assets, liabilities: audit.liabilities },
+      financialSource: audit.reportName,
+      financialReceiptNo: audit.receiptNo,
+      source: "OpenDART",
+    };
+  }
 
   return {
     available: true, corpCode: match.corpCode, stockCode: match.stockCode || null,
     matchedName: match.corpName, reason,
+    financialSource: financials.length ? "사업보고서" : "",
     profile: { companyName: profile?.corp_name, representative: profile?.ceo_nm, legalName: profile?.corp_name, address: profile?.adres, homepage: profile?.hm_url, phone: profile?.phn_no, industryCode: profile?.induty_code, establishedDate: profile?.est_dt, fiscalMonth: profile?.acc_mt, corporationClass: profile?.corp_cls },
     financialYear,
     financials: { revenue: pick(["매출액", "수익(매출액)", "영업수익", "ifrs-full_Revenue"]), operatingProfit: pick(["영업이익", "영업이익(손실)", "ifrs-full_ProfitLossFromOperatingActivities"]), netIncome: pick(["당기순이익", "당기순이익(손실)", "ifrs-full_ProfitLoss"]), assets: pick(["자산총계", "ifrs-full_Assets"]), liabilities: pick(["부채총계", "ifrs-full_Liabilities"]) },
