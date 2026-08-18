@@ -238,7 +238,7 @@ function SideNav({ view, setView }: { view: View; setView: (v: View) => void }) 
   </aside>;
 }
 
-function Header({ view, onNew, selectedCompany, selectedInstructorName, contactSignal }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string; contactSignal?: number }) {
+function Header({ view, onNew, selectedCompany, selectedInstructorName, contactSignal, onContactSaved }: { view: View; onNew: () => void; selectedCompany: CompanyItem; selectedInstructorName: string; contactSignal?: number; onContactSaved?: (companyId: string, contact: CompanyContact) => void }) {
   const titles: Record<View, [string, string]> = {
     program: ["K-하이테크 플랫폼 사업", "월·주 단위 교육 일정과 진행 현황"],
     companies: ["기업", "기업 조사와 교육 진행 상황"],
@@ -250,7 +250,7 @@ function Header({ view, onNew, selectedCompany, selectedInstructorName, contactS
   };
   // 새 기업 조사는 목록에서 하는 일이다. 특정 기업 안에 들어와 있을 때는 맥락이 어긋난다.
   const showNew = view === "companies";
-  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{view === "company" && selectedCompany.id && <CompanyContactPanel key={`${selectedCompany.id}-${contactSignal || 0}`} companyId={selectedCompany.id} initial={selectedCompany.contact} openSignal={contactSignal} />}{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
+  return <header className="topbar"><div><h1>{titles[view][0]}{view === "company" && selectedCompany.stage && <span className={`stage ${STAGE_TONE[resolveStage(selectedCompany.storedStage, selectedCompany.sessionCount || 0, selectedCompany.assignedCount || 0)]}`}>{selectedCompany.stage}</span>}</h1>{titles[view][1] && <p>{titles[view][1]}</p>}</div><div className="header-actions">{view === "company" && selectedCompany.id && <CompanyContactPanel key={`${selectedCompany.id}-${contactSignal || 0}`} companyId={selectedCompany.id} initial={selectedCompany.contact} openSignal={contactSignal} onSaved={(contact) => onContactSaved?.(selectedCompany.id!, contact)} />}{showNew && <button className="primary" onClick={onNew}><span><Icon name="plus" size={16}/></span>새 기업 조사</button>}</div></header>;
 }
 
 /**
@@ -912,6 +912,14 @@ export default function Home() {
     setContactSignal(intent === "contact" ? Date.now() : 0);
   };
   const selectInstructor = (instructor: InstructorItem) => { setSelectedInstructor(instructor); setView("instructor"); };
+  /**
+   * 담당자를 저장하면 목록 카드도 그 자리에서 바뀐다. 예전에는 상세 화면만 알고 목록은
+   * 몰라서, 뒤로 나가면 여전히 '담당자 미등록'이었고 새로고침해야 반영됐다.
+   */
+  const applyContact = (companyId: string, contact: CompanyContact) => {
+    setCompanyItems(current => current.map(company => company.id === companyId ? { ...company, contact } : company));
+    setSelectedCompany(current => current && current.id === companyId ? { ...current, contact } : current);
+  };
   const addCompany = (company: CompanyItem) => { setCompanyItems(current => [company, ...current]); setView("companies"); };
   const removeCompany = (id: string) => { setCompanyItems(current => current.filter(company => company.id !== id)); if (selectedCompany?.id === id) { setSelectedCompany(null); setView("companies"); } };
   useEffect(() => {
@@ -936,5 +944,5 @@ export default function Home() {
     : view === "instructors"
       ? <InstructorsPanel onSelect={selectInstructor}/>
       : loadingCompanies ? <section className="workspace-panel"><div className="company-empty"><i className="spinner"/><h2>저장된 기업 불러오는 중</h2></div></section> : view === "company" && selectedCompany ? <CompanyDetail key={selectedCompany.id || selectedCompany.name} company={selectedCompany} companies={companyItems} onSelectCompany={selectCompany}/> : <Companies companyItems={companyItems} onSelectCompany={selectCompany} onCompanyDeleted={removeCompany}/>;
-  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""} contactSignal={contactSignal}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴"><button className={view === "program" ? "active" : ""} onClick={() => setView("program")}><span><Icon name="calendar"/></span>사업</button>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
+  return <div className="app-shell"><a className="skip" href="#main">본문 바로가기</a><SideNav view={view} setView={setView}/><main id="main" tabIndex={-1}><Header view={view} onNew={() => setModal(true)} selectedCompany={visibleCompany} selectedInstructorName={selectedInstructor?.name || ""} contactSignal={contactSignal} onContactSaved={applyContact}/><div className="content">{content}</div></main><nav className="mobile-nav" aria-label="모바일 메뉴"><button className={view === "program" ? "active" : ""} onClick={() => setView("program")}><span><Icon name="calendar"/></span>사업</button>{nav.map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span><Icon name={item.icon}/></span>{item.label}</button>)}</nav>{modal && <Modal onClose={() => setModal(false)} onCompanyCreated={addCompany}/>}</div>;
 }
