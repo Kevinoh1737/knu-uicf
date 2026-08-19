@@ -22,7 +22,7 @@ function baseUrl(request: Request) {
 }
 
 /**
- * 수강생에게 설문 링크를 보낸다.
+ * 수강생에게 만족도 조사 링크를 보낸다.
  *
  * 이미 보낸 사람에게는 다시 보내지 않는다(재발송은 resend=true 로 명시). 사람마다 토큰이 달라
  * 누가 답했는지는 알 수 있지만, 응답 화면에는 이름을 쓰지 않는다 — 익명이라고 안내하고
@@ -33,7 +33,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
-    if (!UUID.test(id)) return Response.json({ error: "설문지를 확인하지 못했습니다." }, { status: 400 });
+    if (!UUID.test(id)) return Response.json({ error: "만족도 조사를 확인하지 못했습니다." }, { status: 400 });
     if (!emailConfigured()) {
       return Response.json(
         { error: "메일 발송 설정이 아직 없습니다. Resend API 키와 인증된 발신 도메인을 등록해야 보낼 수 있습니다." },
@@ -49,10 +49,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .select("id,title,questions,status,course_session_id,course_sessions(id,title,held_on,start_time,duration_hours,company_research(name))")
       .eq("id", id)
       .single();
-    if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
+    if (error || !survey) throw error || new Error("만족도 조사를 찾지 못했습니다.");
 
     const questions = sanitizeQuestions(survey.questions);
-    if (!questions.length) return Response.json({ error: "문항이 없습니다. 설문지를 먼저 완성해 주세요." }, { status: 400 });
+    if (!questions.length) return Response.json({ error: "문항이 없습니다. 질문지를 먼저 완성해 주세요." }, { status: 400 });
 
     const session = survey.course_sessions as {
       id?: string; title?: string; held_on?: string | null; start_time?: string | null; duration_hours?: number | null;
@@ -144,6 +144,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
-    return Response.json({ error: detail || "설문 링크를 보내지 못했습니다." }, { status: 422 });
+    return Response.json({ error: detail || "만족도 조사를 보내지 못했습니다." }, { status: 422 });
   }
 }

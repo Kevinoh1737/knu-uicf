@@ -77,7 +77,7 @@ function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
         ? <span className={`stage ${survey.status === "open" ? "progress" : survey.status === "closed" ? "done" : "neutral"}`}>
             {SURVEY_STATUS_LABEL[(survey.status as SurveyStatus)] || survey.status}
           </span>
-        : <span className="stage neutral">설문지 없음</span>}
+        : <span className="stage neutral">만족도 조사 없음</span>}
     </div>
 
     {survey ? <>
@@ -90,10 +90,10 @@ function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
         <button type="button" className="upload-chip" disabled={busy || !learners || !survey.questionCount}
           title={learners ? undefined : "이 교육과정에 배정된 수강생이 없습니다"}
           onClick={onSend}>
-          {survey.sent ? "설문 링크 다시 보내기" : "수강생에게 설문 보내기"}
+          {survey.sent ? "만족도 조사 다시 보내기" : "만족도 조사 보내기"}
         </button>
         <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer"
-          aria-label="설문지 PDF 내려받기" title="설문지 PDF 내려받기"><Icon name="download" size={15} />설문지 PDF</a>
+          aria-label="질문지 PDF 내려받기" title="질문지 PDF 내려받기"><Icon name="download" size={15} />질문지 PDF</a>
       </div>
       <p className="survey-hint">응답 결과와 결과 PDF 는 만족도 메뉴에서</p>
     </> : <>
@@ -111,7 +111,7 @@ function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
           </select>
         </label>}
         <button type="button" className="upload-chip lead" disabled={busy} onClick={() => onCreate(picked)}>
-          {templates.length ? "이 질문지로 설문지 만들기" : "설문지 만들기"}
+          {templates.length ? "이 질문지로 만족도 조사 만들기" : "만족도 조사 만들기"}
         </button>
       </div>
     </>}
@@ -619,8 +619,8 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     const losses = [
       (session.learners?.total || 0) > 0 ? `수강생 배정 ${session.learners?.total}명` : "",
       session.survey ? (session.survey.responded > 0
-        ? `만족도 설문지와 응답 ${session.survey.responded}건`
-        : "만족도 설문지") : "",
+        ? `만족도 조사와 응답 ${session.survey.responded}건`
+        : "만족도 조사") : "",
       session.contract ? `계약서 ${session.contract.contract_no}` : "",
     ].filter(Boolean);
     const agreed = await ask({
@@ -653,11 +653,11 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
         body: JSON.stringify({ courseSessionId: sessionId, templateId }),
       });
       const result = await response.json() as { error?: string; survey?: { id: string } };
-      if (!response.ok || !result.survey) throw new Error(result.error || "설문지를 만들지 못했습니다.");
+      if (!response.ok || !result.survey) throw new Error(result.error || "만족도 조사를 만들지 못했습니다.");
       await reload();
-      setFeedback({ message: "설문지를 만들었습니다.", error: false });
+      setFeedback({ message: "만족도 조사를 만들었습니다.", error: false });
     } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "설문지를 만들지 못했습니다.", error: true });
+      setFeedback({ message: caught instanceof Error ? caught.message : "만족도 조사를 만들지 못했습니다.", error: true });
     } finally { setBusyId(""); }
   };
 
@@ -666,7 +666,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
     const already = session.survey.sent;
     // 메일은 되돌릴 수 없다. 몇 명에게 나가는지 먼저 말하고 확인을 받는다.
     const agreed = await ask({
-      title: already ? "아직 못 받은 사람에게 보낼까요?" : `수강생 ${session.learners?.total || 0}명에게 설문 링크를 보낼까요?`,
+      title: already ? "아직 못 받은 사람에게 보낼까요?" : `수강생 ${session.learners?.total || 0}명에게 만족도 조사를 보낼까요?`,
       message: already ? `이미 ${already}명에게 보냈습니다.` : undefined,
       confirmLabel: "보내기",
     });
@@ -681,7 +681,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
         sent?: number; skipped?: number; withoutEmail?: number; stoppedEarly?: number;
         failures?: Array<{ name: string; reason: string }>; error?: string;
       };
-      if (!response.ok) throw new Error(result.error || "설문 링크를 보내지 못했습니다.");
+      if (!response.ok) throw new Error(result.error || "만족도 조사를 보내지 못했습니다.");
       const notes = [
         `${result.sent || 0}명에게 보냈습니다`,
         result.skipped ? `이미 받은 ${result.skipped}명 제외` : "",
@@ -692,7 +692,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
       await reload();
       setFeedback({ message: notes.join(" · "), error: Boolean(result.failures?.length) });
     } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "설문 링크를 보내지 못했습니다.", error: true });
+      setFeedback({ message: caught instanceof Error ? caught.message : "만족도 조사를 보내지 못했습니다.", error: true });
     } finally { setBusyId(""); }
   };
 

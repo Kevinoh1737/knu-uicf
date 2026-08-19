@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
-    if (!UUID.test(id)) return Response.json({ error: "설문지를 확인하지 못했습니다." }, { status: 400 });
+    if (!UUID.test(id)) return Response.json({ error: "만족도 조사를 확인하지 못했습니다." }, { status: 400 });
 
     const supabase = createSupabaseAdmin();
     const { data: survey, error } = await supabase
@@ -21,7 +21,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .select(`${COLUMNS},survey_templates(id,name),course_sessions(id,title,held_on,start_time,duration_hours,location,headcount,company_research(id,name),instructors(name))`)
       .eq("id", id)
       .single();
-    if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
+    if (error || !survey) throw error || new Error("만족도 조사를 찾지 못했습니다.");
 
     const [{ data: invites }, { data: responses }] = await Promise.all([
       supabase.from("survey_invites")
@@ -74,7 +74,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
-    return Response.json({ error: detail || "설문지를 불러오지 못했습니다." }, { status: 404 });
+    return Response.json({ error: detail || "만족도 조사를 불러오지 못했습니다." }, { status: 404 });
   }
 }
 
@@ -83,7 +83,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
-    if (!UUID.test(id)) return Response.json({ error: "설문지를 확인하지 못했습니다." }, { status: 400 });
+    if (!UUID.test(id)) return Response.json({ error: "만족도 조사를 확인하지 못했습니다." }, { status: 400 });
 
     const body = await request.json() as { title?: string; intro?: string; questions?: unknown; status?: string };
     const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -122,7 +122,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
-    return Response.json({ error: detail || "설문지를 저장하지 못했습니다." }, { status: 422 });
+    return Response.json({ error: detail || "만족도 조사를 저장하지 못했습니다." }, { status: 422 });
   }
 }
 
@@ -131,7 +131,7 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
-    if (!UUID.test(id)) return Response.json({ error: "설문지를 확인하지 못했습니다." }, { status: 400 });
+    if (!UUID.test(id)) return Response.json({ error: "만족도 조사를 확인하지 못했습니다." }, { status: 400 });
 
     const supabase = createSupabaseAdmin();
     // 받은 응답은 되살릴 수 없다. 설문지째 지우는 일은 응답이 없을 때만 허용한다.
@@ -146,6 +146,6 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
-    return Response.json({ error: detail || "설문지를 삭제하지 못했습니다." }, { status: 422 });
+    return Response.json({ error: detail || "만족도 조사를 삭제하지 못했습니다." }, { status: 422 });
   }
 }

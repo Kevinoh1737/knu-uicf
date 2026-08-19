@@ -9,7 +9,7 @@ import {
   SurveySummary,
 } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
-import { Feedback, Icon, useConfirm } from "./ui";
+import { Feedback, Icon, useConfirm, useEscapeClose } from "./ui";
 import { displayCompanyName } from "@/lib/company-name";
 
 type SurveyBrief = {
@@ -133,7 +133,7 @@ export function SurveysPanel() {
                       ? `문항 ${item.survey.questionCount}개 · 발송 ${item.survey.sentCount}명 · 응답 ${item.survey.responseCount}명`
                       // 설문지를 만들고 보내는 일은 교육과정 화면에 있다. 여기서 또 만들 수 있으면
                       // 같은 일이 두 군데가 되고, 보낼 수강생은 그쪽에만 있다.
-                      : "설문지 없음 — 기업 화면의 교육과정에서 질문지를 골라 보냅니다"}
+                      : "만족도 조사 없음 — 기업 화면의 교육과정에서 질문지를 골라 보냅니다"}
                   </p>
                 </div>
                 <div className="survey-row-actions">
@@ -147,19 +147,21 @@ export function SurveysPanel() {
 }
 
 /**
- * 표준 질문지. 만족도 설문은 과정마다 새로 쓰지 않고 이 몇 장을 계속 돌려 쓴다 — 같은 문항
+ * 표준 질문지. 만족도 조사는 과정마다 새로 쓰지 않고 이 몇 장을 계속 돌려 쓴다 — 같은 문항
  * id 로 물어야 과정끼리 견줄 수 있기 때문이다.
  *
- * 한번 만든 질문지는 고치지 않는다. 이미 그 질문지로 답을 받은 교육이 있는데 문항을 바꾸면,
- * 같은 이름 아래 서로 다른 것을 물은 결과가 섞인다 — 비교표가 조용히 거짓이 된다.
- * 문구가 마음에 안 들면 새로 한 장 만들고 옛 장은 치우면 된다.
+ * 아직 아무 교육도 쓰지 않은 질문지는 고칠 수 있다 — 만든 직후의 오탈자까지 막을 이유는
+ * 없다. 다만 한 번이라도 교육에 쓰이면 잠근다: 이미 그 질문지로 답을 받았는데 문항을 바꾸면
+ * 같은 이름 아래 서로 다른 것을 물은 결과가 섞이고, 비교표가 조용히 거짓이 된다.
+ * (지난 응답 자체는 안전하다 — 조사를 만들 때 문항을 복사해 두므로 나중에 바뀌지 않는다.)
  */
 function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
   const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<SurveyTemplate | null>(null);
+  const [viewing, setViewing] = useState<SurveyTemplate | null>(null);
   const [draft, setDraft] = useState<{ name: string; intro: string; questions: SurveyQuestion[] }>({ name: "", intro: "", questions: [] });
   const [busy, setBusy] = useState("");
-  const [expanded, setExpanded] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { ask, confirmDialog } = useConfirm();
@@ -177,19 +179,28 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
   useEffect(() => { void load(); }, []);
 
   const startNew = () => {
+    setEditing(null);
     setDraft({ name: "", intro: "", questions: [] });
     setOpen(true);
   };
 
+  /** 아직 아무도 쓰지 않은 질문지만 고친다. 서버도 같은 판단을 한 번 더 한다. */
+  const startEdit = (template: SurveyTemplate) => {
+    setViewing(null);
+    setEditing(template);
+    setDraft({ name: template.name, intro: template.intro, questions: template.questions });
+    setOpen(true);
+  };
+
   /**
-   * 쓰던 설문지를 그대로 옮겨 온다. 이미 몇 년째 쓰던 종이 설문지가 있는 팀에게는 이것이
+   * 쓰던 질문지를 그대로 옮겨 온다. 이미 몇 년째 쓰던 종이 설문지가 있는 팀에게는 이것이
    * 첫 질문지를 만드는 가장 빠른 길이고, 문항 id 가 한 벌로 잡히면 그 뒤 교육은 전부 견줄 수 있다.
    */
   const fromPdf = async (file?: File) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (draft.questions.length) {
       const agreed = await ask({
-        title: "지금 적어 둔 문항을 올린 설문지로 바꿀까요?",
+        title: "지금 적어 둔 문항을 올린 질문지로 바꿀까요?",
         message: `문항 ${draft.questions.length}개가 PDF 에서 읽은 것으로 바뀝니다.`,
         confirmLabel: "바꾸기",
       });
@@ -210,7 +221,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
         questions: result.questions || [],
       }));
       setFeedback({
-        message: `${result.fromExisting ? "올려 주신 설문지를 읽어 " : ""}문항 ${result.questions.length}개를 만들었습니다. 확인하고 저장해 주세요.`,
+        message: `${result.fromExisting ? "올려 주신 질문지를 읽어 " : ""}문항 ${result.questions.length}개를 만들었습니다. 확인하고 저장해 주세요.`,
         error: false,
       });
     } catch (caught) {
@@ -221,8 +232,8 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
   const save = async () => {
     setBusy("save"); setFeedback(null);
     try {
-      const response = await fetch("/api/survey-templates", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+      const response = await fetch(editing ? `/api/survey-templates/${editing.id}` : "/api/survey-templates", {
+        method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: draft.name, intro: draft.intro, ...(draft.questions.length ? { questions: draft.questions } : {}) }),
       });
       const result = await response.json() as { error?: string };
@@ -230,7 +241,10 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
       await load();
       onChanged();
       setOpen(false);
-      setFeedback({ message: "질문지를 만들었습니다. 교육과정에서 골라 쓰면 됩니다.", error: false });
+      setFeedback({
+        message: editing ? "질문지를 고쳤습니다." : "질문지를 만들었습니다. 교육과정에서 골라 쓰면 됩니다.",
+        error: false,
+      });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "질문지를 저장하지 못했습니다.", error: true });
     } finally { setBusy(""); }
@@ -241,7 +255,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
       title: `‘${template.name}’ 질문지를 목록에서 치울까요?`,
       message: [
         template.usedCount
-          ? `이미 ${template.usedCount}개 교육이 이 질문지로 만들어졌습니다. 그 설문지와 응답은 그대로 남습니다.`
+          ? `이미 ${template.usedCount}개 교육이 이 질문지로 만들어졌습니다. 그 조사와 응답은 그대로 남습니다.`
           : "새 교육에서 고를 수 없게 됩니다.",
         // 기본이 사라지면 남은 것 중 하나가 그 자리를 잇는다(서버가 정한다). 미리 알려 준다.
         template.is_default ? "가장 최근에 만든 질문지가 기본이 됩니다." : "",
@@ -282,7 +296,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
         <label className="upload-chip">
           <input ref={fileInputRef} className="pdf-file-input" type="file" accept="application/pdf" disabled={Boolean(busy) || !ready}
             onChange={(event) => { const file = event.target.files?.[0]; if (file) void fromPdf(file); }} />
-          <Icon name="upload" size={15} /> {busy === "draft" ? "읽는 중" : "쓰던 설문지 PDF"}
+          <Icon name="upload" size={15} /> {busy === "draft" ? "읽는 중" : "쓰던 질문지 PDF"}
         </label>
       </div>
     </div>
@@ -293,15 +307,13 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
     {!ready
       ? <p className="body-text">질문지 보관함이 아직 준비되지 않았습니다(데이터베이스 준비 필요).</p>
       : templates.length === 0
-      ? <p className="body-text">아직 질문지가 없습니다. 새로 만들거나, 쓰던 설문지 PDF 를 올리면 그대로 옮겨 옵니다.</p>
+      ? <p className="body-text">아직 질문지가 없습니다. 새로 만들거나, 쓰던 질문지 PDF 를 올리면 그대로 옮겨 옵니다.</p>
       : <div className="template-list">
-          {/* 카드를 누르면 문항이 펴진다. '문항 보기' 버튼을 따로 두면 누를 곳이 두 군데가
-              되고, 정작 카드는 눌러도 아무 일이 없어 죽은 면이 된다. 휴지통은 버튼 안에
-              버튼을 둘 수 없어 바깥으로 뺐다 — 기업 카드와 같은 짜임이다. */}
-          {templates.map((template) => <article key={template.id}
-            className={`template-card${expanded === template.id ? " open" : ""}`}>
-            <button type="button" className="template-card-open" aria-expanded={expanded === template.id}
-              onClick={() => setExpanded(expanded === template.id ? "" : template.id)}>
+          {/* 카드를 누르면 질문지가 창으로 열린다. 누를 곳을 따로 두면 정작 카드는 눌러도
+              아무 일이 없는 죽은 면이 된다. 휴지통은 버튼 안에 버튼을 둘 수 없어 바깥으로
+              뺐다 — 기업 카드와 같은 짜임이다. */}
+          {templates.map((template) => <article key={template.id} className="template-card">
+            <button type="button" className="template-card-open" onClick={() => setViewing(template)}>
               <span className="template-card-name">
                 <b>{template.name}</b>
                 {template.is_default && <span className="question-tag standard">기본</span>}
@@ -314,13 +326,13 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
               aria-label={`${template.name} 치우기`} title="치우기">
               <Icon name="trash" size={18} />
             </button>
-            {expanded === template.id && <ol className="template-questions">
-              {template.questions.map((question) => <li key={question.id}>
-                {question.text} <small>{TYPE_LABEL[question.type]}</small>
-              </li>)}
-            </ol>}
           </article>)}
         </div>}
+
+    {/* 카드를 누르면 질문지가 창으로 열린다. 여덟에서 열두 문항을 카드 안에서 접었다 폈다
+        하면 목록이 출렁이고, 정작 문항은 좁은 칸에 눌려 읽기 어렵다. */}
+    {viewing && <TemplateViewer template={viewing} onClose={() => setViewing(null)}
+      onEdit={viewing.usedCount === 0 ? () => startEdit(viewing) : undefined} />}
 
     {open && <div className="template-editor">
       <div className="survey-fields">
@@ -334,7 +346,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
         </label>
       </div>
       {draft.questions.length === 0
-        ? <p className="body-text">저장하면 표준 문항 8개로 시작합니다. 쓰던 설문지가 있으면 위의 <b>쓰던 설문지 PDF</b> 로 그대로 옮겨 올 수 있습니다.</p>
+        ? <p className="body-text">저장하면 표준 문항 8개로 시작합니다. 쓰던 질문지가 있으면 위의 <b>쓰던 질문지 PDF</b> 로 그대로 옮겨 올 수 있습니다.</p>
         : <QuestionRows questions={draft.questions} disabled={Boolean(busy)} onUpdate={update} onMove={move}
             onRemove={(index) => setDraft((current) => ({ ...current, questions: current.questions.filter((_, position) => position !== index) }))} />}
       <div className="savebar">
@@ -351,6 +363,50 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
         </button>
       </div>
     </div>}
+  </div>;
+}
+
+/**
+ * 질문지를 펼쳐 읽는 창. 수강생이 받게 될 문항을 그대로 보여 준다 — 고르기 전에 무엇을
+ * 묻는지 확인하는 자리이고, 아직 아무도 쓰지 않았다면 여기서 고치러 들어간다.
+ */
+function TemplateViewer({ template, onClose, onEdit }: {
+  template: SurveyTemplate; onClose: () => void; onEdit?: () => void;
+}) {
+  const closeRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => { closeRef.current?.focus(); }, []);
+  useEscapeClose(true, onClose);
+
+  // 바깥을 눌러 닫는 길은 두지 않는다 — 이 앱의 다른 창들과 같게, Esc 와 닫기 버튼으로 닫는다.
+  return <div className="modal-backdrop">
+    <div className="modal template-modal" role="dialog" aria-modal="true" aria-label={`${template.name} 질문지`}>
+      <div className="modal-head">
+        <div>
+          <h2>{template.name}</h2>
+          <p>문항 {template.questions.length}개 · 사용 {template.usedCount}개 교육{template.is_default ? " · 기본 질문지" : ""}</p>
+        </div>
+        <button type="button" ref={closeRef} onClick={onClose} aria-label="닫기">×</button>
+      </div>
+
+      {template.intro && <p className="template-modal-intro">{template.intro}</p>}
+
+      <ol className="template-questions">
+        {template.questions.map((question) => <li key={question.id}>
+          {question.text} <small>{TYPE_LABEL[question.type]}{question.required ? "" : " · 선택"}</small>
+          {question.type === "choice" && question.options.length > 0
+            && <small className="template-options">{question.options.join(" · ")}</small>}
+        </li>)}
+      </ol>
+
+      <div className="modal-actions">
+        {/* 고칠 수 없는 이유는 화면에서 말해 준다 — 버튼만 없으면 고장으로 읽힌다. */}
+        {!onEdit && <span className="template-locked">
+          이미 {template.usedCount}개 교육이 이 질문지로 물었습니다. 문항을 바꾸면 그 교육들과 견줄 수 없어 잠겨 있습니다.
+        </span>}
+        <button type="button" onClick={onClose}>닫기</button>
+        {onEdit && <button type="button" className="primary-small" onClick={onEdit}>문항 고치기</button>}
+      </div>
+    </div>
   </div>;
 }
 
@@ -430,7 +486,7 @@ function SurveyCompare() {
     {!data || data.courses.length === 0
       ? <div className="company-empty"><span><Icon name="survey" size={26} /></span>
           <h2>이 질문지를 쓴 교육이 아직 없습니다</h2>
-          <p>교육과정에서 이 질문지로 설문지를 만들면<br />여기에 나란히 놓입니다.</p></div>
+          <p>교육과정에서 이 질문지로 만족도 조사를 만들면<br />여기에 나란히 놓입니다.</p></div>
       : <>
           <div className="survey-metrics">
             <div><dt>교육</dt><dd>{data.courses.length}개</dd></div>
@@ -573,7 +629,7 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
   // 잘못 만든 설문지를 지울 길이 없으면 목록에 영영 남는다. 응답이 들어온 뒤에는 서버가 막는다.
   const remove = async () => {
     const agreed = await ask({
-      title: "이 설문지를 지울까요?",
+      title: "이 만족도 조사를 지울까요?",
       message: "문항과 발송 기록이 함께 사라집니다. 교육과정에서 다시 만들 수 있습니다.",
       confirmLabel: "지우기", danger: true,
     });
@@ -582,10 +638,10 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     try {
       const response = await fetch(`/api/surveys/${surveyId}`, { method: "DELETE" });
       const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || "설문지를 지우지 못했습니다.");
+      if (!response.ok) throw new Error(result.error || "만족도 조사를 지우지 못했습니다.");
       onBack();
     } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "설문지를 지우지 못했습니다.", error: true });
+      setFeedback({ message: caught instanceof Error ? caught.message : "만족도 조사를 지우지 못했습니다.", error: true });
       setBusy("");
     }
   };
@@ -614,7 +670,7 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
         <p className="survey-source">
           {detail.template
             ? <>질문지 <b>{detail.template.name}</b> · 같은 질문지를 쓴 교육과 견줄 수 있습니다</>
-            : <>질문지 없이 만든 설문지 — 다른 교육과 견주려면 표준 질문지로 다시 만들어 주세요</>}
+            : <>질문지 없이 만든 조사 — 다른 교육과 견주려면 질문지를 골라 다시 만들어 주세요</>}
         </p>
       </div>
       <div className="title-actions">
@@ -622,7 +678,7 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
           <Icon name="download" size={15} /> 결과 PDF
         </a>
         <a className="upload-chip" href={`/api/surveys/${surveyId}/pdf`} target="_blank" rel="noreferrer">
-          <Icon name="download" size={15} /> 빈 설문지 PDF
+          <Icon name="download" size={15} /> 질문지 PDF
         </a>
       </div>
     </div>
@@ -642,7 +698,7 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
         : <button type="button" onClick={() => void patch({ status: "closed" }, "status")} disabled={Boolean(busy)}>응답 마감</button>}
       {summary.responded === 0 && <button type="button" className="upload-chip danger survey-remove"
         onClick={() => void remove()} disabled={Boolean(busy)}>
-        {busy === "remove" ? "지우는 중" : "설문지 지우기"}
+        {busy === "remove" ? "지우는 중" : "만족도 조사 지우기"}
       </button>}
     </div>
 

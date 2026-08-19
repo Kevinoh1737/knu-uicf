@@ -10,24 +10,24 @@ export const runtime = "nodejs";
  */
 export async function GET(_request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
-  if (!SURVEY_TOKEN.test(token)) return Response.json({ error: "설문 주소가 올바르지 않습니다." }, { status: 404 });
+  if (!SURVEY_TOKEN.test(token)) return Response.json({ error: "만족도 조사 주소가 올바르지 않습니다." }, { status: 404 });
   const loaded = await loadInviteByToken(token);
-  if (!loaded) return Response.json({ error: "설문 주소가 올바르지 않습니다." }, { status: 404 });
+  if (!loaded) return Response.json({ error: "만족도 조사 주소가 올바르지 않습니다." }, { status: 404 });
   return Response.json({ survey: publicSurveyShape(loaded.invite) });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
-  if (!SURVEY_TOKEN.test(token)) return Response.json({ error: "설문 주소가 올바르지 않습니다." }, { status: 404 });
+  if (!SURVEY_TOKEN.test(token)) return Response.json({ error: "만족도 조사 주소가 올바르지 않습니다." }, { status: 404 });
 
   try {
     const loaded = await loadInviteByToken(token);
-    if (!loaded) return Response.json({ error: "설문 주소가 올바르지 않습니다." }, { status: 404 });
+    if (!loaded) return Response.json({ error: "만족도 조사 주소가 올바르지 않습니다." }, { status: 404 });
     const { supabase, invite } = loaded;
     const survey = publicSurveyShape(invite);
 
     if (invite.responded_at) return Response.json({ error: "이미 응답하셨습니다. 감사합니다." }, { status: 409 });
-    if (survey.status === "closed") return Response.json({ error: "마감된 설문입니다." }, { status: 409 });
+    if (survey.status === "closed") return Response.json({ error: "마감된 만족도 조사입니다." }, { status: 409 });
     if (survey.status !== "open") return Response.json({ error: "아직 응답을 받고 있지 않습니다." }, { status: 409 });
 
     const body = await request.json() as { answers?: unknown };

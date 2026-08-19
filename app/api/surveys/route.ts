@@ -148,6 +148,6 @@ export async function POST(request: Request) {
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
-    return Response.json({ error: detail || "설문지를 만들지 못했습니다." }, { status: 422 });
+    return Response.json({ error: detail || "만족도 조사를 만들지 못했습니다." }, { status: 422 });
   }
 }

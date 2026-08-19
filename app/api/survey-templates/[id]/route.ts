@@ -31,9 +31,26 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
     if (body.intro !== undefined) update.intro = String(body.intro).trim().slice(0, 500);
     if (body.questions !== undefined) {
+      /**
+       * 한 번이라도 교육에 쓰인 질문지의 문항은 잠근다.
+       *
+       * 지난 응답이 깨지지는 않는다 — 조사를 만들 때 문항을 복사해 두므로 그때 물은 문장은
+       * 그대로 남는다. 깨지는 것은 비교표다: 축은 이 질문지의 현재 문항이고 교육별 점수는
+       * 문항 id 로 맞추므로, 문항을 더하면 지난 교육 줄이 비고 빼면 실제로 답한 문항이
+       * 사라지며, 문구만 고치면 다른 문장을 보고 답한 점수에 새 문장이 붙는다.
+       * 화면도 같은 판단으로 버튼을 감추지만, 막는 것은 여기여야 한다.
+       */
+      const { count: usedCount } = await supabase
+        .from("surveys").select("id", { count: "exact", head: true }).eq("template_id", id);
+      if (usedCount) {
+        return Response.json(
+          { error: `이미 ${usedCount}개 교육이 이 질문지로 물었습니다. 문항은 고칠 수 없습니다 — 새 질문지를 만들어 주세요.` },
+          { status: 409 },
+        );
+      }
       const questions = sanitizeQuestions(body.questions);
       if (!questions.length) return Response.json({ error: "문항이 하나도 없습니다." }, { status: 400 });
-      // 질문지 안의 문항은 전부 표준이다. 과정 전용 문항은 그 과정 설문지에만 산다.
+      // 질문지 안의 문항은 전부 표준이다. 과정 전용 문항은 이제 없다.
       update.questions = questions.map((question) => ({ ...question, source: "standard" as const }));
     }
 

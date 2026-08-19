@@ -2,7 +2,7 @@ import { SurveyQuestion, sanitizeQuestions } from "@/lib/surveys";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
 /**
- * 토큰으로 설문을 여는 길. 응답 페이지(서버 렌더)와 제출 API 가 같은 판단을 쓰도록 한곳에 둔다 —
+ * 토큰으로 만족도 조사를 여는 길. 응답 페이지(서버 렌더)와 제출 API 가 같은 판단을 쓰도록 한곳에 둔다 —
  * 페이지는 열리는데 제출은 막히거나 그 반대가 되면 수강생은 이유를 알 수 없다.
  */
 export const SURVEY_TOKEN = /^[A-Za-z0-9_-]{16,64}$/;

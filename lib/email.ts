@@ -65,7 +65,7 @@ function escapeHtml(value: string) {
 }
 
 /**
- * 만족도 설문 안내 메일. 받는 사람은 수강생이지 담당자가 아니다 — 무엇에 대한 설문인지,
+ * 만족도 조사 안내 메일. 받는 사람은 수강생이지 담당자가 아니다 — 무엇에 대한 설문인지,
  * 얼마나 걸리는지, 누가 보냈는지가 첫 화면에서 보여야 링크를 누른다.
  */
 export function surveyInviteEmail({ learnerName, companyName, courseTitle, heldOn, link, questionCount }: {
@@ -85,7 +85,7 @@ export function surveyInviteEmail({ learnerName, companyName, courseTitle, heldO
     `강원대학교 산학협력단 교육사업팀입니다. ${companyName}에서 ${when}한 '${courseTitle}' 교육의 만족도 조사입니다.`,
     `문항은 ${questionCount}개이고 약 ${minutes}분이면 끝납니다. 답해 주신 내용은 다음 교육 설계에 그대로 반영됩니다.`,
     "",
-    `설문 참여: ${link}`,
+    `만족도 조사 참여: ${link}`,
     "",
     "이 링크는 본인 전용입니다. 다른 분과 공유하지 말아 주세요.",
     "",
@@ -102,7 +102,7 @@ export function surveyInviteEmail({ learnerName, companyName, courseTitle, heldO
         ${escapeHtml(companyName)}에서 ${escapeHtml(when)}한 <b>${escapeHtml(courseTitle)}</b> 교육의 만족도 조사입니다.
         문항은 ${questionCount}개이고 약 ${minutes}분이면 끝납니다. 답해 주신 내용은 다음 교육 설계에 그대로 반영됩니다.
       </p>
-      <a href="${link}" style="display:inline-block;background:#173452;color:#fff;text-decoration:none;padding:13px 26px;border-radius:10px;font-size:14px;font-weight:600">설문 참여하기</a>
+      <a href="${link}" style="display:inline-block;background:#173452;color:#fff;text-decoration:none;padding:13px 26px;border-radius:10px;font-size:14px;font-weight:600">만족도 조사 참여하기</a>
       <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#8b969f">
         버튼이 눌리지 않으면 아래 주소를 복사해 열어 주세요.<br>
         <span style="color:#5c7a91;word-break:break-all">${link}</span>

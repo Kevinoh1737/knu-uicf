@@ -10,7 +10,7 @@ export const runtime = "nodejs";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 /**
- * 종이로 돌리는 설문지. 화면에서 답하지 못하는 현장(공장 라인, 메일을 안 쓰는 수강생)이 있어
+ * 종이로 돌리는 질문지. 화면에서 답하지 못하는 현장(공장 라인, 메일을 안 쓰는 수강생)이 있어
  * 인쇄본이 필요하고, 고객사에 "이런 걸 묻습니다"를 먼저 보여 줄 때도 쓴다.
  * 응답을 정리한 결과 보고서는 옆의 report 라우트다 — 둘은 쓰임이 다르다.
  */
@@ -19,14 +19,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
-    if (!UUID.test(id)) return Response.json({ error: "설문지를 확인하지 못했습니다." }, { status: 400 });
+    if (!UUID.test(id)) return Response.json({ error: "만족도 조사를 확인하지 못했습니다." }, { status: 400 });
 
     const { data: survey, error } = await createSupabaseAdmin()
       .from("surveys")
       .select("id,title,intro,questions,course_sessions(title,held_on,start_time,duration_hours,company_research(name),instructors(name))")
       .eq("id", id)
       .single();
-    if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
+    if (error || !survey) throw error || new Error("만족도 조사를 찾지 못했습니다.");
 
     const session = survey.course_sessions as {
       title?: string; held_on?: string | null; start_time?: string | null; duration_hours?: number | null;
@@ -76,6 +76,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
-    return Response.json({ error: detail || "설문지를 내보내지 못했습니다." }, { status: 500 });
+    return Response.json({ error: detail || "질문지를 내보내지 못했습니다." }, { status: 500 });
   }
 }

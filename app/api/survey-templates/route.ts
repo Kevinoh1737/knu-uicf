@@ -13,7 +13,7 @@ function detail(error: unknown) {
 }
 
 /**
- * 표준 질문지. 만족도 설문은 과정마다 새로 쓰는 것이 아니라 몇 장을 계속 돌려 쓴다 —
+ * 표준 질문지. 만족도 조사는 과정마다 새로 쓰는 것이 아니라 몇 장을 계속 돌려 쓴다 —
  * 같은 문항 id 로 물어야 과정끼리 견줄 수 있기 때문이다. 여기서 관리하고, 과정에서는
  * 골라 쓰기만 한다.
  */
@@ -29,7 +29,7 @@ export async function GET() {
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: true });
     // 표가 아직 없는 DB(마이그레이션 전)는 고장이 아니라 '준비 안 됨'이다. 화면이 붉은
-    // 오류로 놀라게 하는 대신 빈 목록과 안내로 내려간다 — 설문지 만들기는 그동안에도 된다.
+    // 오류로 놀라게 하는 대신 빈 목록과 안내로 내려간다 — 만족도 조사 만들기는 그동안에도 된다.
     // PostgREST 는 없는 표를 42P01 이 아니라 PGRST205 로 돌려준다(실측).
     if (error && (error.code === "42P01" || error.code === "PGRST205")) {
       return Response.json({ templates: [], ready: false });

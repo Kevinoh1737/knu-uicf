@@ -18,7 +18,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   if (unauthorized) return unauthorized;
   try {
     const { id } = await context.params;
-    if (!UUID.test(id)) return Response.json({ error: "설문지를 확인하지 못했습니다." }, { status: 400 });
+    if (!UUID.test(id)) return Response.json({ error: "만족도 조사를 확인하지 못했습니다." }, { status: 400 });
 
     const supabase = createSupabaseAdmin();
     const { data: survey, error } = await supabase
@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       .select("id,title,questions,course_sessions(title,held_on,start_time,duration_hours,company_research(name),instructors(name))")
       .eq("id", id)
       .single();
-    if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
+    if (error || !survey) throw error || new Error("만족도 조사를 찾지 못했습니다.");
 
     const [{ data: responses }, { data: invites }] = await Promise.all([
       supabase.from("survey_responses").select("answers").eq("survey_id", id),

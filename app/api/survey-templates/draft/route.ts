@@ -42,8 +42,8 @@ function buildPrompt(fromPdf: boolean) {
   return `당신은 강원대학교 산학협력단 교육사업팀의 교육 담당자입니다. 기업 대상 교육에 두고두고 쓸 표준 만족도 질문지를 만드세요.
 
 ${fromPdf
-  ? "첨부한 PDF 는 이 팀이 실제로 써 온 만족도 설문지입니다. 문항·순서·말투를 최대한 그대로 옮기는 것이 가장 중요합니다. 없는 문항을 새로 지어내지 말고, 글자가 뭉개져 읽히지 않는 부분만 자연스럽게 채우세요. 특정 교육·회사 이름이 들어간 문항은 어느 교육에나 쓸 수 있는 말로 바꾸세요."
-  : "이 팀이 쓰던 설문지가 없으므로 표준 문항으로 새로 만드세요."}
+  ? "첨부한 PDF 는 이 팀이 실제로 써 온 만족도 질문지입니다. 문항·순서·말투를 최대한 그대로 옮기는 것이 가장 중요합니다. 없는 문항을 새로 지어내지 말고, 글자가 뭉개져 읽히지 않는 부분만 자연스럽게 채우세요. 특정 교육·회사 이름이 들어간 문항은 어느 교육에나 쓸 수 있는 말로 바꾸세요."
+  : "이 팀이 쓰던 질문지가 없으므로 표준 문항으로 새로 만드세요."}
 
 작성 규칙:
 1. 문항은 8~12개. 앞쪽에 5점 척도(scale), 뒤쪽에 서술형(text) 두세 개를 둡니다.
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       const file = form.get("file");
       if (file instanceof File) {
         if (!/\.pdf$/i.test(file.name) || file.type !== "application/pdf") {
-          return Response.json({ error: "설문지는 PDF 파일만 올릴 수 있습니다." }, { status: 400 });
+          return Response.json({ error: "질문지는 PDF 파일만 올릴 수 있습니다." }, { status: 400 });
         }
         if (file.size > MAX_SURVEY_PDF_SIZE) {
           return Response.json({ error: "PDF 는 최대 10MB까지 올릴 수 있습니다." }, { status: 400 });
