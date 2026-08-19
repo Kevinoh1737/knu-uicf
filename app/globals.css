@@ -808,3 +808,40 @@ button.nav-label:focus-visible{outline:2px solid #6f8980;outline-offset:2px}
    흰 글씨/흰 배경으로 사라졌다(같은 함정 재발). 그 자리에서 이기도록 특이도를 맞춘다. */
 .content-title .title-actions .range-switch button{height:36px;background:#fff;color:#5a6672;border:0}
 .content-title .title-actions .range-switch button.active{background:var(--color-primary);color:#fff;font-weight:650}
+
+/* 만족도 — 목록/편집/비교.
+   `.savebar button{background:var(--color-primary)}` 이 컨테이너 규칙으로 upload-chip 까지
+   남색으로 칠해, '문항 추가'가 '설문지 저장'과 같은 무게로 보였다(같은 함정 네 번째).
+   그 자리에서 이기도록 특이도를 맞춘다 — 부차적인 것은 부차적으로 보여야 한다. */
+.savebar button.upload-chip{background:#fff;color:#3b6a5b;border:1px solid var(--line);font-weight:400}
+.savebar button.upload-chip:hover:not(:disabled){border-color:#7ea597;background:#f2f8f5}
+
+.survey-source{margin:6px 0 0;font-size:12px;color:#5a6672}
+.survey-source b{font-weight:650;color:var(--ink)}
+.survey-hint.scale-legend{margin:0 0 2px;padding:9px 12px;border:1px solid #e6ebf1;border-radius:9px;background:#f9fbfc;color:#5a6672}
+.survey-actions .survey-remove{margin-left:auto}
+
+.compare-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.compare-picker .upload-chip{height:38px;font-size:12px;gap:8px}
+.compare-picker .upload-chip small{font-size:11px;opacity:.75}
+.compare-block .survey-metrics{margin-top:0}
+
+.compare-table{overflow-x:auto;border:1px solid #e6ebf1;border-radius:12px;background:#fff;margin-top:14px}
+.compare-table table{width:100%;border-collapse:collapse;font-size:12.5px}
+.compare-table th,.compare-table td{padding:12px 14px;text-align:left;border-bottom:1px solid #eef1f5;vertical-align:top}
+.compare-table thead th{background:#f7f9fb;font-weight:650;font-size:12px;white-space:nowrap}
+.compare-table thead th b{display:block;font-size:12.5px}
+.compare-table thead th small{display:block;margin-top:3px;font-weight:400;color:#69736e;font-size:11px}
+/* 문항 이름은 표를 옆으로 밀어도 자리를 지켜야 한다 — 값만 남으면 무엇의 값인지 알 수 없다. */
+.compare-table tbody th{position:sticky;left:0;background:#fff;font-weight:500;min-width:230px;max-width:320px;box-shadow:1px 0 0 #eef1f5}
+.compare-table thead th:first-child{position:sticky;left:0;background:#f7f9fb;box-shadow:1px 0 0 #eef1f5;z-index:1}
+.compare-table td{font-variant-numeric:tabular-nums;font-weight:650;min-width:104px}
+.compare-table td i{display:block;height:3px;margin-top:6px;border-radius:3px;background:#cbd8e4}
+.compare-table td.muted{color:#98a2ac;font-weight:400}
+.compare-table .compare-overall{background:#fbfcfd;color:#4a5560}
+.compare-table .compare-better{color:#1f7a54}
+.compare-table .compare-better i{background:#7cc4a4}
+.compare-table .compare-worse{color:#b42318}
+.compare-table .compare-worse i{background:#e8a49d}
+.compare-table .compare-foot th,.compare-table .compare-foot td{border-bottom:0;background:#f7f9fb;font-weight:650}
+.compare-table .compare-foot th{background:#f7f9fb}

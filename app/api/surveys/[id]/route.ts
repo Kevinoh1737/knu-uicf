@@ -5,7 +5,7 @@ import { createSupabaseAdmin } from "@/lib/supabase/admin";
 export const runtime = "nodejs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const COLUMNS = "id,course_session_id,title,intro,questions,status,created_at,updated_at";
+const COLUMNS = "id,course_session_id,title,intro,questions,status,template_id,created_at,updated_at";
 
 /** 설문지 한 장과 지금까지의 응답 지표. 편집 화면과 교육과정 화면이 같은 것을 읽는다. */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -18,7 +18,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createSupabaseAdmin();
     const { data: survey, error } = await supabase
       .from("surveys")
-      .select(`${COLUMNS},course_sessions(id,title,held_on,start_time,location,headcount,company_research(id,name),instructors(name))`)
+      .select(`${COLUMNS},survey_templates(id,name),course_sessions(id,title,held_on,start_time,duration_hours,location,headcount,company_research(id,name),instructors(name))`)
       .eq("id", id)
       .single();
     if (error || !survey) throw error || new Error("설문지를 찾지 못했습니다.");
@@ -38,8 +38,26 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       sentCount,
     );
 
+    // 편집 화면은 '무슨 교육의, 어느 질문지로 만든' 설문지인지 알아야 한다 — 그것 없이는
+    // 제목만 보고 고치게 되고, 과정끼리 견주는 축(질문지)이 화면에서 사라진다.
+    const session = survey.course_sessions as {
+      id?: string; title?: string; held_on?: string | null; start_time?: string | null; duration_hours?: number | null;
+      company_research?: { id?: string; name?: string } | null; instructors?: { name?: string } | null;
+    } | null;
+    const template = survey.survey_templates as { id?: string; name?: string } | null;
+
     return Response.json({
       survey: { ...survey, questions },
+      course: {
+        id: session?.id || survey.course_session_id,
+        title: session?.title || "",
+        heldOn: session?.held_on || null,
+        startTime: session?.start_time || null,
+        durationHours: session?.duration_hours ?? null,
+        companyName: session?.company_research?.name || "",
+        instructorName: session?.instructors?.name || "",
+      },
+      template: template?.id ? { id: template.id, name: template.name || "" } : null,
       invites: (invites || []).map((invite) => {
         const learner = invite.learners as { id?: string; name?: string; department?: string; email?: string } | null;
         return {
