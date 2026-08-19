@@ -16,7 +16,7 @@ import {
 } from "@/lib/instructors";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { formatHeldOn } from "@/lib/course-time";
-import { Feedback, Icon, formatFileSize, useEscapeClose } from "./ui";
+import { Feedback, Icon, formatFileSize, useConfirm, useEscapeClose } from "./ui";
 import { displayCompanyName } from "@/lib/company-name";
 
 export type InstructorStats = { delivered: number; planned: number; lastHeldOn: string | null };
@@ -100,6 +100,72 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [modal, setModal] = useState(false);
+  const [busyId, setBusyId] = useState("");
+  const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const { ask, confirmDialog } = useConfirm();
+
+  /**
+   * 상태 바꾸기. 비활성은 지우기의 대안이라 같은 자리에 둔다 — 강의 이력이 있는 강사는
+   * 지울 수 없고(아래), 그때 남는 길이 이것뿐이기 때문이다. 비활성이 되면 지난 기록은
+   * 그대로 남고 새 교육의 강사 선택 목록에서만 빠진다(`sessions` 조회가 active 만 읽는다).
+   */
+  const changeStatus = async (instructor: InstructorItem, status: "active" | "inactive") => {
+    setBusyId(instructor.id); setFeedback(null);
+    try {
+      const response = await fetch(`/api/instructors/${encodeURIComponent(instructor.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error || "강사 상태를 바꾸지 못했습니다.");
+      setInstructors((current) => current.map((row) => row.id === instructor.id ? { ...row, status } : row));
+      setFeedback({ message: `${instructor.name} 강사를 ${status === "active" ? "진행 가능" : "비활성"}으로 바꿨습니다.`, error: false });
+    } catch (error) {
+      setFeedback({ message: error instanceof Error ? error.message : "강사 상태를 바꾸지 못했습니다.", error: true });
+    } finally {
+      setBusyId("");
+    }
+  };
+
+  // 지울 수 없다는 말만 남기면 막다른 길이 된다. 그 자리에서 비활성으로 갈 수 있게 한다.
+  const offerInactive = async (instructor: InstructorItem, reason: string) => {
+    if (instructor.status === "inactive") { setFeedback({ message: reason, error: true }); return; }
+    const agreed = await ask({
+      title: `‘${instructor.name}’ 강사는 지울 수 없습니다`,
+      message: reason,
+      lines: ["비활성으로 두면 지난 강의 기록은 그대로 남고, 새 교육의 강사 선택 목록에서만 빠집니다."],
+      confirmLabel: "비활성으로 바꾸기",
+    });
+    if (agreed) await changeStatus(instructor, "inactive");
+  };
+
+  const deleteInstructor = async (instructor: InstructorItem) => {
+    const held = (instructor.stats?.delivered || 0) + (instructor.stats?.planned || 0);
+    if (held > 0) { await offerInactive(instructor, `강의 이력 ${held}건이 있어 삭제할 수 없습니다.`); return; }
+
+    const agreed = await ask({
+      title: `‘${instructor.name}’ 강사를 삭제할까요?`,
+      message: "등록한 프로필과 함께 올린 파일도 사라집니다.",
+      confirmLabel: "삭제", danger: true,
+    });
+    if (!agreed) return;
+
+    setBusyId(instructor.id); setFeedback(null);
+    try {
+      const response = await fetch(`/api/instructors/${encodeURIComponent(instructor.id)}`, { method: "DELETE" });
+      const result = await response.json() as { error?: string };
+      // 취소된 강의만 있는 강사는 화면의 건수(진행 완료·예정)에 잡히지 않는다. 판정은 서버가 한다.
+      if (response.status === 409) { await offerInactive(instructor, result.error || "삭제할 수 없습니다."); return; }
+      if (!response.ok) throw new Error(result.error || "강사를 삭제하지 못했습니다.");
+      setInstructors((current) => current.filter((row) => row.id !== instructor.id));
+      setFeedback({ message: `${instructor.name} 강사를 지웠습니다.`, error: false });
+    } catch (error) {
+      setFeedback({ message: error instanceof Error ? error.message : "강사를 삭제하지 못했습니다.", error: true });
+    } finally {
+      setBusyId("");
+    }
+  };
 
   useEffect(() => {
     fetch("/api/instructors")
@@ -134,6 +200,7 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
   }, [instructors]);
 
   return <section className="workspace-panel">
+    {confirmDialog}
     <div className="instructor-summary">
       <div><span>등록 강사</span><b>{instructors.length}명</b></div>
       <div><span>진행 완료</span><b>{delivered}건</b></div>
@@ -160,12 +227,22 @@ export function InstructorsPanel({ onSelect }: { onSelect: (instructor: Instruct
               <div className="rating">
                 <b>{instructor.stats?.delivered || 0}</b><small>진행 완료</small>
               </div>
-              <span className={instructor.status === "active" ? "available" : "pending"}>
+              <button type="button"
+                className={`instructor-status ${instructor.status === "active" ? "available" : "pending"}`}
+                onClick={() => changeStatus(instructor, instructor.status === "active" ? "inactive" : "active")}
+                disabled={busyId === instructor.id}
+                title={instructor.status === "active" ? "눌러서 비활성으로 바꾸기" : "눌러서 진행 가능으로 바꾸기"}>
                 {instructor.status === "active" ? "진행 가능" : "비활성"}
-              </span>
-              <button type="button" onClick={() => onSelect(instructor)}>프로필 보기 →</button>
+              </button>
+              <button type="button" className="instructor-open" onClick={() => onSelect(instructor)}>프로필 보기 →</button>
+              <button type="button" className="instructor-delete" onClick={() => deleteInstructor(instructor)}
+                disabled={busyId === instructor.id} aria-label={`${instructor.name} 강사 삭제`} title="삭제">
+                {busyId === instructor.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={18}/>}
+              </button>
             </article>)}
           </div>}
+
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
     {modal && <NewInstructorModal
       onClose={() => setModal(false)}
