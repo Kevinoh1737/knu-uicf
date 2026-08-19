@@ -41,16 +41,17 @@ type Detail = {
   summary: SurveySummary;
 };
 
+type CompareCourse = {
+  surveyId: string; sessionId: string; title: string; heldOn: string | null;
+  companyId: string; companyName: string; instructorId: string; instructorName: string;
+  invited: number; responded: number; responseRate: number; overall: number | null;
+  scores: Record<string, { average: number; count: number }>;
+};
+
 type Comparison = {
   template: { id: string; name: string };
   axis: Array<{ id: string; text: string }>;
-  courses: Array<{
-    surveyId: string; sessionId: string; title: string; companyName: string; heldOn: string | null;
-    invited: number; responded: number; responseRate: number; overall: number | null;
-    scores: Record<string, { average: number; count: number }>;
-  }>;
-  overallByQuestion: Record<string, { average: number; count: number }>;
-  overall: number | null;
+  courses: CompareCourse[];
 };
 
 const TYPE_LABEL: Record<SurveyQuestion["type"], string> = {
@@ -410,8 +411,41 @@ function TemplateViewer({ template, onClose, onEdit }: {
   </div>;
 }
 
-/** 한 문항에서 이 교육이 평균과 얼마나 벌어졌는가. 0.4점을 눈에 띄는 차이로 본다. */
+/** 한 문항에서 이 교육이 '다른 교육들'과 얼마나 벌어졌는가. 0.4점을 눈에 띄는 차이로 본다. */
 const GAP = 0.4;
+
+/**
+ * 색은 자기가 낀 평균이 아니라 '나를 뺀 나머지'와 견준다.
+ *
+ * 두 교육만 놓고 보면 자기가 기준선의 절반이라 벌어짐이 반으로 접힌다 — 1차 3.36, 2차
+ * 4.07 로 0.71 차이인데 둘 다 기준선에서 0.35 밖에 안 떨어진 것으로 보인다. 묶음이
+ * 작을수록 아무 색도 안 뜨는 이 현상은 기준을 바꿔야 사라진다.
+ */
+function gapFromOthers(courses: CompareCourse[], self: CompareCourse, questionId: string) {
+  let total = 0;
+  let count = 0;
+  courses.forEach((course) => {
+    if (course.surveyId === self.surveyId) return;
+    const score = course.scores[questionId];
+    if (!score?.count) return;
+    total += score.average * score.count;
+    count += score.count;
+  });
+  const mine = self.scores[questionId];
+  if (!count || !mine?.count) return 0;
+  return mine.average - total / count;
+}
+
+/**
+ * 무엇끼리 견줄 것인가.
+ *
+ * 뜻이 있는 묶음은 지금까지 둘이다 — 한 강사의 지난 수업들, 한 회사의 지난 과정들.
+ * 둘 다 묻는 것은 같다: "이번이 평소보다 나은가?" 강사 대 강사, 회사 대 회사는 아직
+ * 넣지 않았다. 교육과정이 얼마나 다양해질지 모르는 채로 그런 표를 만들면, 강사가 다른
+ * 것인지 교육이 다른 것인지 알 수 없는 숫자를 나란히 놓게 된다.
+ */
+const SCOPES = [["all", "전체"], ["instructor", "강사별"], ["company", "회사별"]] as const;
+type Scope = (typeof SCOPES)[number][0];
 
 /**
  * 질문지별 비교. 표준 질문지를 돌려 쓰기로 한 이유가 이 화면이다 — 과정마다 문항을 새로
@@ -424,6 +458,8 @@ function SurveyCompare() {
   const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [data, setData] = useState<Comparison | null>(null);
+  const [scope, setScope] = useState<Scope>("all");
+  const [scopeId, setScopeId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -471,7 +507,54 @@ function SurveyCompare() {
       <p>표준 질문지를 만들고 교육과정에서 골라 쓰면<br />여기에서 교육끼리 견줄 수 있습니다.</p></div>;
   }
 
-  const answered = data?.courses.filter((course) => course.responded > 0) || [];
+  const all = data?.courses || [];
+
+  // 고를 수 있는 것은 '실제로 이 질문지를 쓴' 강사·회사뿐이다. 목록에 없는 이름을 띄우면
+  // 눌러 봐야 빈 표가 나온다.
+  const groups = (key: "instructor" | "company") => {
+    const seen = new Map<string, { id: string; name: string; count: number }>();
+    all.forEach((course) => {
+      const id = key === "instructor" ? course.instructorId : course.companyId;
+      const name = key === "instructor" ? course.instructorName : displayCompanyName(course.companyName);
+      if (!id || !name) return;
+      const current = seen.get(id) || { id, name, count: 0 };
+      current.count += 1;
+      seen.set(id, current);
+    });
+    // 한 번뿐인 강사·회사는 견줄 상대가 없다. 고를 수 있게 두면 한 칸짜리 표가 나온다.
+    return [...seen.values()].filter((group) => group.count > 1).sort((left, right) => right.count - left.count);
+  };
+  const options = scope === "all" ? [] : groups(scope);
+  const picked = options.find((group) => group.id === scopeId) || options[0] || null;
+  const courses = scope === "all" || !picked
+    ? all
+    : all.filter((course) => (scope === "instructor" ? course.instructorId : course.companyId) === picked.id);
+
+  /**
+   * 기준선은 '지금 보고 있는 것'의 평균이다. 강사를 골랐으면 그 강사의 평균이어야
+   * "이번이 평소보다 나은가"에 답이 된다 — 전체 평균을 그대로 두면 강사끼리 견주는
+   * 표가 되어 버린다.
+   */
+  const baseline: Record<string, { average: number; count: number }> = {};
+  (data?.axis || []).forEach((question) => {
+    let total = 0;
+    let count = 0;
+    courses.forEach((course) => {
+      const score = course.scores[question.id];
+      if (!score?.count) return;
+      total += score.average * score.count;
+      count += score.count;
+    });
+    baseline[question.id] = { average: count ? Number((total / count).toFixed(2)) : 0, count };
+  });
+  const scored = courses.filter((course) => course.overall !== null);
+  const baselineOverall = scored.length
+    ? Number((scored.reduce((sum, course) => sum + (course.overall || 0), 0) / scored.length).toFixed(2))
+    : null;
+  const baselineLabel = scope === "all" || !picked ? "전체 평균"
+    : scope === "instructor" ? `${picked.name} 평균` : `${picked.name} 평균`;
+
+  const answered = courses.filter((course) => course.responded > 0);
 
   return <div className="compare-block">
     {templates.length > 1 && <div className="compare-picker" role="group" aria-label="질문지 고르기">
@@ -483,29 +566,52 @@ function SurveyCompare() {
       </button>)}
     </div>}
 
+    {all.length > 0 && <div className="compare-scope">
+      <div className="range-switch" role="group" aria-label="비교 기준">
+        {SCOPES.map(([value, label]) =>
+          <button type="button" key={value} className={scope === value ? "active" : ""} aria-pressed={scope === value}
+            onClick={() => { setScope(value); setScopeId(""); }}>{label}</button>)}
+      </div>
+      {scope !== "all" && (options.length > 0
+        ? <label className="compare-scope-pick">
+            <span className="sr-only">{scope === "instructor" ? "강사 고르기" : "회사 고르기"}</span>
+            <select value={picked?.id || ""} onChange={(event) => setScopeId(event.target.value)}>
+              {options.map((group) => <option key={group.id} value={group.id}>
+                {group.name} · 교육 {group.count}개
+              </option>)}
+            </select>
+          </label>
+        : <span className="action-hint">
+            {scope === "instructor" ? "이 질문지로 두 번 이상 진행한 강사가 아직 없습니다." : "이 질문지로 두 번 이상 교육한 회사가 아직 없습니다."}
+          </span>)}
+    </div>}
+
     {!data || data.courses.length === 0
       ? <div className="company-empty"><span><Icon name="survey" size={26} /></span>
           <h2>이 질문지를 쓴 교육이 아직 없습니다</h2>
           <p>교육과정에서 이 질문지로 만족도 조사를 만들면<br />여기에 나란히 놓입니다.</p></div>
       : <>
           <div className="survey-metrics">
-            <div><dt>교육</dt><dd>{data.courses.length}개</dd></div>
-            <div><dt>응답</dt><dd>{data.courses.reduce((sum, course) => sum + course.responded, 0)}명</dd></div>
-            <div><dt>전체 평균</dt><dd>{data.overall === null ? "—" : `${data.overall} / 5`}</dd></div>
+            <div><dt>교육</dt><dd>{courses.length}개</dd></div>
+            <div><dt>응답</dt><dd>{courses.reduce((sum, course) => sum + course.responded, 0)}명</dd></div>
+            <div><dt>{baselineLabel}</dt><dd>{baselineOverall === null ? "—" : `${baselineOverall} / 5`}</dd></div>
             <div><dt>문항</dt><dd>{data.axis.length}개</dd></div>
           </div>
 
           {answered.length === 0
             ? <p className="action-hint">아직 응답이 없습니다. 응답이 들어오면 문항별로 나란히 견줄 수 있습니다.</p>
-            : <p className="action-hint">전체 평균과 {GAP}점 넘게 벌어진 칸은 색으로 표시됩니다.</p>}
+            : <p className="action-hint">
+                같은 줄의 <b>다른 교육들</b>과 {GAP}점 넘게 벌어진 칸을 색으로 표시합니다.
+                {baselineLabel} 칸은 지금 보고 있는 교육들의 평균입니다.
+              </p>}
 
           <div className="compare-table">
             <table>
               <thead>
                 <tr>
                   <th scope="col">문항</th>
-                  <th scope="col" className="compare-overall">전체 평균</th>
-                  {data.courses.map((course) => <th scope="col" key={course.surveyId}>
+                  <th scope="col" className="compare-overall">{baselineLabel}</th>
+                  {courses.map((course) => <th scope="col" key={course.surveyId}>
                     <b>{course.title}</b>
                     <small>{[displayCompanyName(course.companyName), formatDate(course.heldOn)].filter(Boolean).join(" · ")}</small>
                     <small>응답 {course.responded}명{course.invited ? ` / ${course.invited}명` : ""}</small>
@@ -514,14 +620,14 @@ function SurveyCompare() {
               </thead>
               <tbody>
                 {data.axis.map((question) => {
-                  const overall = data.overallByQuestion[question.id];
+                  const overall = baseline[question.id];
                   return <tr key={question.id}>
                     <th scope="row">{question.text}</th>
                     <td className="compare-overall">{overall?.count ? overall.average.toFixed(2) : "—"}</td>
-                    {data.courses.map((course) => {
+                    {courses.map((course) => {
                       const score = course.scores[question.id];
                       if (!score?.count) return <td key={course.surveyId} className="muted">—</td>;
-                      const gap = overall?.count ? score.average - overall.average : 0;
+                      const gap = gapFromOthers(courses, course, question.id);
                       return <td key={course.surveyId}
                         className={gap >= GAP ? "compare-better" : gap <= -GAP ? "compare-worse" : ""}>
                         {score.average.toFixed(2)}
@@ -532,8 +638,8 @@ function SurveyCompare() {
                 })}
                 <tr className="compare-foot">
                   <th scope="row">교육 평균</th>
-                  <td className="compare-overall">{data.overall === null ? "—" : data.overall.toFixed(2)}</td>
-                  {data.courses.map((course) => <td key={course.surveyId}>
+                  <td className="compare-overall">{baselineOverall === null ? "—" : baselineOverall.toFixed(2)}</td>
+                  {courses.map((course) => <td key={course.surveyId}>
                     {course.overall === null ? "—" : course.overall.toFixed(2)}
                   </td>)}
                 </tr>

@@ -30,7 +30,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const { data: surveys, error } = await supabase
       .from("surveys")
-      .select("id,status,course_session_id,course_sessions(id,title,held_on,company_research(name))")
+      .select("id,status,course_session_id,course_sessions(id,title,held_on,company_id,instructor_id,company_research(name),instructors(name))")
       .eq("template_id", id);
     if (error) throw error;
 
@@ -61,7 +61,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const courses = (surveys || []).map((survey) => {
       const surveyId = survey.id as string;
       const session = survey.course_sessions as {
-        id?: string; title?: string; held_on?: string | null; company_research?: { name?: string } | null;
+        id?: string; title?: string; held_on?: string | null; company_id?: string; instructor_id?: string;
+        company_research?: { name?: string } | null; instructors?: { name?: string } | null;
       } | null;
       // 같은 요약기를 쓴다. 비교 화면만 다르게 세면 한 화면의 평균과 다른 화면의 평균이 갈린다.
       const summary = summarizeSurvey(axis, answersBySurvey.get(surveyId) || [], sentBySurvey.get(surveyId) || 0);
@@ -71,7 +72,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         surveyId,
         sessionId: session?.id || survey.course_session_id,
         title: session?.title || "",
+        // 강사·회사는 '무엇끼리 견줄 것인가'를 고르는 손잡이다. 한 강사의 지난 수업들,
+        // 한 회사의 지난 과정들 — 뜻이 있는 묶음은 지금까지 이 둘뿐이다.
+        companyId: session?.company_id || "",
         companyName: session?.company_research?.name || "",
+        instructorId: session?.instructor_id || "",
+        instructorName: session?.instructors?.name || "",
         heldOn: session?.held_on || null,
         status: survey.status,
         invited: summary.invited,
@@ -84,31 +90,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       // 최근에 한 교육이 왼쪽이다. 날짜 없는 과정은 뒤로 — 견주는 기준이 시간이기 때문이다.
       .sort((left, right) => (right.heldOn || "").localeCompare(left.heldOn || ""));
 
-    // 문항별 전체 평균. 한 과정이 낮은 것인지, 이 문항이 원래 낮은 것인지는 이 줄로만 갈린다.
-    const overallByQuestion: Record<string, { average: number; count: number }> = {};
-    axis.forEach((question) => {
-      let total = 0;
-      let count = 0;
-      courses.forEach((course) => {
-        const score = course.scores[question.id];
-        if (!score?.count) return;
-        total += score.average * score.count;
-        count += score.count;
-      });
-      overallByQuestion[question.id] = { average: count ? Number((total / count).toFixed(2)) : 0, count };
-    });
-
-    const answeredCourses = courses.filter((course) => course.overall !== null);
-    const overall = answeredCourses.length
-      ? Number((answeredCourses.reduce((sum, course) => sum + (course.overall || 0), 0) / answeredCourses.length).toFixed(2))
-      : null;
-
+    // 기준선(문항별 평균)은 여기서 내지 않는다. 화면이 강사별·회사별로 걸러 보기 때문에,
+    // '무엇의 평균인가'는 지금 무엇을 보고 있느냐에 달려 있다 — 보이는 것에서 화면이 낸다.
     return Response.json({
       template: { id: template.id, name: template.name },
       axis: axis.map((question) => ({ id: question.id, text: question.text })),
       courses,
-      overallByQuestion,
-      overall,
     });
   } catch (error) {
     const detail = error instanceof Error ? error.message
