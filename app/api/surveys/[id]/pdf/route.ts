@@ -1,4 +1,5 @@
 import { requireTeamSession } from "@/lib/auth/guard";
+import { displayCompanyName } from "@/lib/company-name";
 import { formatHeldOn } from "@/lib/course-time";
 import { createDocument, ensureRoom, INK, line, LINE, MARGIN, MUTED, PAGE, pdfResponse, rule } from "@/lib/pdf-writer";
 import { SCALE_LABELS, sanitizeQuestions } from "@/lib/surveys";
@@ -37,7 +38,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     line(writer, String(survey.title || "교육 만족도 조사"), bold, 21, 12);
     const heldOn = formatHeldOn(session?.held_on, session?.start_time, session?.duration_hours, "long");
-    line(writer, [session?.company_research?.name, session?.title, heldOn].filter(Boolean).join("  ·  "), regular, 10, 6, MUTED);
+    // 수강생과 고객사가 함께 보는 종이라 화면과 같은 이름으로 적는다('주식회사'는 떼고).
+    line(writer, [displayCompanyName(session?.company_research?.name || ""), session?.title, heldOn].filter(Boolean).join("  ·  "), regular, 10, 6, MUTED);
     if (session?.instructors?.name) line(writer, `강사 ${session.instructors.name}`, regular, 10, 6, MUTED);
     rule(writer);
 
