@@ -49,12 +49,41 @@ function scoreAround(mean, random) {
   return Math.min(5, Math.max(1, Math.round(mean + spread)));
 }
 
-const COMPANY_KEYS = ["신티아", "한주케미칼", "톤28"];
+
+/**
+ * 강사 셋. 한 사람이 두 과정씩 맡는다 — 비교 화면은 두 번 이상 진행한 강사만 고를 수
+ * 있게 해 두었기 때문이다(한 번뿐이면 한 칸짜리 표가 된다).
+ */
+const INSTRUCTORS = {
+  "오진환": {
+    job_title: "프리랜서 강사", email: "ojh.lecture@example.com", phone: "010-2481-3390",
+    expertise: { industries: ["제조(화학·설비)", "건설·시공", "공공 조달"], topics: ["생성형 AI 업무 적용", "문서 자동화"], tools: ["ChatGPT", "Claude", "Excel"], audienceLevels: ["AI 입문 실무자", "중간관리자"] },
+    preferred_style: "설명은 짧게 하고 실습에서 돌아다니며 개별로 봅니다.",
+  },
+  "윤세라": {
+    job_title: "프리랜서 강사", email: "sera.yoon@example.com", phone: "010-3372-5518",
+    expertise: { industries: ["제조", "물류"], topics: ["생산 데이터 분석", "지표 설계", "엑셀 자동화"], tools: ["Excel", "Power Query", "Python"], audienceLevels: ["현장 관리자", "공정 담당자"] },
+    preferred_style: "회사가 실제로 쌓고 있는 데이터를 먼저 보고 실습 과제를 만듭니다.",
+  },
+  "배도현": {
+    job_title: "프리랜서 강사", email: "dh.bae@example.com", phone: "010-6640-2273",
+    expertise: { industries: ["소비재", "유통·이커머스"], topics: ["AI 콘텐츠 제작", "브랜드 카피"], tools: ["ChatGPT", "Midjourney", "Canva"], audienceLevels: ["마케팅 실무자"] },
+    preferred_style: "각자 자기 브랜드 소재로 결과물을 만들어 나가게 합니다.",
+  },
+};
+
+async function ensureInstructor(name) {
+  const found = (await get(`instructors?select=id,name&name=eq.${encodeURIComponent(name)}`))[0];
+  if (found) return found;
+  return (await insert("instructors", { name, status: "active", ...INSTRUCTORS[name] }))[0];
+}
+
+const COMPANY_KEYS = ["신티아", "한주케미칼", "톤28", "글로벌이앤피", "에이원비앤에이치"];
 
 const DEMO = [
   {
     company: "신티아",
-    title: "생성형 AI 업무 활용 1차",
+    title: "생성형 AI 업무 활용 1차", instructor: "오진환",
     heldOn: "2026-06-12", startTime: "10:00", durationHours: 4, headcount: 18,
     location: "본사 대회의실", invited: 18, responded: 14, seed: 11,
     // 1차는 난이도·분량에서 낮게 나온다. 2차에서 이것이 올라가는 것이 이 데이터의 이야기다.
@@ -71,7 +100,7 @@ const DEMO = [
   },
   {
     company: "신티아",
-    title: "생성형 AI 업무 활용 2차",
+    title: "생성형 AI 업무 활용 2차", instructor: "오진환",
     heldOn: "2026-07-10", startTime: "10:00", durationHours: 6, headcount: 18,
     location: "본사 대회의실", invited: 18, responded: 15, seed: 22,
     means: { content_useful: 4.5, level_fit: 4.2, delivery: 4.6, relevance: 4.3, duration: 4.1, recommend: 4.4 },
@@ -87,7 +116,7 @@ const DEMO = [
   },
   {
     company: "한주케미칼",
-    title: "제조 데이터 분석 기초",
+    title: "제조 데이터 분석 기초", instructor: "윤세라",
     heldOn: "2026-07-03", startTime: "13:00", durationHours: 4, headcount: 16,
     location: "교육장 2층", invited: 16, responded: 11, seed: 33,
     // 업무 관련성이 낮게 나오는 회사. "왜 낮은가"를 문항 줄에서 찾게 하는 것이 비교 화면의 쓸모다.
@@ -104,7 +133,7 @@ const DEMO = [
   },
   {
     company: "톤28",
-    title: "AI 마케팅 콘텐츠 실무",
+    title: "AI 마케팅 콘텐츠 실무", instructor: "배도현",
     heldOn: "2026-07-24", startTime: "14:00", durationHours: 3, headcount: 12,
     location: "성수 오피스", invited: 12, responded: 10, seed: 44,
     means: { content_useful: 4.6, level_fit: 4.4, delivery: 4.7, relevance: 4.5, duration: 4.2, recommend: 4.6 },
@@ -117,6 +146,26 @@ const DEMO = [
       "이미지 생성 부분을 더 길게 했으면 합니다",
     ],
   },
+  {
+    company: "글로벌이앤피",
+    title: "생산 데이터 읽기 기초", instructor: "윤세라",
+    heldOn: "2026-08-07", startTime: "13:30", durationHours: 4, headcount: 14,
+    location: "공장 교육장", invited: 14, responded: 10, seed: 55,
+    // 같은 강사의 두 번째 과정. 제조 데이터 분석 기초보다 전반적으로 높다 —
+    // '이 강사의 지난 수업 대비 이번이 어땠나'를 화면에서 읽게 하려는 배치다.
+    means: { content_useful: 4.3, level_fit: 4.0, delivery: 4.2, relevance: 4.1, duration: 4.0, recommend: 4.2 },
+    best: ["우리 공정 데이터를 그대로 써서 좋았습니다", "그래프로 보니 문제가 눈에 보였습니다", "엑셀만으로도 되는 게 많다는 걸 알았습니다"],
+    improve: ["다음엔 불량 데이터도 다뤄 주세요", "시간이 조금 부족했습니다"],
+  },
+  {
+    company: "에이원비앤에이치",
+    title: "AI 상세페이지 제작 실무", instructor: "배도현",
+    heldOn: "2026-08-12", startTime: "10:00", durationHours: 4, headcount: 11,
+    location: "본사 세미나실", invited: 11, responded: 9, seed: 66,
+    means: { content_useful: 4.4, level_fit: 4.2, delivery: 4.5, relevance: 4.3, duration: 3.8, recommend: 4.4 },
+    best: ["상세페이지 초안을 그 자리에서 만들었습니다", "브랜드 말투를 잡는 방법이 유용했습니다", "이미지까지 뽑아 본 게 좋았습니다"],
+    improve: ["시간이 짧았습니다", "촬영 없이 되는 범위를 더 알고 싶습니다", "실습 파일을 미리 받고 싶습니다"],
+  },
 ];
 
 const LEARNER_NAMES = [
@@ -127,7 +176,10 @@ const DEPARTMENTS = ["경영지원", "영업", "생산", "연구개발", "마케
 const TITLES = ["사원", "주임", "대리", "과장", "차장"];
 
 function slug(company) {
-  return { 신티아: "cyntia", 한주케미칼: "hanjoo", 톤28: "toun" }[company] || "demo";
+  // 회사 이름이 아니라 회사 행의 name 이 들어온다(주식회사가 붙어 있을 수 있다).
+  const table = { 신티아: "cyntia", 한주케미칼: "hanjoo", 톤28: "toun", 글로벌이앤피: "global", 에이원비앤에이치: "aone" };
+  const hit = Object.keys(table).find((keyword) => company.includes(keyword));
+  return hit ? table[hit] : "demo";
 }
 
 async function findCompanies() {
@@ -182,8 +234,6 @@ async function ensureLearners(company, count) {
 
 async function seed() {
   const companies = await findCompanies();
-  const instructor = (await get("instructors?select=id,name&limit=1"))[0];
-  if (!instructor) throw new Error("강사가 없습니다. 강사를 먼저 등록해 주세요.");
 
   const template = (await get("survey_templates?select=id,name,intro,questions&is_default=eq.true&archived=eq.false"))[0];
   if (!template) throw new Error("기본 질문지가 없습니다. 표준 질문지를 먼저 만들어 주세요.");
@@ -192,9 +242,10 @@ async function seed() {
   for (const item of DEMO) {
     const company = companies[item.company];
     const random = makeRandom(item.seed);
+    const instructor = await ensureInstructor(item.instructor);
 
     let session = (await get(
-      `course_sessions?select=id,title&company_id=eq.${company.id}&title=eq.${encodeURIComponent(item.title)}`,
+      `course_sessions?select=id,title,instructor_id&company_id=eq.${company.id}&title=eq.${encodeURIComponent(item.title)}`,
     ))[0];
     if (!session) {
       session = (await insert("course_sessions", {
@@ -208,6 +259,15 @@ async function seed() {
         location: item.location,
         status: "delivered",
       }))[0];
+    }
+
+    // 이미 있는 교육이라도 강사는 맞춰 준다 — 강사별 비교가 성립하려면 한 사람이
+    // 두 과정 이상을 맡아야 하는데, 처음 심을 때는 한 명에게 몰려 있었다.
+    if (session.instructor_id && session.instructor_id !== instructor.id) {
+      await rest(`course_sessions?id=eq.${session.id}`, {
+        method: "PATCH", body: JSON.stringify({ instructor_id: instructor.id }),
+      });
+      console.log(`  강사 변경: ${item.title} → ${item.instructor}`);
     }
 
     const learners = await ensureLearners(company, item.invited);
