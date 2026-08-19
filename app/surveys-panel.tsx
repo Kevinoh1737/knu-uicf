@@ -556,9 +556,17 @@ function SurveyCompare() {
 
   const answered = courses.filter((course) => course.responded > 0);
 
+  /**
+   * 고를 것이 실제로 있을 때만 고르게 한다.
+   *
+   * 아직 아무 교육도 쓰지 않은 질문지는 눌러 봐야 빈 표다. 쓰인 질문지가 하나뿐이면
+   * 고르는 행위 자체가 없다 — 그 한 장이 곧 이 화면이다.
+   */
+  const usedTemplates = templates.filter((template) => template.usedCount > 0);
+
   return <div className="compare-block">
-    {templates.length > 1 && <div className="compare-picker" role="group" aria-label="질문지 고르기">
-      {templates.map((template) => <button type="button" key={template.id}
+    {usedTemplates.length > 1 && <div className="compare-picker" role="group" aria-label="질문지 고르기">
+      {usedTemplates.map((template) => <button type="button" key={template.id}
         className={`upload-chip${template.id === templateId ? " lead" : ""}`}
         aria-pressed={template.id === templateId}
         onClick={() => setTemplateId(template.id)}>
