@@ -236,27 +236,16 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
     } finally { setBusy(""); }
   };
 
-  const makeDefault = async (template: SurveyTemplate) => {
-    setBusy("default"); setFeedback(null);
-    try {
-      const response = await fetch(`/api/survey-templates/${template.id}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isDefault: true }),
-      });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error || "기본 질문지를 바꾸지 못했습니다.");
-      await load();
-      setFeedback({ message: `‘${template.name}’ 을 기본 질문지로 정했습니다.`, error: false });
-    } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "기본 질문지를 바꾸지 못했습니다.", error: true });
-    } finally { setBusy(""); }
-  };
-
   const archive = async (template: SurveyTemplate) => {
     const agreed = await ask({
       title: `‘${template.name}’ 질문지를 목록에서 치울까요?`,
-      message: template.usedCount
-        ? `이미 ${template.usedCount}개 교육이 이 질문지로 만들어졌습니다. 그 설문지와 응답은 그대로 남습니다.`
-        : "새 교육에서 고를 수 없게 됩니다.",
+      message: [
+        template.usedCount
+          ? `이미 ${template.usedCount}개 교육이 이 질문지로 만들어졌습니다. 그 설문지와 응답은 그대로 남습니다.`
+          : "새 교육에서 고를 수 없게 됩니다.",
+        // 기본이 사라지면 남은 것 중 하나가 그 자리를 잇는다(서버가 정한다). 미리 알려 준다.
+        template.is_default ? "가장 최근에 만든 질문지가 기본이 됩니다." : "",
+      ].filter(Boolean).join(" "),
       confirmLabel: "치우기", danger: true,
     });
     if (!agreed) return;
@@ -306,20 +295,25 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
       : templates.length === 0
       ? <p className="body-text">아직 질문지가 없습니다. 새로 만들거나, 쓰던 설문지 PDF 를 올리면 그대로 옮겨 옵니다.</p>
       : <div className="template-list">
-          {templates.map((template) => <article key={template.id} className="template-row">
-            <div>
-              <b>{template.name}</b>
-              {template.is_default && <span className="question-tag standard">기본</span>}
-              <small>문항 {template.questions.length}개 · 사용 {template.usedCount}개 교육</small>
-            </div>
-            <div className="template-tools">
-              <button type="button" className="upload-chip" aria-expanded={expanded === template.id}
-                onClick={() => setExpanded(expanded === template.id ? "" : template.id)}>
-                {expanded === template.id ? "문항 접기" : "문항 보기"}
-              </button>
-              {!template.is_default && <button type="button" className="upload-chip" onClick={() => void makeDefault(template)} disabled={Boolean(busy)}>기본으로</button>}
-              {!template.is_default && <button type="button" className="upload-chip danger" onClick={() => void archive(template)} disabled={Boolean(busy)}>치우기</button>}
-            </div>
+          {/* 카드를 누르면 문항이 펴진다. '문항 보기' 버튼을 따로 두면 누를 곳이 두 군데가
+              되고, 정작 카드는 눌러도 아무 일이 없어 죽은 면이 된다. 휴지통은 버튼 안에
+              버튼을 둘 수 없어 바깥으로 뺐다 — 기업 카드와 같은 짜임이다. */}
+          {templates.map((template) => <article key={template.id}
+            className={`template-card${expanded === template.id ? " open" : ""}`}>
+            <button type="button" className="template-card-open" aria-expanded={expanded === template.id}
+              onClick={() => setExpanded(expanded === template.id ? "" : template.id)}>
+              <span className="template-card-name">
+                <b>{template.name}</b>
+                {template.is_default && <span className="question-tag standard">기본</span>}
+                <small>문항 {template.questions.length}개 · 사용 {template.usedCount}개 교육</small>
+              </span>
+              <span className="template-chevron"><Icon name="chevron" size={18} /></span>
+            </button>
+            <button type="button" className="template-delete" disabled={Boolean(busy)}
+              onClick={() => void archive(template)}
+              aria-label={`${template.name} 치우기`} title="치우기">
+              <Icon name="trash" size={18} />
+            </button>
             {expanded === template.id && <ol className="template-questions">
               {template.questions.map((question) => <li key={question.id}>
                 {question.text} <small>{TYPE_LABEL[question.type]}</small>

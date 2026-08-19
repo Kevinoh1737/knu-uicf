@@ -678,9 +678,6 @@ html,body,button,a,p,span,small,strong,b,em,h1,h2,h3,h4,h5,h6,label,input,textar
 .template-head h3{margin:0;font-size:13px}
 .template-head h3 small{margin-left:6px;font-weight:500;color:#69736e;font-size:11px}
 .template-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
-.template-row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
-.template-row b{font-size:12.5px}
-.template-row small{display:block;margin-top:3px;font-size:11px;color:#69736e}
 .template-tools{display:flex;flex-wrap:wrap;gap:6px}
 .template-editor{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
 .question-tag{display:inline-block;margin-left:8px;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:650;background:#eef2f7;color:#4f5d6b;vertical-align:middle}
@@ -864,8 +861,23 @@ button.nav-label:focus-visible{outline:2px solid #6f8980;outline-offset:2px}
 .template-head-actions{display:flex;flex-wrap:wrap;gap:8px}
 .template-head-actions .upload-chip{height:38px;font-size:12px;gap:6px}
 
-/* 질문지는 고치는 것이 아니라 확인하는 것이다 — 목록에서 문항을 펼쳐 읽기만 한다. */
-.template-questions{grid-column:1/-1;width:100%;margin:12px 0 0;padding:12px 14px 12px 32px;border-top:1px solid var(--line);color:#4a5560;font-size:12px;line-height:1.9}
+/* 질문지 카드. 누르면 문항이 펴진다는 것을 버튼 없이 알려야 해서, 눌리는 면임을 테두리·
+   그림자·손가락 커서·꺾쇠로 말한다 — 기업 카드와 같은 짜임(본문은 버튼, 휴지통은 그 밖). */
+.template-card{position:relative;border:1px solid var(--line);border-radius:10px;background:#fff;transition:border-color var(--motion-fast),box-shadow var(--motion-fast)}
+.template-card:hover{border-color:#a7beb5;box-shadow:var(--shadow-sm)}
+.template-card.open{border-color:#a7beb5}
+.template-card-open{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;padding:12px 52px 12px 14px;border:0;border-radius:inherit;background:transparent;color:inherit;text-align:left}
+.template-card-open:focus-visible{outline:3px solid #cfe0ef;outline-offset:2px}
+.template-card-name b{font-size:12.5px}
+.template-card-name small{display:block;margin-top:3px;font-size:11px;color:#69736e}
+.template-chevron{display:grid;place-items:center;flex:none;color:#8a949c;transition:transform var(--motion-fast),color var(--motion-fast)}
+.template-card:hover .template-chevron{color:#3b6a5b}
+.template-card.open .template-chevron{transform:rotate(180deg);color:#3b6a5b}
+.template-delete{position:absolute;top:8px;right:10px;display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:9px;background:transparent;color:#67746e;transition:background-color var(--motion-fast),color var(--motion-fast)}
+.template-delete:hover:not(:disabled){background:#fef2f2;color:#b42318}
+.template-delete:focus-visible{outline:3px solid rgba(180,35,24,.2);outline-offset:1px;color:#b42318}
+.template-delete:disabled{cursor:wait;opacity:.55}
+
+.template-questions{margin:0;padding:10px 14px 14px 34px;border-top:1px solid var(--line);color:#4a5560;font-size:12px;line-height:1.9}
 .template-questions li{padding-left:2px}
 .template-questions li small{margin-left:8px;color:#8a949c;font-size:11px}
-.template-row{flex-wrap:wrap}

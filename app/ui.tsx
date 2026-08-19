@@ -7,7 +7,7 @@ import { createPortal } from "react-dom";
  * 화면 여럿이 공유하는 표시 요소. page.tsx 안에 두면 새 화면이 같은 아이콘을 쓰려다
  * 순환 import 가 되므로 여기로 뺐다.
  */
-export type IconName = "home" | "building" | "person" | "survey" | "spark" | "settings" | "search" | "bell" | "plus" | "document" | "audio" | "calendar" | "chart" | "clock" | "upload" | "download" | "trash" | "grip" | "pencil";
+export type IconName = "home" | "building" | "person" | "survey" | "spark" | "settings" | "search" | "bell" | "plus" | "document" | "audio" | "calendar" | "chart" | "clock" | "upload" | "download" | "trash" | "grip" | "pencil" | "chevron";
 
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   const paths: Record<IconName, React.ReactNode> = {
@@ -28,6 +28,7 @@ export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     upload: <><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 14v6h14v-6"/></>,
     download: <><path d="M12 4v12M7 11l5 5 5-5"/><path d="M5 20h14"/></>,
     trash: <><path d="M4 7h16M9 7V4h6v3M6.5 7l1 14h9l1-14M10 11v6M14 11v6"/></>,
+    chevron: <path d="m6 9 6 6 6-6"/>,
     pencil: <><path d="M4 20h4l10.5-10.5a2.1 2.1 0 0 0-3-3L5 17v3Z"/><path d="M14.5 5.5l4 4"/></>,
     grip: <><circle cx="9" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="9" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="17" r="1" fill="currentColor" stroke="none"/></>,
   };
