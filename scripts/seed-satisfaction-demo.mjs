@@ -8,6 +8,7 @@
  *
  * 실행:  node --env-file=.env.local scripts/seed-satisfaction-demo.mjs
  * 지우기: node --env-file=.env.local scripts/seed-satisfaction-demo.mjs --clean
+ * 답 갱신: node --env-file=.env.local scripts/seed-satisfaction-demo.mjs --refresh
  *
  * 두 번 돌려도 늘어나지 않는다(제목·이메일로 이미 있는 것을 찾아 쓴다).
  */
@@ -58,8 +59,15 @@ const DEMO = [
     location: "본사 대회의실", invited: 18, responded: 14, seed: 11,
     // 1차는 난이도·분량에서 낮게 나온다. 2차에서 이것이 올라가는 것이 이 데이터의 이야기다.
     means: { content_useful: 4.1, level_fit: 3.3, delivery: 4.3, relevance: 3.9, duration: 3.4, recommend: 4.0 },
-    best: ["실습 위주라 바로 써먹을 수 있었습니다", "프롬프트 예시가 구체적이어서 좋았습니다", "강사님 설명이 쉬웠습니다"],
-    improve: ["진도가 조금 빨랐습니다", "실습 시간이 더 있었으면 합니다", "기초반과 심화반을 나눠 주세요"],
+    best: [
+      "실습 위주라 바로 써먹을 수 있었습니다", "프롬프트 예시가 구체적이어서 좋았습니다",
+      "강사님 설명이 쉬웠습니다", "회의록 정리에 바로 적용해 봤습니다",
+      "모르는 걸 물어보기 편한 분위기였습니다", "따라 하기만 해도 결과물이 나와서 좋았습니다",
+    ],
+    improve: [
+      "진도가 조금 빨랐습니다", "실습 시간이 더 있었으면 합니다", "기초반과 심화반을 나눠 주세요",
+      "자리마다 진도가 달라 뒤에서는 따라가기 어려웠습니다", "교재를 미리 받아 보고 싶습니다",
+    ],
   },
   {
     company: "신티아",
@@ -67,8 +75,15 @@ const DEMO = [
     heldOn: "2026-07-10", startTime: "10:00", durationHours: 6, headcount: 18,
     location: "본사 대회의실", invited: 18, responded: 15, seed: 22,
     means: { content_useful: 4.5, level_fit: 4.2, delivery: 4.6, relevance: 4.3, duration: 4.1, recommend: 4.4 },
-    best: ["1차보다 실습 시간이 늘어 좋았습니다", "우리 업무 사례로 진행해서 이해가 빨랐습니다", "속도가 알맞았습니다"],
-    improve: ["사후 자료를 더 주시면 좋겠습니다", "고급 과정도 열어 주세요"],
+    best: [
+      "1차보다 실습 시간이 늘어 좋았습니다", "우리 업무 사례로 진행해서 이해가 빨랐습니다",
+      "속도가 알맞았습니다", "1차에서 못 따라간 부분을 다시 짚어 주셨습니다",
+      "부서별 예시가 있어서 바로 써 볼 수 있었습니다",
+    ],
+    improve: [
+      "사후 자료를 더 주시면 좋겠습니다", "고급 과정도 열어 주세요",
+      "실습 파일을 미리 받고 싶습니다", "분기마다 한 번씩 있으면 좋겠습니다",
+    ],
   },
   {
     company: "한주케미칼",
@@ -77,8 +92,15 @@ const DEMO = [
     location: "교육장 2층", invited: 16, responded: 11, seed: 33,
     // 업무 관련성이 낮게 나오는 회사. "왜 낮은가"를 문항 줄에서 찾게 하는 것이 비교 화면의 쓸모다.
     means: { content_useful: 3.8, level_fit: 3.5, delivery: 4.0, relevance: 3.1, duration: 3.9, recommend: 3.6 },
-    best: ["엑셀 실습이 유익했습니다", "기초 개념 정리가 잘 되었습니다"],
-    improve: ["우리 공정 데이터로 실습했으면 합니다", "예제가 제조 현장과 거리가 있었습니다", "현장 사례를 더 넣어 주세요"],
+    best: [
+      "엑셀 실습이 유익했습니다", "기초 개념 정리가 잘 되었습니다",
+      "그래프 읽는 법을 배운 것이 도움이 됐습니다", "용어를 쉽게 풀어 주셨습니다",
+    ],
+    improve: [
+      "우리 공정 데이터로 실습했으면 합니다", "예제가 제조 현장과 거리가 있었습니다",
+      "현장 사례를 더 넣어 주세요", "설비 데이터를 다루는 내용이 있으면 좋겠습니다",
+      "실제 불량 데이터로 해 봤으면 합니다",
+    ],
   },
   {
     company: "톤28",
@@ -86,8 +108,14 @@ const DEMO = [
     heldOn: "2026-07-24", startTime: "14:00", durationHours: 3, headcount: 12,
     location: "성수 오피스", invited: 12, responded: 10, seed: 44,
     means: { content_useful: 4.6, level_fit: 4.4, delivery: 4.7, relevance: 4.5, duration: 4.2, recommend: 4.6 },
-    best: ["바로 콘텐츠를 만들어 본 것이 좋았습니다", "브랜드 톤에 맞춘 사례가 인상적이었습니다"],
-    improve: ["시간이 짧아 아쉬웠습니다", "영상 제작도 다뤄 주세요"],
+    best: [
+      "바로 콘텐츠를 만들어 본 것이 좋았습니다", "브랜드 톤에 맞춘 사례가 인상적이었습니다",
+      "카피 초안을 뽑는 방법이 유용했습니다", "실무에 그대로 쓸 수 있는 형태였습니다",
+    ],
+    improve: [
+      "시간이 짧아 아쉬웠습니다", "영상 제작도 다뤄 주세요",
+      "이미지 생성 부분을 더 길게 했으면 합니다",
+    ],
   },
 ];
 
@@ -217,7 +245,20 @@ async function seed() {
       : [];
     const allInvites = [...invites, ...created];
 
-    const answered = await get(`survey_responses?select=invite_id&survey_id=eq.${survey.id}`);
+    const answered = await get(`survey_responses?select=id,invite_id&survey_id=eq.${survey.id}`);
+
+    // --refresh: 이미 심어 둔 답을 다시 만든다. 문구를 손본 뒤 시연 화면에 반영하려면
+    // 지우고 다시 심는 수밖에 없는데, 지우지 않고 답만 갈아 끼우면 초대·발송 기록이 남는다.
+    if (refresh && answered.length) {
+      for (let index = 0; index < answered.length; index += 1) {
+        const answers = {};
+        axis.forEach((question) => { answers[question.id] = scoreAround(item.means[question.id] ?? 4, random); });
+        if (index % 3 !== 2) answers.best_part = item.best[index % item.best.length];
+        if (index % 3 !== 1) answers.improve = item.improve[index % item.improve.length];
+        await rest(`survey_responses?id=eq.${answered[index].id}`, { method: "PATCH", body: JSON.stringify({ answers }) });
+      }
+    }
+
     const done = new Set(answered.map((row) => row.invite_id));
     const pending = allInvites.filter((invite) => !done.has(invite.id)).slice(0, Math.max(0, item.responded - done.size));
 
@@ -250,5 +291,6 @@ async function seed() {
   }
 }
 
+const refresh = process.argv.includes("--refresh");
 const mode = process.argv.includes("--clean") ? clean : seed;
 mode().then(() => console.log("완료")).catch((error) => { console.error(error.message); process.exit(1); });

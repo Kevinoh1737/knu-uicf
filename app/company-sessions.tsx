@@ -95,11 +95,12 @@ function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
         <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer"
           aria-label="설문지 PDF 내려받기" title="설문지 PDF 내려받기"><Icon name="download" size={15} />설문지 PDF</a>
       </div>
-      <p className="survey-hint">문항 편집·응답 상세는 만족도 메뉴에서</p>
+      <p className="survey-hint">응답 결과와 결과 PDF 는 만족도 메뉴에서</p>
     </> : <>
-      {/* 질문지는 만족도 메뉴에서 관리하고 여기서는 골라 오기만 한다 — 과정마다 새로 쓰면
-          문항 id 가 갈려서 과정끼리 견줄 수 없다. 회사별로 더 물을 것은 만든 뒤에 더한다. */}
-      <p className="body-text">표준 질문지를 불러와 만듭니다. 이 회사에만 물을 것은 만든 뒤에 문항을 더하면 됩니다.</p>
+      {/* 질문지는 만족도 메뉴에서 만들고 여기서는 골라 오기만 한다 — 과정마다 문항을 새로
+          쓰면 문항 id 가 갈려서 과정끼리 견줄 수 없다. 보낼 수강생이 이 과정에 매달려
+          있으므로, 고르기와 발송은 같은 자리에 둔다. */}
+      <p className="body-text">만족도 메뉴에서 만들어 둔 질문지를 골라 씁니다. 만들면 이 화면에서 수강생에게 보냅니다.</p>
       <div className="session-actions">
         {templates.length > 1 && <label className="survey-template-pick">
           <span className="sr-only">질문지 고르기</span>

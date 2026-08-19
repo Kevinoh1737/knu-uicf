@@ -30,12 +30,12 @@ type SurveyTemplate = {
 
 type Detail = {
   survey: { id: string; title: string; intro: string; questions: SurveyQuestion[]; status: SurveyStatus };
-  /** 무슨 교육의 설문지인가. 이것 없이는 제목만 보고 남의 교육을 고칠 수 있다. */
+  /** 무슨 교육의 설문지인가. 이것 없이는 제목만 보고 남의 교육을 열게 된다. */
   course: {
     id: string; title: string; heldOn: string | null; startTime: string | null; durationHours: number | null;
     companyName: string; instructorName: string;
   };
-  /** 어느 질문지에서 왔는가. 과정끼리 견주는 축이라 편집 화면에 이름이 보여야 한다. */
+  /** 어느 질문지에서 왔는가. 과정끼리 견주는 축이라 화면에 이름이 보여야 한다. */
   template: { id: string; name: string } | null;
   invites: Array<{ id: string; sentAt: string | null; sendError: string | null; respondedAt: string | null; learnerName: string; learnerEmail: string }>;
   summary: SurveySummary;
@@ -61,14 +61,16 @@ function formatDate(value: string | null, startTime?: string | null, durationHou
   return formatHeldOn(value, startTime, durationHours) || "미정";
 }
 
-/** 화면 셋의 순서가 일의 순서다 — 매번 하는 일이 먼저, 가끔 손보는 질문지가 뒤. */
+/**
+ * 화면 셋의 순서가 일의 순서다.
+ *
+ * 만족도 메뉴가 하는 일은 둘이다 — 질문지를 만들고(표준 질문지), 들어온 답을 보는 것(과정별·
+ * 질문지 비교). 만든 질문지를 골라 수강생에게 보내는 일은 교육과정 화면에 있다: 보낼 사람이
+ * 그 과정에 매달려 있고, 발송은 '이 교육을 진행한다'의 마지막 단계이기 때문이다.
+ */
 const VIEWS = [["courses", "과정별"], ["compare", "질문지 비교"], ["templates", "표준 질문지"]] as const;
 type View = (typeof VIEWS)[number][0];
 
-/**
- * 만족도. 목록의 단위는 설문지가 아니라 교육과정이다 — 설문지는 과정에 한 장씩 붙는 것이라,
- * 아직 없는 과정도 같은 자리에 보여야 만들 곳이 생긴다.
- */
 export function SurveysPanel() {
   const [items, setItems] = useState<SurveyItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -86,31 +88,15 @@ export function SurveysPanel() {
 
   useEffect(() => { void reload().finally(() => setLoading(false)); }, []);
 
-  const create = async (item: SurveyItem) => {
-    setFeedback(null);
-    try {
-      const response = await fetch("/api/surveys", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ courseSessionId: item.sessionId }),
-      });
-      const result = await response.json() as { survey?: { id: string }; error?: string };
-      if (!response.ok || !result.survey) throw new Error(result.error || "설문지를 만들지 못했습니다.");
-      await reload();
-      setSelected(result.survey.id);
-    } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "설문지를 만들지 못했습니다.", error: true });
-    }
-  };
-
   if (selected) {
-    return <SurveyEditor surveyId={selected} onBack={() => { setSelected(""); void reload(); }} />;
+    return <SurveyResult surveyId={selected} onBack={() => { setSelected(""); void reload(); }} />;
   }
 
   // 제목은 상단 머리말이 이미 달고 있다. 여기서 한 번 더 쓰면 같은 글자가 두 번 나온다.
   return <section className="workspace-panel">
     <div className="content-title">
       <div>
-        <p>교육과정마다 설문지를 붙이고, 같은 질문지를 쓴 교육끼리 견줍니다.</p>
+        <p>질문지를 만들어 두고, 교육과정에서 골라 보내고, 돌아온 답을 여기에서 봅니다.</p>
       </div>
       <div className="title-actions">
         <div className="range-switch" role="group" aria-label="만족도 보기">
@@ -123,60 +109,59 @@ export function SurveysPanel() {
 
     <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
-    {/* 질문지 관리는 가끔 하는 일이라 제 탭으로 물러난다. 과정마다 새로 쓰는 것이 아니라
-        여기 있는 것을 불러다 쓴다 — 같은 문항 id 로 물어야 과정끼리 견줄 수 있다. */}
     {view === "templates" ? <SurveyTemplates onChanged={() => void reload()} />
       : view === "compare" ? <SurveyCompare />
       : loading ? <p className="body-text">불러오는 중</p>
-      : items.length === 0
-        ? <div className="company-empty"><span><Icon name="survey" size={26}/></span>
-            <h2>교육과정이 아직 없습니다</h2>
-            <p>기업 화면에서 교육과정을 만들면<br/>여기에 설문지를 붙일 수 있습니다.</p></div>
-        : <div className="survey-list">
-            {items.map((item) => <article key={item.sessionId} className="survey-row">
-              <div className="survey-row-main">
-                {/* '설문지 없음' 딱지는 붙이지 않는다 — 바로 옆 버튼이 '설문지 만들기'라
-                    같은 말을 두 번 하는 셈이다. 딱지는 진행 중인 것에만 뜻이 있다. */}
-                <div className="survey-row-head">
-                  <h3>{item.title}</h3>
-                  {item.survey && <span className={`stage ${item.survey.status === "open" ? "progress" : item.survey.status === "closed" ? "done" : "neutral"}`}>
-                    {SURVEY_STATUS_LABEL[item.survey.status]}
-                  </span>}
+        : items.length === 0
+          ? <div className="company-empty"><span><Icon name="survey" size={26}/></span>
+              <h2>교육과정이 아직 없습니다</h2>
+              <p>기업 화면에서 교육과정을 만들면<br/>여기에 만족도 결과가 쌓입니다.</p></div>
+          : <div className="survey-list">
+              {items.map((item) => <article key={item.sessionId} className="survey-row">
+                <div className="survey-row-main">
+                  <div className="survey-row-head">
+                    <h3>{item.title}</h3>
+                    {item.survey && <span className={`stage ${item.survey.status === "open" ? "progress" : item.survey.status === "closed" ? "done" : "neutral"}`}>
+                      {SURVEY_STATUS_LABEL[item.survey.status]}
+                    </span>}
+                  </div>
+                  <p className="survey-row-meta">
+                    {[displayCompanyName(item.companyName), formatDate(item.heldOn, item.startTime, item.durationHours), item.instructorName ? `${item.instructorName} 강사` : ""].filter(Boolean).join(" · ")}
+                  </p>
+                  <p className="survey-row-meta">
+                    {item.survey
+                      ? `문항 ${item.survey.questionCount}개 · 발송 ${item.survey.sentCount}명 · 응답 ${item.survey.responseCount}명`
+                      // 설문지를 만들고 보내는 일은 교육과정 화면에 있다. 여기서 또 만들 수 있으면
+                      // 같은 일이 두 군데가 되고, 보낼 수강생은 그쪽에만 있다.
+                      : "설문지 없음 — 기업 화면의 교육과정에서 질문지를 골라 보냅니다"}
+                  </p>
                 </div>
-                <p className="survey-row-meta">
-                  {[displayCompanyName(item.companyName), formatDate(item.heldOn, item.startTime, item.durationHours), item.instructorName ? `${item.instructorName} 강사` : ""].filter(Boolean).join(" · ")}
-                </p>
-                <p className="survey-row-meta">
+                <div className="survey-row-actions">
                   {item.survey
-                    ? `문항 ${item.survey.questionCount}개 · 발송 ${item.survey.sentCount}명 · 응답 ${item.survey.responseCount}명`
-                    // 수강생이 없어도 설문지는 만들 수 있다. 다만 보낼 곳이 없으니 미리 말해 준다.
-                    : item.learnerCount
-                      ? `수강생 ${item.learnerCount}명`
-                      : "수강생 없음 — 설문지는 만들 수 있고, 발송은 수강생을 등록한 뒤에 됩니다"}
-                </p>
-              </div>
-              <div className="survey-row-actions">
-                {item.survey
-                  ? <button type="button" className="primary-small" onClick={() => setSelected(item.survey!.id)}>설문지 열기</button>
-                  : <button type="button" className="primary-small" onClick={() => void create(item)}>설문지 만들기</button>}
-              </div>
-            </article>)}
-          </div>}
+                    ? <button type="button" className="primary-small" onClick={() => setSelected(item.survey!.id)}>결과 보기</button>
+                    : <span className="muted">—</span>}
+                </div>
+              </article>)}
+            </div>}
   </section>;
 }
 
 /**
- * 표준 질문지 관리. 만족도 설문은 과정마다 새로 쓰지 않고 이 몇 장을 계속 돌려 쓴다 —
- * 같은 문항 id 로 물어야 과정끼리 견줄 수 있기 때문이다. 회사마다 따로 묻고 싶은 것은
- * 그 과정 설문지에 문항을 더해 해결한다(여기서 늘리면 모든 과정이 함께 늘어난다).
+ * 표준 질문지. 만족도 설문은 과정마다 새로 쓰지 않고 이 몇 장을 계속 돌려 쓴다 — 같은 문항
+ * id 로 물어야 과정끼리 견줄 수 있기 때문이다.
+ *
+ * 한번 만든 질문지는 고치지 않는다. 이미 그 질문지로 답을 받은 교육이 있는데 문항을 바꾸면,
+ * 같은 이름 아래 서로 다른 것을 물은 결과가 섞인다 — 비교표가 조용히 거짓이 된다.
+ * 문구가 마음에 안 들면 새로 한 장 만들고 옛 장은 치우면 된다.
  */
 function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
   const [templates, setTemplates] = useState<SurveyTemplate[]>([]);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<SurveyTemplate | null>(null);
   const [draft, setDraft] = useState<{ name: string; intro: string; questions: SurveyQuestion[] }>({ name: "", intro: "", questions: [] });
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState("");
+  const [expanded, setExpanded] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { ask, confirmDialog } = useConfirm();
 
   const [ready, setReady] = useState(true);
@@ -192,36 +177,67 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
   useEffect(() => { void load(); }, []);
 
   const startNew = () => {
-    setEditing(null);
     setDraft({ name: "", intro: "", questions: [] });
     setOpen(true);
   };
-  const startEdit = (template: SurveyTemplate) => {
-    setEditing(template);
-    setDraft({ name: template.name, intro: template.intro, questions: template.questions });
+
+  /**
+   * 쓰던 설문지를 그대로 옮겨 온다. 이미 몇 년째 쓰던 종이 설문지가 있는 팀에게는 이것이
+   * 첫 질문지를 만드는 가장 빠른 길이고, 문항 id 가 한 벌로 잡히면 그 뒤 교육은 전부 견줄 수 있다.
+   */
+  const fromPdf = async (file?: File) => {
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (draft.questions.length) {
+      const agreed = await ask({
+        title: "지금 적어 둔 문항을 올린 설문지로 바꿀까요?",
+        message: `문항 ${draft.questions.length}개가 PDF 에서 읽은 것으로 바뀝니다.`,
+        confirmLabel: "바꾸기",
+      });
+      if (!agreed) return;
+    }
+    setBusy("draft"); setFeedback(null);
     setOpen(true);
+    try {
+      const response = await fetch("/api/survey-templates/draft", {
+        method: "POST",
+        ...(file ? { body: (() => { const form = new FormData(); form.append("file", file); return form; })() } : {}),
+      });
+      const result = await response.json() as { name?: string; intro?: string; questions?: SurveyQuestion[]; error?: string; fromExisting?: boolean };
+      if (!response.ok || !result.questions) throw new Error(result.error || "초안을 만들지 못했습니다.");
+      setDraft((current) => ({
+        name: current.name || result.name || "",
+        intro: result.intro || current.intro,
+        questions: result.questions || [],
+      }));
+      setFeedback({
+        message: `${result.fromExisting ? "올려 주신 설문지를 읽어 " : ""}문항 ${result.questions.length}개를 만들었습니다. 확인하고 저장해 주세요.`,
+        error: false,
+      });
+    } catch (caught) {
+      setFeedback({ message: caught instanceof Error ? caught.message : "초안을 만들지 못했습니다.", error: true });
+    } finally { setBusy(""); }
   };
 
   const save = async () => {
-    setBusy(true); setFeedback(null);
+    setBusy("save"); setFeedback(null);
     try {
-      const response = await fetch(editing ? `/api/survey-templates/${editing.id}` : "/api/survey-templates", {
-        method: editing ? "PATCH" : "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: draft.name, intro: draft.intro, ...(editing || draft.questions.length ? { questions: draft.questions } : {}) }),
+      const response = await fetch("/api/survey-templates", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: draft.name, intro: draft.intro, ...(draft.questions.length ? { questions: draft.questions } : {}) }),
       });
       const result = await response.json() as { error?: string };
       if (!response.ok) throw new Error(result.error || "질문지를 저장하지 못했습니다.");
       await load();
       onChanged();
       setOpen(false);
-      setFeedback({ message: editing ? "질문지를 저장했습니다." : "질문지를 만들었습니다.", error: false });
+      setFeedback({ message: "질문지를 만들었습니다. 교육과정에서 골라 쓰면 됩니다.", error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "질문지를 저장하지 못했습니다.", error: true });
-    } finally { setBusy(false); }
+    } finally { setBusy(""); }
   };
 
   const makeDefault = async (template: SurveyTemplate) => {
-    setBusy(true); setFeedback(null);
+    setBusy("default"); setFeedback(null);
     try {
       const response = await fetch(`/api/survey-templates/${template.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isDefault: true }),
@@ -232,7 +248,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
       setFeedback({ message: `‘${template.name}’ 을 기본 질문지로 정했습니다.`, error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "기본 질문지를 바꾸지 못했습니다.", error: true });
-    } finally { setBusy(false); }
+    } finally { setBusy(""); }
   };
 
   const archive = async (template: SurveyTemplate) => {
@@ -244,7 +260,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
       confirmLabel: "치우기", danger: true,
     });
     if (!agreed) return;
-    setBusy(true); setFeedback(null);
+    setBusy("archive"); setFeedback(null);
     try {
       const response = await fetch(`/api/survey-templates/${template.id}`, { method: "DELETE" });
       const result = await response.json() as { error?: string };
@@ -253,7 +269,7 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
       setFeedback({ message: "질문지를 목록에서 치웠습니다.", error: false });
     } catch (caught) {
       setFeedback({ message: caught instanceof Error ? caught.message : "질문지를 치우지 못했습니다.", error: true });
-    } finally { setBusy(false); }
+    } finally { setBusy(""); }
   };
 
   const update = (index: number, patch: Partial<SurveyQuestion>) =>
@@ -270,18 +286,25 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
     {confirmDialog}
     <div className="template-head">
       <h3>표준 질문지 <small>{templates.length}장</small></h3>
-      <button type="button" className="upload-chip" onClick={startNew} disabled={busy || !ready}>
-        <Icon name="plus" size={15} /> 새 질문지
-      </button>
+      <div className="template-head-actions">
+        <button type="button" className="upload-chip" onClick={startNew} disabled={Boolean(busy) || !ready}>
+          <Icon name="plus" size={15} /> 새 질문지
+        </button>
+        <label className="upload-chip">
+          <input ref={fileInputRef} className="pdf-file-input" type="file" accept="application/pdf" disabled={Boolean(busy) || !ready}
+            onChange={(event) => { const file = event.target.files?.[0]; if (file) void fromPdf(file); }} />
+          <Icon name="upload" size={15} /> {busy === "draft" ? "읽는 중" : "쓰던 설문지 PDF"}
+        </label>
+      </div>
     </div>
-    <p className="action-hint">교육마다 여기 있는 질문지를 불러다 씁니다. 회사별로 더 묻고 싶은 것은 그 교육 설문지에서 문항을 추가하세요.</p>
+    <p className="action-hint">여기서 만든 질문지를 교육과정에서 골라 수강생에게 보냅니다. 한번 만든 질문지는 고치지 않습니다 — 이미 그 질문지로 받은 답과 섞이기 때문입니다.</p>
 
     <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
     {!ready
-      ? <p className="body-text">질문지 보관함이 아직 준비되지 않았습니다(데이터베이스 준비 필요). 그동안에도 교육에서 설문지는 표준 문항으로 만들 수 있습니다.</p>
+      ? <p className="body-text">질문지 보관함이 아직 준비되지 않았습니다(데이터베이스 준비 필요).</p>
       : templates.length === 0
-      ? <p className="body-text">아직 질문지가 없습니다. 새 질문지를 만들면 표준 문항으로 시작합니다.</p>
+      ? <p className="body-text">아직 질문지가 없습니다. 새로 만들거나, 쓰던 설문지 PDF 를 올리면 그대로 옮겨 옵니다.</p>
       : <div className="template-list">
           {templates.map((template) => <article key={template.id} className="template-row">
             <div>
@@ -290,39 +313,47 @@ function SurveyTemplates({ onChanged }: { onChanged: () => void }) {
               <small>문항 {template.questions.length}개 · 사용 {template.usedCount}개 교육</small>
             </div>
             <div className="template-tools">
-              <button type="button" className="upload-chip" onClick={() => startEdit(template)} disabled={busy}>편집</button>
-              {!template.is_default && <button type="button" className="upload-chip" onClick={() => void makeDefault(template)} disabled={busy}>기본으로</button>}
-              {!template.is_default && <button type="button" className="upload-chip danger" onClick={() => void archive(template)} disabled={busy}>치우기</button>}
+              <button type="button" className="upload-chip" aria-expanded={expanded === template.id}
+                onClick={() => setExpanded(expanded === template.id ? "" : template.id)}>
+                {expanded === template.id ? "문항 접기" : "문항 보기"}
+              </button>
+              {!template.is_default && <button type="button" className="upload-chip" onClick={() => void makeDefault(template)} disabled={Boolean(busy)}>기본으로</button>}
+              {!template.is_default && <button type="button" className="upload-chip danger" onClick={() => void archive(template)} disabled={Boolean(busy)}>치우기</button>}
             </div>
+            {expanded === template.id && <ol className="template-questions">
+              {template.questions.map((question) => <li key={question.id}>
+                {question.text} <small>{TYPE_LABEL[question.type]}</small>
+              </li>)}
+            </ol>}
           </article>)}
         </div>}
 
     {open && <div className="template-editor">
       <div className="survey-fields">
         <label>질문지 이름
-          <input value={draft.name} disabled={busy} placeholder="표준 교육 만족도"
+          <input value={draft.name} disabled={Boolean(busy)} placeholder="표준 교육 만족도"
             onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} />
         </label>
         <label>안내 문구
-          <textarea rows={2} value={draft.intro} disabled={busy} placeholder="수강생이 처음 보는 안내"
+          <textarea rows={2} value={draft.intro} disabled={Boolean(busy)} placeholder="수강생이 처음 보는 안내"
             onChange={(event) => setDraft((current) => ({ ...current, intro: event.target.value }))} />
         </label>
       </div>
       {draft.questions.length === 0
-        ? <p className="body-text">저장하면 표준 문항 8개로 시작합니다. 문항을 직접 넣으려면 아래에서 추가하세요.</p>
-        : <QuestionRows questions={draft.questions} disabled={busy} onUpdate={update} onMove={move}
+        ? <p className="body-text">저장하면 표준 문항 8개로 시작합니다. 쓰던 설문지가 있으면 위의 <b>쓰던 설문지 PDF</b> 로 그대로 옮겨 올 수 있습니다.</p>
+        : <QuestionRows questions={draft.questions} disabled={Boolean(busy)} onUpdate={update} onMove={move}
             onRemove={(index) => setDraft((current) => ({ ...current, questions: current.questions.filter((_, position) => position !== index) }))} />}
       <div className="savebar">
-        <button type="button" className="upload-chip" disabled={busy}
+        <button type="button" className="upload-chip" disabled={Boolean(busy)}
           onClick={() => setDraft((current) => ({ ...current, questions: [...current.questions, {
             id: `q_${Date.now().toString(36)}`, type: "scale", text: "", options: [], required: true, source: "standard",
           }] }))}>
           <Icon name="plus" size={15} /> 문항 추가
         </button>
         <span />
-        <button type="button" onClick={() => setOpen(false)} disabled={busy}>취소</button>
-        <button type="button" className="primary-small" disabled={busy || !draft.name.trim()} onClick={() => void save()}>
-          {busy ? "저장 중" : "질문지 저장"}
+        <button type="button" onClick={() => setOpen(false)} disabled={Boolean(busy)}>취소</button>
+        <button type="button" className="primary-small" disabled={Boolean(busy) || !draft.name.trim()} onClick={() => void save()}>
+          {busy === "save" ? "저장 중" : "질문지 저장"}
         </button>
       </div>
     </div>}
@@ -387,7 +418,7 @@ function SurveyCompare() {
   if (!templates.length) {
     return <div className="company-empty"><span><Icon name="survey" size={26} /></span>
       <h2>질문지가 아직 없습니다</h2>
-      <p>표준 질문지를 만들고 교육에서 불러다 쓰면<br />여기에서 교육끼리 견줄 수 있습니다.</p></div>;
+      <p>표준 질문지를 만들고 교육과정에서 골라 쓰면<br />여기에서 교육끼리 견줄 수 있습니다.</p></div>;
   }
 
   const answered = data?.courses.filter((course) => course.responded > 0) || [];
@@ -405,7 +436,7 @@ function SurveyCompare() {
     {!data || data.courses.length === 0
       ? <div className="company-empty"><span><Icon name="survey" size={26} /></span>
           <h2>이 질문지를 쓴 교육이 아직 없습니다</h2>
-          <p>교육에서 이 질문지로 설문지를 만들면<br />여기에 나란히 놓입니다.</p></div>
+          <p>교육과정에서 이 질문지로 설문지를 만들면<br />여기에 나란히 놓입니다.</p></div>
       : <>
           <div className="survey-metrics">
             <div><dt>교육</dt><dd>{data.courses.length}개</dd></div>
@@ -416,10 +447,7 @@ function SurveyCompare() {
 
           {answered.length === 0
             ? <p className="action-hint">아직 응답이 없습니다. 응답이 들어오면 문항별로 나란히 견줄 수 있습니다.</p>
-            : <p className="action-hint">
-                표준 문항만 견줍니다. 교육마다 따로 더한 문항은 다른 교육에 없어 제외했습니다.
-                전체 평균과 {GAP}점 넘게 벌어진 칸은 색으로 표시됩니다.
-              </p>}
+            : <p className="action-hint">전체 평균과 {GAP}점 넘게 벌어진 칸은 색으로 표시됩니다.</p>}
 
           <div className="compare-table">
             <table>
@@ -467,20 +495,17 @@ function SurveyCompare() {
 }
 
 /**
- * 문항 편집 줄. 과정 설문지와 표준 질문지가 같은 손놀림을 쓰도록 한 곳에 둔다 —
- * 두 벌로 두면 한쪽만 고쳐져 서로 다르게 동작한다.
+ * 문항 줄. 질문지를 처음 만들 때만 쓴다 — PDF 에서 읽어 온 문항이 늘 맞지는 않아서, 저장
+ * 전에 한 번은 사람 눈을 거쳐야 한다. 저장한 뒤로는 고치는 자리가 없다.
  */
-function QuestionRows({ questions, disabled, showSource, onUpdate, onMove, onRemove }: {
+function QuestionRows({ questions, disabled, onUpdate, onMove, onRemove }: {
   questions: SurveyQuestion[];
   disabled: boolean;
-  /** 표준 문항과 이 과정 전용 문항을 갈라 보여 줄 것인가. 질문지 편집에서는 전부 표준이라 끈다. */
-  showSource?: boolean;
   onUpdate: (index: number, patch: Partial<SurveyQuestion>) => void;
   onMove: (index: number, direction: -1 | 1) => void;
   onRemove: (index: number) => void;
 }) {
-  // 척도 안내는 문항마다 같은 문장이다. 여섯 번 반복하면 읽지 않는 줄이 여섯 개 생긴다 —
-  // 목록 위에 한 번만 둔다.
+  // 척도 안내는 문항마다 같은 문장이다. 목록 위에 한 번만 둔다.
   const hasScale = questions.some((question) => question.type === "scale");
   return <div className="survey-questions">
     {hasScale && <p className="survey-hint scale-legend">
@@ -489,9 +514,6 @@ function QuestionRows({ questions, disabled, showSource, onUpdate, onMove, onRem
     {questions.map((question, index) => <article key={question.id} className="survey-edit-row">
       <div className="survey-edit-head">
         <span className="survey-number">{String(index + 1).padStart(2, "0")}</span>
-        {showSource && <span className={question.source === "standard" ? "question-tag standard" : "question-tag"}>
-          {question.source === "standard" ? "표준" : "이 교육"}
-        </span>}
         <select value={question.type} disabled={disabled}
           onChange={(event) => onUpdate(index, { type: event.target.value as SurveyQuestion["type"] })}>
           {(Object.keys(TYPE_LABEL) as Array<SurveyQuestion["type"]>).map((type) =>
@@ -517,29 +539,23 @@ function QuestionRows({ questions, disabled, showSource, onUpdate, onMove, onRem
   </div>;
 }
 
-/** 문항 편집·초안 생성·PDF·발송·지표가 한 화면에 있다. 설문지는 이 네 가지 말고 할 일이 없다. */
-function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => void }) {
+/**
+ * 한 교육의 만족도 결과. 보는 화면이다 — 문항을 고치거나 다시 보내는 일은 여기 없다
+ * (질문지는 만족도 · 표준 질문지에서, 발송은 그 교육과정 화면에서).
+ */
+function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
-  const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
-  const [title, setTitle] = useState("");
-  const [intro, setIntro] = useState("");
-  const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { ask, confirmDialog } = useConfirm();
 
   const load = () => fetch(`/api/surveys/${surveyId}`)
     .then(async (response) => {
       const result = await response.json() as Detail & { error?: string };
-      if (!response.ok) throw new Error(result.error || "설문지를 불러오지 못했습니다.");
+      if (!response.ok) throw new Error(result.error || "결과를 불러오지 못했습니다.");
       setDetail(result);
-      setQuestions(result.survey.questions);
-      setTitle(result.survey.title);
-      setIntro(result.survey.intro);
-      setDirty(false);
     })
-    .catch((caught) => setFeedback({ message: caught instanceof Error ? caught.message : "설문지를 불러오지 못했습니다.", error: true }));
+    .catch((caught) => setFeedback({ message: caught instanceof Error ? caught.message : "결과를 불러오지 못했습니다.", error: true }));
 
   // load 는 surveyId 만 참조한다. 의존성에 넣으면 렌더마다 새로 만들어져 계속 다시 읽는다.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -560,78 +576,11 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     } finally { setBusy(""); }
   };
 
-  // 초안은 지금 문항을 통째로 갈아치운다. 손으로 고쳐 둔 것이 있으면 한 번 묻는다 —
-  // 되돌리기가 없는 화면에서 말없이 덮는 것은 사고다.
-  const draft = async (file?: File) => {
-    if (fileInputRef.current) fileInputRef.current.value = "";
-    if (questions.length) {
-      const agreed = await ask({
-        title: file ? "올린 설문지로 문항을 새로 만들까요?" : "AI 초안으로 문항을 새로 만들까요?",
-        message: `지금 문항 ${questions.length}개가 초안으로 바뀝니다. 저장하기 전이라면 되돌릴 수 없습니다.`,
-        confirmLabel: "새로 만들기",
-      });
-      if (!agreed) return;
-    }
-    setBusy("draft"); setFeedback(null);
-    try {
-      const response = await fetch(`/api/surveys/${surveyId}/draft`, {
-        method: "POST",
-        ...(file ? { body: (() => { const form = new FormData(); form.append("file", file); return form; })() } : {}),
-      });
-      const result = await response.json() as { questions?: SurveyQuestion[]; title?: string; intro?: string; error?: string; fromExisting?: boolean };
-      if (!response.ok || !result.questions) throw new Error(result.error || "초안을 만들지 못했습니다.");
-      setQuestions(result.questions);
-      if (result.title) setTitle(result.title);
-      if (result.intro) setIntro(result.intro);
-      setDirty(true);
-      setFeedback({
-        message: `${result.fromExisting ? "올려 주신 설문지를 반영해 " : ""}초안 ${result.questions.length}개 문항을 만들었습니다. 확인 후 저장해 주세요.`,
-        error: false,
-      });
-    } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "초안을 만들지 못했습니다.", error: true });
-    } finally { setBusy(""); }
-  };
-
-  const send = async (resend: boolean) => {
-    const target = detail?.summary.invited || 0;
-    const agreed = await ask({
-      title: resend ? "이미 보낸 사람에게도 다시 보낼까요?" : "배정된 수강생에게 설문 링크를 보낼까요?",
-      message: !resend && target ? `이미 ${target}명에게 보냈습니다.` : undefined,
-      confirmLabel: "보내기",
-    });
-    if (!agreed) return;
-
-    setBusy("send"); setFeedback(null);
-    try {
-      const response = await fetch(`/api/surveys/${surveyId}/send`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ resend }),
-      });
-      const result = await response.json() as {
-        sent?: number; skipped?: number; withoutEmail?: number; stoppedEarly?: number;
-        failures?: Array<{ name: string; reason: string }>; error?: string;
-      };
-      if (!response.ok) throw new Error(result.error || "보내지 못했습니다.");
-      const notes = [
-        `${result.sent || 0}명에게 보냈습니다`,
-        result.skipped ? `이미 보낸 ${result.skipped}명 제외` : "",
-        result.withoutEmail ? `이메일 없는 ${result.withoutEmail}명 제외` : "",
-        result.stoppedEarly ? `시간이 부족해 ${result.stoppedEarly}명 남음 — 다시 눌러 주세요` : "",
-        result.failures?.length ? `실패 ${result.failures.length}명 (${result.failures[0].reason})` : "",
-      ].filter(Boolean);
-      await load();
-      setFeedback({ message: notes.join(" · "), error: Boolean(result.failures?.length) });
-    } catch (caught) {
-      setFeedback({ message: caught instanceof Error ? caught.message : "보내지 못했습니다.", error: true });
-    } finally { setBusy(""); }
-  };
-
-  // 잘못 만든 설문지를 화면에서 지울 길이 없으면 목록에 영영 남는다. 응답이 하나라도
-  // 들어온 뒤에는 서버가 막는다(그때는 마감이 맞다).
+  // 잘못 만든 설문지를 지울 길이 없으면 목록에 영영 남는다. 응답이 들어온 뒤에는 서버가 막는다.
   const remove = async () => {
     const agreed = await ask({
       title: "이 설문지를 지울까요?",
-      message: "문항과 발송 기록이 함께 사라집니다. 응답이 이미 들어왔다면 지우는 대신 마감해 주세요.",
+      message: "문항과 발송 기록이 함께 사라집니다. 교육과정에서 다시 만들 수 있습니다.",
       confirmLabel: "지우기", danger: true,
     });
     if (!agreed) return;
@@ -647,142 +596,83 @@ function SurveyEditor({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     }
   };
 
-  const update = (index: number, patchValue: Partial<SurveyQuestion>) => {
-    setQuestions((current) => current.map((question, position) => position === index ? { ...question, ...patchValue } : question));
-    setDirty(true);
-  };
-  const move = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
-    if (target < 0 || target >= questions.length) return;
-    setQuestions((current) => {
-      const next = [...current];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-    setDirty(true);
-  };
-  // 여기서 더하는 문항은 이 과정 전용이다. 표준 문항은 질문지에서만 늘어난다 —
-  // 한 과정에서 표준 축을 늘리면 다른 과정과 견줄 수 없는 문항이 축인 척하게 된다.
-  const addQuestion = () => {
-    setQuestions((current) => [...current, {
-      id: `q_${Date.now().toString(36)}`, type: "scale", text: "", options: [], required: true,
-      source: "custom",
-    }]);
-    setDirty(true);
-  };
+  if (!detail) return <section className="workspace-panel">
+    <button type="button" className="backbar" onClick={onBack}>← 만족도 목록</button>
+    <Feedback value={feedback} onClose={() => setFeedback(null)} />
+    <p className="body-text">불러오는 중</p>
+  </section>;
 
-  if (!detail) return <section className="workspace-panel"><p className="body-text">불러오는 중</p></section>;
-
-  const { summary, invites } = detail;
+  const { summary, invites, course } = detail;
   const status = detail.survey.status;
 
   return <section className="workspace-panel survey-editor">
     {confirmDialog}
     <button type="button" className="backbar" onClick={onBack}>← 만족도 목록</button>
 
-    {/* 머리글은 설문 제목이 아니라 '무슨 교육인가'다. 설문 제목은 아래 입력칸에 있고,
-        여기까지 같은 글자를 쓰면 맥락 대신 중복이 자리를 차지한다. */}
     <div className="content-title">
       <div>
-        <h2>{detail.course.title || title || "만족도 설문지"}</h2>
+        <h2>{course.title || detail.survey.title || "만족도 결과"}</h2>
         <p>{[
-          displayCompanyName(detail.course.companyName),
-          formatDate(detail.course.heldOn, detail.course.startTime, detail.course.durationHours),
-          detail.course.instructorName ? `${detail.course.instructorName} 강사` : "",
+          displayCompanyName(course.companyName),
+          formatDate(course.heldOn, course.startTime, course.durationHours),
+          course.instructorName ? `${course.instructorName} 강사` : "",
         ].filter(Boolean).join(" · ")}</p>
         <p className="survey-source">
           {detail.template
-            ? <>질문지 <b>{detail.template.name}</b> · 표준 문항은 다른 교육과 견줄 수 있습니다</>
+            ? <>질문지 <b>{detail.template.name}</b> · 같은 질문지를 쓴 교육과 견줄 수 있습니다</>
             : <>질문지 없이 만든 설문지 — 다른 교육과 견주려면 표준 질문지로 다시 만들어 주세요</>}
         </p>
       </div>
       <div className="title-actions">
-        <button type="button" className="upload-chip" onClick={() => void draft()} disabled={Boolean(busy)}>
-          <Icon name="spark" size={15} /> {busy === "draft" ? "만드는 중" : "AI 초안"}
-        </button>
-        <label className="upload-chip">
-          <input ref={fileInputRef} className="pdf-file-input" type="file" accept="application/pdf" disabled={Boolean(busy)}
-            onChange={(event) => { const file = event.target.files?.[0]; if (file) void draft(file); }} />
-          <Icon name="upload" size={15} /> 쓰던 설문지 PDF
-        </label>
+        <a className="upload-chip lead" href={`/api/surveys/${surveyId}/report`} target="_blank" rel="noreferrer">
+          <Icon name="download" size={15} /> 결과 PDF
+        </a>
         <a className="upload-chip" href={`/api/surveys/${surveyId}/pdf`} target="_blank" rel="noreferrer">
-          <Icon name="download" size={15} /> PDF 내려받기
+          <Icon name="download" size={15} /> 빈 설문지 PDF
         </a>
       </div>
     </div>
 
     <Feedback value={feedback} onClose={() => setFeedback(null)} />
 
-    {/* 지표는 보낸 뒤부터 뜻이 있다. 작성 중에 0·0·— 넉 줄을 세워 두면 자리만 먹는다. */}
-    {summary.invited > 0 || summary.responded > 0
-      ? <div className="survey-metrics">
-          <div><dt>상태</dt><dd>{SURVEY_STATUS_LABEL[status]}</dd></div>
-          <div><dt>발송</dt><dd>{summary.invited}명</dd></div>
-          <div><dt>응답</dt><dd>{summary.responded}명 · {summary.responseRate}%</dd></div>
-          <div><dt>평균</dt><dd>{summary.overall === null ? "—" : `${summary.overall} / 5`}</dd></div>
-        </div>
-      // 발송이 응답 상태까지 열어 준다(send 라우트). 화면이 그 사실을 말해 주지 않으면
-      // '응답 열기'가 먼저 눌러야 하는 단계처럼 보인다.
-      : <p className="action-hint">{SURVEY_STATUS_LABEL[status]} · 발송하면 응답을 받는 상태로 자동으로 바뀝니다.</p>}
+    <div className="survey-metrics">
+      <div><dt>상태</dt><dd>{SURVEY_STATUS_LABEL[status]}</dd></div>
+      <div><dt>발송</dt><dd>{summary.invited}명</dd></div>
+      <div><dt>응답</dt><dd>{summary.responded}명 · {summary.responseRate}%</dd></div>
+      <div><dt>평균</dt><dd>{summary.overall === null ? "—" : `${summary.overall} / 5`}</dd></div>
+    </div>
 
     <div className="survey-actions">
-      <button type="button" className="primary-small" onClick={() => void send(false)} disabled={Boolean(busy)}>
-        {busy === "send" ? "보내는 중" : "수강생에게 발송"}
-      </button>
-      {summary.invited > 0 && <button type="button" onClick={() => void send(true)} disabled={Boolean(busy)}>다시 보내기</button>}
       {status !== "open"
-        ? <button type="button" onClick={() => void patch({ status: "open" }, "status")} disabled={Boolean(busy)}>응답 열기</button>
-        : <button type="button" onClick={() => void patch({ status: "closed" }, "status")} disabled={Boolean(busy)}>마감</button>}
-      {/* 응답이 들어온 뒤에는 서버가 삭제를 막는다. 눌러 봐야 거절당할 버튼은 보이지 않는 편이 낫다. */}
+        ? <button type="button" onClick={() => void patch({ status: "open" }, "status")} disabled={Boolean(busy)}>응답 다시 받기</button>
+        : <button type="button" onClick={() => void patch({ status: "closed" }, "status")} disabled={Boolean(busy)}>응답 마감</button>}
       {summary.responded === 0 && <button type="button" className="upload-chip danger survey-remove"
         onClick={() => void remove()} disabled={Boolean(busy)}>
         {busy === "remove" ? "지우는 중" : "설문지 지우기"}
       </button>}
     </div>
 
-    <div className="survey-fields">
-      <label>설문 제목
-        <input value={title} disabled={Boolean(busy)}
-          onChange={(event) => { setTitle(event.target.value); setDirty(true); }} />
-      </label>
-      <label>안내 문구
-        <textarea rows={2} value={intro} disabled={Boolean(busy)} placeholder="수강생이 처음 보는 안내"
-          onChange={(event) => { setIntro(event.target.value); setDirty(true); }} />
-      </label>
-    </div>
-
-    <QuestionRows questions={questions} disabled={Boolean(busy)} showSource
-      onUpdate={update} onMove={move}
-      onRemove={(index) => { setQuestions((current) => current.filter((_, position) => position !== index)); setDirty(true); }} />
-
-    <div className="savebar">
-      <button type="button" className="upload-chip" onClick={addQuestion} disabled={Boolean(busy)}><Icon name="plus" size={15} /> 문항 추가</button>
-      <span>{dirty ? "저장하지 않은 변경이 있습니다" : "저장됨"}</span>
-      <button type="button" className="primary-small" disabled={Boolean(busy) || !dirty || !questions.length}
-        onClick={() => void patch({ title, intro, questions }, "save")}>
-        {busy === "save" ? "저장 중" : "설문지 저장"}
-      </button>
-    </div>
-
-    {summary.responded > 0 && <div className="survey-results">
-      <h3>응답 결과</h3>
-      {summary.scales.map((scale) => <div key={scale.id} className="survey-result-row">
-        <div className="survey-result-head">
-          <b>{scale.text}</b>
-          <span>{scale.count ? `${scale.average} / 5` : "응답 없음"}</span>
-        </div>
-        <div className="survey-bar" aria-hidden="true">
-          <i style={{ width: `${scale.count ? (scale.average / 5) * 100 : 0}%` }} />
-        </div>
-        <p className="survey-hint">
-          {scale.distribution.map((count, position) => `${position + 1}점 ${count}명`).join(" · ")}
-        </p>
-      </div>)}
-      {summary.texts.filter((text) => text.answers.length > 0).map((text) => <div key={text.id} className="survey-result-row">
-        <div className="survey-result-head"><b>{text.text}</b><span>{text.answers.length}건</span></div>
-        <ul className="survey-answers">{text.answers.map((answer, index) => <li key={index}>{answer}</li>)}</ul>
-      </div>)}
-    </div>}
+    {summary.responded === 0
+      ? <p className="action-hint">아직 들어온 응답이 없습니다. 발송은 기업 화면의 교육과정에서 합니다.</p>
+      : <div className="survey-results">
+          <h3>응답 결과</h3>
+          {summary.scales.map((scale) => <div key={scale.id} className="survey-result-row">
+            <div className="survey-result-head">
+              <b>{scale.text}</b>
+              <span>{scale.count ? `${scale.average} / 5` : "응답 없음"}</span>
+            </div>
+            <div className="survey-bar" aria-hidden="true">
+              <i style={{ width: `${scale.count ? (scale.average / 5) * 100 : 0}%` }} />
+            </div>
+            <p className="survey-hint">
+              {scale.distribution.map((count, position) => `${position + 1}점 ${count}명`).join(" · ")}
+            </p>
+          </div>)}
+          {summary.texts.filter((text) => text.answers.length > 0).map((text) => <div key={text.id} className="survey-result-row">
+            <div className="survey-result-head"><b>{text.text}</b><span>{text.answers.length}건</span></div>
+            <ul className="survey-answers">{text.answers.map((answer, index) => <li key={index}>{answer}</li>)}</ul>
+          </div>)}
+        </div>}
 
     {invites.length > 0 && <div className="survey-results">
       <h3>발송 현황</h3>

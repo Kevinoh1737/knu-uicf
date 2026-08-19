@@ -859,3 +859,13 @@ button.nav-label:focus-visible{outline:2px solid #6f8980;outline-offset:2px}
 /* 같은 성분(fr 트랙 + nowrap 자식)이 남아 있던 자리. 모달 안 변형은 이미 같은 처방을
    받아 두었다(.modal .input-tabs) — 바깥에서 쓰는 기본 규칙만 남아 있었다. */
 .input-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+/* 질문지 만들기 두 갈래(직접 / 쓰던 PDF)가 머리줄에 나란히 선다. */
+.template-head-actions{display:flex;flex-wrap:wrap;gap:8px}
+.template-head-actions .upload-chip{height:38px;font-size:12px;gap:6px}
+
+/* 질문지는 고치는 것이 아니라 확인하는 것이다 — 목록에서 문항을 펼쳐 읽기만 한다. */
+.template-questions{grid-column:1/-1;width:100%;margin:12px 0 0;padding:12px 14px 12px 32px;border-top:1px solid var(--line);color:#4a5560;font-size:12px;line-height:1.9}
+.template-questions li{padding-left:2px}
+.template-questions li small{margin-left:8px;color:#8a949c;font-size:11px}
+.template-row{flex-wrap:wrap}

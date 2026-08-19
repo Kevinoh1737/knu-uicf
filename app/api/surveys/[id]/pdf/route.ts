@@ -1,9 +1,6 @@
-import fontkit from "@pdf-lib/fontkit";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { PDFDocument, PDFFont, PDFPage, rgb } from "pdf-lib";
 import { requireTeamSession } from "@/lib/auth/guard";
 import { formatHeldOn } from "@/lib/course-time";
+import { createDocument, ensureRoom, INK, line, LINE, MARGIN, MUTED, PAGE, pdfResponse, rule } from "@/lib/pdf-writer";
 import { SCALE_LABELS, sanitizeQuestions } from "@/lib/surveys";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 
@@ -11,45 +8,10 @@ export const runtime = "nodejs";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-const PAGE = { width: 595.28, height: 841.89 };
-const MARGIN = 56;
-const INK = rgb(0.09, 0.13, 0.11);
-const MUTED = rgb(0.47, 0.5, 0.48);
-const LINE = rgb(0.86, 0.89, 0.92);
-
-/** pdf-lib 은 줄바꿈을 해주지 않는다. 폭에 맞춰 직접 자른다 — 계약서 PDF 와 같은 방식이다. */
-function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
-  const lines: string[] = [];
-  let current = "";
-  for (const character of text) {
-    if (character === "\n") { lines.push(current); current = ""; continue; }
-    const next = current + character;
-    if (font.widthOfTextAtSize(next, size) > maxWidth && current) { lines.push(current); current = character; }
-    else current = next;
-  }
-  if (current) lines.push(current);
-  return lines;
-}
-
-type Writer = { pdf: PDFDocument; page: PDFPage; y: number };
-
-function ensureRoom(writer: Writer, needed: number) {
-  if (writer.y - needed > MARGIN) return;
-  writer.page = writer.pdf.addPage([PAGE.width, PAGE.height]);
-  writer.y = PAGE.height - MARGIN;
-}
-
-function line(writer: Writer, text: string, font: PDFFont, size: number, gap = 6, color = INK, indent = 0) {
-  for (const row of wrap(text, font, size, PAGE.width - MARGIN * 2 - indent)) {
-    ensureRoom(writer, size + gap);
-    writer.page.drawText(row, { x: MARGIN + indent, y: writer.y, size, font, color });
-    writer.y -= size + gap;
-  }
-}
-
 /**
  * 종이로 돌리는 설문지. 화면에서 답하지 못하는 현장(공장 라인, 메일을 안 쓰는 수강생)이 있어
  * 인쇄본이 필요하고, 고객사에 "이런 걸 묻습니다"를 먼저 보여 줄 때도 쓴다.
+ * 응답을 정리한 결과 보고서는 옆의 report 라우트다 — 둘은 쓰임이 다르다.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireTeamSession();
@@ -71,28 +33,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     } | null;
     const questions = sanitizeQuestions(survey.questions);
 
-    const pdf = await PDFDocument.create();
-    pdf.registerFontkit(fontkit);
-    const [regularBytes, boldBytes] = await Promise.all([
-      readFile(path.join(process.cwd(), "public/fonts/Pretendard-Regular.ttf")),
-      readFile(path.join(process.cwd(), "public/fonts/Pretendard-Bold.ttf")),
-    ]);
-    const regular = await pdf.embedFont(regularBytes);
-    const bold = await pdf.embedFont(boldBytes);
-
-    const writer: Writer = { pdf, page: pdf.addPage([PAGE.width, PAGE.height]), y: PAGE.height - MARGIN };
+    const { pdf, regular, bold, writer } = await createDocument();
 
     line(writer, String(survey.title || "교육 만족도 조사"), bold, 21, 12);
     const heldOn = formatHeldOn(session?.held_on, session?.start_time, session?.duration_hours, "long");
     line(writer, [session?.company_research?.name, session?.title, heldOn].filter(Boolean).join("  ·  "), regular, 10, 6, MUTED);
     if (session?.instructors?.name) line(writer, `강사 ${session.instructors.name}`, regular, 10, 6, MUTED);
-
-    writer.y -= 6;
-    writer.page.drawLine({
-      start: { x: MARGIN, y: writer.y }, end: { x: PAGE.width - MARGIN, y: writer.y },
-      thickness: 1, color: LINE,
-    });
-    writer.y -= 18;
+    rule(writer);
 
     if (survey.intro) { line(writer, String(survey.intro), regular, 10.5, 7, MUTED); writer.y -= 8; }
 
@@ -123,14 +70,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     writer.y -= 6;
     line(writer, "응답해 주셔서 감사합니다. 강원대학교 산학협력단 교육사업팀", regular, 9.5, 6, MUTED);
 
-    const bytes = await pdf.save();
-    return new Response(new Uint8Array(bytes), {
-      headers: {
-        "Content-Type": "application/pdf",
-        "Content-Disposition": `inline; filename="survey-${id}.pdf"`,
-        "Cache-Control": "no-store",
-      },
-    });
+    return pdfResponse(await pdf.save(), `survey-${id}.pdf`);
   } catch (error) {
     const detail = error instanceof Error ? error.message
       : (error && typeof error === "object" && "message" in error) ? String((error as { message: unknown }).message) : "";
