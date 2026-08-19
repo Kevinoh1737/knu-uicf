@@ -29,17 +29,33 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (error || !survey) throw error || new Error("만족도 조사를 찾지 못했습니다.");
 
     const [{ data: responses }, { data: invites }] = await Promise.all([
-      supabase.from("survey_responses").select("answers").eq("survey_id", id),
+      // 누가 낸 답인지 붙이려면 초대를 거쳐야 한다 — 응답은 사람이 아니라 초대에 매달려 있다.
+      supabase.from("survey_responses")
+        .select("answers,submitted_at,invite_id,survey_invites(learners(name,department))")
+        .eq("survey_id", id)
+        .order("submitted_at", { ascending: true }),
       supabase.from("survey_invites").select("sent_at").eq("survey_id", id),
     ]);
 
+    const questions = sanitizeQuestions(survey.questions);
     const summary = summarizeSurvey(
-      sanitizeQuestions(survey.questions),
+      questions,
       (responses || []).map((response) => ({ answers: (response.answers || {}) as SurveyAnswers })),
       (invites || []).filter((invite) => invite.sent_at).length,
     );
 
-    const bytes = await renderSurveyReport({ session: survey.course_sessions as ReportSession, summary });
+    const detail = (responses || []).map((response) => {
+      const learner = (response.survey_invites as { learners?: { name?: string; department?: string } | null } | null)?.learners;
+      return {
+        name: learner?.name || "이름 미상",
+        department: learner?.department || "",
+        answers: (response.answers || {}) as SurveyAnswers,
+      };
+    });
+
+    const bytes = await renderSurveyReport({
+      session: survey.course_sessions as ReportSession, summary, questions, responses: detail,
+    });
     return pdfResponse(bytes, `survey-report-${id}.pdf`);
   } catch (error) {
     const detail = error instanceof Error ? error.message

@@ -787,12 +787,11 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
             : <>질문지 없이 만든 조사 — 다른 교육과 견주려면 질문지를 골라 다시 만들어 주세요</>}
         </p>
       </div>
+      {/* 여기는 답을 보는 자리다. 빈 질문지(종이로 돌리는 것)는 교육과정 화면에 있다 —
+          아직 안 보낸 교육에서 인쇄하는 것이지, 결과를 보며 받을 것이 아니다. */}
       <div className="title-actions">
         <a className="upload-chip lead" href={`/api/surveys/${surveyId}/report`} target="_blank" rel="noreferrer">
           <Icon name="download" size={15} /> 결과 PDF
-        </a>
-        <a className="upload-chip" href={`/api/surveys/${surveyId}/pdf`} target="_blank" rel="noreferrer">
-          <Icon name="download" size={15} /> 질문지 PDF
         </a>
       </div>
     </div>

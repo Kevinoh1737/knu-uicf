@@ -14,6 +14,8 @@ export const MUTED = rgb(0.47, 0.5, 0.48);
 export const LINE = rgb(0.86, 0.89, 0.92);
 export const BAR = rgb(0.35, 0.51, 0.45);
 export const BAR_BG = rgb(0.91, 0.93, 0.92);
+/** 1~2점처럼 눈에 걸려야 하는 낮은 값. 표에서 숫자만 보고도 찾을 수 있어야 한다. */
+export const BAR_LOW = rgb(0.71, 0.14, 0.09);
 
 /** pdf-lib 은 줄바꿈을 해주지 않는다. 폭에 맞춰 직접 자른다 — 계약서 PDF 와 같은 방식이다. */
 export function wrap(text: string, font: PDFFont, size: number, maxWidth: number) {
