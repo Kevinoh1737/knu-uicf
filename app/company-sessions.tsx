@@ -309,13 +309,18 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
   const [templates, setTemplates] = useState<SurveyTemplateOption[]>([]);
   const { ask, confirmDialog } = useConfirm();
 
-  const reload = () => fetch(`/api/companies/${companyId}/sessions`)
+  /**
+   * notify 는 '바깥에도 알릴 것인가'다. 처음 열 때는 알리지 않는다 — 알리면 바깥이 같은
+   * 교육 진행 정보를 한 번 더 읽어서, 화면을 열 때마다 같은 요청이 두 번 나간다.
+   * 바꾼 것이 있을 때만(교육 추가·삭제, 수강생 등록, 발송) 알린다.
+   */
+  const reload = (notify = true) => fetch(`/api/companies/${companyId}/sessions`)
     .then(async (response) => {
       const result = await response.json() as { sessions?: SessionRow[]; instructors?: InstructorOption[] };
       if (!response.ok) throw new Error("교육 진행 정보 조회 실패");
       setSessions(result.sessions || []);
       setInstructors(result.instructors || []);
-      onDataChanged?.();
+      if (notify) onDataChanged?.();
     })
     .catch(() => undefined);
 
@@ -335,7 +340,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
   }, []);
 
   useEffect(() => {
-    void reload().finally(() => setLoading(false));
+    void reload(false).finally(() => setLoading(false));
     // reload 는 companyId 만 참조한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [companyId]);

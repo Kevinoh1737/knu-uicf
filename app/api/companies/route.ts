@@ -10,7 +10,9 @@ export async function GET() {
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from("company_research")
-      .select("id,name,website_url,industry,stage,contact,research,intelligence,crawl,questions,created_at,updated_at")
+      // crawl 은 화면이 읽지 않는다 — 홈페이지에서 긁어 온 원본이라 회사가 늘수록 목록
+      // 응답만 무거워진다(조사할 때 쓰고 그 뒤로는 보지 않는 칸이다).
+      .select("id,name,website_url,industry,stage,contact,research,intelligence,questions,created_at,updated_at")
       .order("updated_at", { ascending: false });
     if (error) throw error;
 

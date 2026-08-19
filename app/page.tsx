@@ -373,7 +373,9 @@ function CompanyDetail({ company, companies, onSelectCompany, onDataChanged }: {
       });
     });
     return () => { alive = false; };
-  }, [company.id, tab, dataVersion]);
+    // 탭 전환은 숫자를 바꾸지 않는다. 바뀌는 것은 자료를 손댔을 때뿐이고 그것은 dataVersion
+    // 이 잡는다 — tab 을 넣어 두면 탭을 오갈 때마다 같은 두 요청이 다시 나간다.
+  }, [company.id, dataVersion]);
   const [questions, setQuestions] = useState(company.research?.questions?.length ? company.research.questions : [...AX_FOUNDATION_QUESTIONS]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [exportState, setExportState] = useState<"idle" | "pdf" | "xlsx" | "error">("idle");
