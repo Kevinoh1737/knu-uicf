@@ -715,9 +715,19 @@ function ConsultingTab({ company, onDataChanged }: { company: CompanyItem; onDat
       });
       const tokenResult = await tokenResponse.json() as { error?: string; bucket?: string; path?: string; token?: string; mimeType?: string };
       if (!tokenResponse.ok || !tokenResult.bucket || !tokenResult.path || !tokenResult.token) throw new Error(tokenResult.error || "파일 업로드를 준비하지 못했습니다.");
+      /**
+       * 브라우저가 파일에 붙인 형식을 그대로 올리면 버킷 허용 목록에 걸린다.
+       *
+       * macOS·iOS 는 `.m4a` 에 `audio/x-m4a` 를 붙이는데 버킷은 `audio/mp4` 만 받는다 —
+       * 실제로 "mime type audio/x-m4a is not supported" 로 거절당했다. contentType 인자를
+       * 줘도 폼 전송에서는 Blob 자신의 형식이 따라가므로, 우리가 정한 형식으로 다시 감싼다.
+       * 아이폰 음성 메모가 정확히 이 경우라 그냥 두면 상담 녹취를 못 올리는 사람이 생긴다.
+       */
+      const contentType = tokenResult.mimeType || payloadMime;
+      const body = payload.type === contentType ? payload : new Blob([payload], { type: contentType });
       const { error: uploadError } = await createSupabaseBrowser().storage
         .from(tokenResult.bucket)
-        .uploadToSignedUrl(tokenResult.path, tokenResult.token, payload, { contentType: tokenResult.mimeType || payloadMime });
+        .uploadToSignedUrl(tokenResult.path, tokenResult.token, body, { contentType });
       if (uploadError) throw new Error(uploadError.message || "녹취파일을 업로드하지 못했습니다.");
 
       setProcessState("transcribing");
