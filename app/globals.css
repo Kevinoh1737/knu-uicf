@@ -845,3 +845,17 @@ button.nav-label:focus-visible{outline:2px solid #6f8980;outline-offset:2px}
 .compare-table .compare-worse i{background:#e8a49d}
 .compare-table .compare-foot th,.compare-table .compare-foot td{border-bottom:0;background:#f7f9fb;font-weight:650}
 .compare-table .compare-foot th{background:#f7f9fb}
+
+/* 기업 카드가 패널 밖으로 잘려 나가던 문제.
+   `1fr` 은 `minmax(auto,1fr)` 이고, auto 최소값은 내용의 min-content 다. 카드 안 산업 설명
+   줄이 `white-space:nowrap` 이라 그 줄 길이 전체가 트랙의 최소값이 되고, 세 트랙이 각자
+   내용만큼 부풀어(측정: 307/280/258px) 합이 패널 안쪽 폭보다 50px 넓어졌다 — 오른쪽 열이
+   패널 밖에서 잘렸다. 트랙 최소값을 0 으로 내린다. 설명 줄은 이미 말줄임을 갖고 있어
+   좁아져도 …로 끝나고, 제목은 keep-all 로 단어째 넘어간다. */
+.company-cards{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:1050px){.company-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.company-cards{grid-template-columns:minmax(0,1fr)}}
+
+/* 같은 성분(fr 트랙 + nowrap 자식)이 남아 있던 자리. 모달 안 변형은 이미 같은 처방을
+   받아 두었다(.modal .input-tabs) — 바깥에서 쓰는 기본 규칙만 남아 있었다. */
+.input-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
