@@ -25,6 +25,7 @@ import {
 } from "@/lib/survey-import";
 import { readSheetRows } from "@/lib/xlsx";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { trackQuality } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -105,6 +106,19 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }));
       const mappings = proposeMapping(columns, questions);
       const preview = buildRows(table, mappings, questions);
+      // 자동 짝짓기가 실제 구글폼에서 얼마나 맞는지는 우리가 지어낸 열 제목으로는 알 수 없다.
+      // 붙은 문항 수와 놓친 열의 제목을 남겨, 문턱을 조정할 근거로 쓴다.
+      await trackQuality("결과지 짝짓기 제안", {
+        columns: columns.length,
+        questions: questions.length,
+        autoMatched: mappings.filter((mapping) => mapping.role === "question").length,
+        respondents: preview.length,
+        missedHeaders: mappings
+          .filter((mapping) => mapping.role === "skip")
+          .map((mapping) => columns.find((column) => column.index === mapping.index)?.header || "")
+          .filter(Boolean)
+          .slice(0, 10),
+      });
 
       return Response.json({
         columns,
@@ -161,6 +175,16 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       .eq("status", "draft");
 
     const unreadable = built.reduce((total, row) => total + row.unreadable, 0);
+    // 사람이 손댄 횟수가 자동 짝짓기의 진짜 성적표다. 0 에 가까우면 확인 화면은 형식적
+    // 절차가 되고, 많으면 문턱이나 방식을 바꿔야 한다는 뜻이다.
+    await trackQuality("결과지 들여오기 확정", {
+      imported: records.length,
+      named: built.filter((row) => row.name).length,
+      unreadableCells: unreadable,
+      correctedByHand: mappings.filter((mapping) => mapping.auto === false && mapping.role === "question").length,
+      matchedQuestions: matched.length,
+      totalQuestions: questions.length,
+    });
     return Response.json({
       imported: records.length,
       named: built.filter((row) => row.name).length,

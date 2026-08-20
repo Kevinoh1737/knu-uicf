@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { Telemetry } from "./telemetry-client";
 
 export const metadata: Metadata = {
   title: "KNU UICF 교육사업팀",
@@ -19,6 +20,8 @@ export default function RootLayout({
     <html lang="ko">
       <body style={{ wordBreak: "keep-all", overflowWrap: "break-word" }}>
         {children}
+        {/* 베타 사용 기록. 아무것도 그리지 않고, 실패해도 화면을 방해하지 않는다. */}
+        <Telemetry />
       </body>
     </html>
   );

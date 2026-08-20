@@ -20,6 +20,7 @@ import {
   resolveConsultationNote,
 } from "@/lib/consultations";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { trackQuality } from "@/lib/telemetry";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -156,6 +157,15 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       legible = parsed.legible !== false;
     }
     text = text.slice(0, MAX_CONSULTATION_NOTE_LENGTH);
+    // 읽어 낸 분량과 판독불가 표시 수가 곧 '사진이 쓸 만했는가' 다. 쌓이면 안내 문구를
+    // 고칠지(밝은 곳에서 찍어 달라) 전처리를 넣을지 판단할 수 있다.
+    await trackQuality("상담 메모 판독", {
+      chars: text.length,
+      legible,
+      unreadableMarks: (text.match(/\[판독불가\]/g) || []).length,
+      mimeType: note.mimeType,
+      fileSizeKb: Math.round(body.fileSize / 1024),
+    });
 
     // 못 읽은 메모를 그대로 분석에 넘기면 모델이 빈자리를 지어낸다. 여기서 끊고 사람에게 돌려준다.
     if (!legible || text.length < MIN_CONSULTATION_NOTE_LENGTH) {

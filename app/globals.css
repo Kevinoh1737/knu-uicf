@@ -960,3 +960,57 @@ button.nav-label:focus-visible{outline:2px solid #6f8980;outline-offset:2px}
 .import-table select{width:100%;min-width:180px;max-width:280px;min-height:34px;padding:0 8px;border:1px solid var(--line);border-radius:7px;background:#fff;font-size:11px;color:#303a36}
 .import-table select:focus{border-color:#6b9485;outline:0;box-shadow:0 0 0 3px #e8f1ed}
 .import-note{margin:10px 0 0;color:#8b9490;font-size:10.5px;line-height:1.6;text-align:right}
+
+/* 베타 관찰 화면(/admin) — 메뉴에 없는 내부용 */
+.admin{max-width:1180px;margin:0 auto;padding:28px 24px 60px}
+.admin-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.admin-head h1{margin:0 0 6px;font-size:22px;letter-spacing:-.03em}
+.admin-head p{margin:0;color:var(--muted);font-size:12px}
+.admin-range{display:flex;gap:6px}
+.admin-range button{min-height:34px;padding:0 13px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#4e5968;font-size:11.5px}
+.admin-range button.active{border-color:#173452;background:#173452;color:#fff;font-weight:650}
+.admin-error{margin:16px 0 0;padding:11px 14px;border-radius:9px;background:#fef2f2;color:#b42318;font-size:12px}
+.admin-warn{margin:16px 0 0;padding:11px 14px;border-radius:9px;background:#fff6e9;color:#8a5a20;font-size:12px}
+.admin-empty{margin:12px 0 0;padding:16px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);font-size:12px;text-align:center}
+.admin-empty.ok{border-color:#cfe3d7;background:#f4faf6;color:#3d725f}
+.admin-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:20px}
+.admin-totals>div{padding:14px 16px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.admin-totals>div.bad{border-color:#f0c9c4;background:#fef6f5}
+.admin-totals dt{color:#6b736f;font-size:10px}
+.admin-totals dd{display:flex;align-items:baseline;gap:7px;margin:6px 0 0;font:650 22px/1.2 var(--font-geist-mono)}
+.admin-totals small{font:400 10px var(--font-geist-sans);color:#8b9490}
+.admin-totals>div.bad dd{color:#b42318}
+.admin-block{margin-top:28px}
+.admin-block h2{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:14px}
+.admin-block h2 em{background:#fef2f2;color:#b42318;border-radius:5px;padding:2px 7px;font:650 10px var(--font-geist-mono);font-style:normal}
+.admin-hint{margin:0 0 10px;color:var(--muted);font-size:11.5px;line-height:1.6}
+.admin-table{overflow:auto;border:1px solid var(--line);border-radius:11px;background:#fff}
+.admin-table table{width:100%;border-collapse:collapse}
+.admin-table th,.admin-table td{text-align:left;padding:11px 14px;border-bottom:1px solid #eef1ef;font-size:11.5px;vertical-align:top}
+.admin-table th{background:#f3f5f4;color:#666f6b;font-weight:600;white-space:nowrap}
+.admin-table tr:last-child td{border-bottom:0}
+.admin-table td b{display:block;font-size:12px}
+.admin-table td small{display:block;margin-top:3px;color:#8b9490;font-size:10px}
+.admin-table .tnum{font:500 11px var(--font-geist-mono);white-space:nowrap}
+.admin-table .bad{color:#b42318;font-weight:650}
+.admin-message{max-width:520px;color:#4e5968;line-height:1.6;word-break:break-word}
+.admin-detail{display:flex;flex-wrap:wrap;gap:5px}
+.admin-detail>span{background:#f3f5f4;border-radius:6px;padding:3px 7px;color:#6b736f;font-size:10px}
+.admin-detail>span b{display:inline;margin-left:4px;color:#17211d;font:600 10px var(--font-geist-mono)}
+.admin-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+.admin-bars{list-style:none;margin:0;padding:0}
+.admin-bars li{display:grid;grid-template-columns:52px minmax(0,1fr) auto;align-items:center;gap:10px;padding:5px 0}
+.admin-bar-label{font:500 10px var(--font-geist-mono);color:#8b9490}
+.admin-bar{height:8px;border-radius:4px;background:#eef1ef;overflow:hidden}
+.admin-bar i{display:block;height:100%;background:#4b7869}
+.admin-bars .tnum{font:500 11px var(--font-geist-mono)}
+.admin-bars em{font-style:normal;font-size:10px}
+.admin-hours{display:flex;align-items:flex-end;gap:2px;list-style:none;margin:0;padding:0;height:120px;border-bottom:1px solid var(--line)}
+.admin-hours li{position:relative;flex:1;height:100%;display:flex;align-items:flex-end}
+.admin-hours i{display:block;width:100%;border-radius:2px 2px 0 0;background:#a7c2b7}
+.admin-hours span{position:absolute;bottom:-18px;left:0;font:500 9px var(--font-geist-mono);color:#8b9490}
+@media(max-width:760px){
+  .admin{padding:18px 13px 40px}
+  .admin-totals{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .admin-two{grid-template-columns:minmax(0,1fr)}
+}
