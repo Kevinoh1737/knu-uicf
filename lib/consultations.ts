@@ -48,6 +48,70 @@ export const CONSULTATION_AUDIO_ACCEPT = Object.keys(MIME_BY_EXTENSION)
   .map((extension) => `.${extension}`)
   .join(",");
 
+// ─── 녹취가 아닌 상담 기록 ────────────────────────────────────────────────────
+//
+// 현장에서 늘 녹음할 수 있는 것은 아니다 — 고객사가 꺼리기도 하고, 서서 나눈 짧은 이야기도
+// 있다. 그때 담당자는 수첩에 적는다. 그래서 상담 기록에 길이 셋이다.
+export type ConsultationSource = "audio" | "text" | "memo";
+
+export const CONSULTATION_NOTES_BUCKET = "consultation-notes";
+/** 손글씨 사진 몇 장이면 충분하다. 버킷 설정과 같은 값을 쓴다. */
+export const MAX_CONSULTATION_NOTE_SIZE = 20 * 1024 * 1024;
+/** 직접 입력 상한. 90분 녹취 전문이 3만 자 안팎이라 그보다 넉넉하다. */
+export const MAX_CONSULTATION_NOTE_LENGTH = 50_000;
+/**
+ * 분석이 쓸 것이 있어야 한다. 한 줄짜리 메모로는 니즈도 제약도 나오지 않고, 모델은 그
+ * 빈자리를 지어내서 채운다 — 그럴 바에는 받지 않는 편이 낫다.
+ */
+export const MIN_CONSULTATION_NOTE_LENGTH = 30;
+
+/**
+ * 메모로 받을 수 있는 것. 손으로 적은 사진과 PDF 가 대부분이다.
+ * 한글(.hwp)과 워드(.docx)는 모델이 직접 읽지 못해 뺐다 — 고를 수는 있는데 올리면 실패하는
+ * 것이 가장 나쁜 경우라, 애초에 고를 수 없게 한다.
+ */
+const NOTE_MIME_BY_EXTENSION: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+  pdf: "application/pdf",
+  txt: "text/plain",
+};
+
+export const CONSULTATION_NOTE_FORMAT_LABEL = "사진(JPG, PNG, HEIC), PDF, TXT";
+
+export const CONSULTATION_NOTE_ACCEPT = Object.keys(NOTE_MIME_BY_EXTENSION)
+  .map((extension) => `.${extension}`)
+  .join(",");
+
+export function resolveConsultationNote(fileName: string, suppliedMimeType?: string) {
+  const extension = fileName.toLowerCase().split(".").pop() || "";
+  const mimeType = NOTE_MIME_BY_EXTENSION[extension];
+  if (!mimeType) return null;
+  // 브라우저가 붙인 형식이 확장자와 어긋나면 믿지 않는다. HEIC 는 형식을 비워 보내는 기기가 있어 통과시킨다.
+  if (suppliedMimeType && suppliedMimeType !== mimeType
+    && !(extension === "heic" || extension === "heif")
+    && !(extension === "jpg" && suppliedMimeType === "image/jpeg")) return null;
+  return { extension, mimeType };
+}
+
+/**
+ * 상담 기록을 읽어 올 때 쓰는 칸 목록. 라우트마다 따로 적으면 칸을 하나 더할 때 한 곳을
+ * 빠뜨리고, 그러면 화면에서만 값이 비어 보인다 — 원인을 찾기 어려운 종류의 버그다.
+ */
+export const CONSULTATION_COLUMNS =
+  "id,company_id,file_name,storage_path,mime_type,file_size,source,note,status,transcript,summary,error_message,created_at,updated_at";
+
+/** 화면에 무엇으로 들어온 기록인지 알린다. 녹취만 있던 시절의 기록은 source 가 audio 다. */
+export const CONSULTATION_SOURCE_LABEL: Record<ConsultationSource, string> = {
+  audio: "녹취",
+  text: "직접 입력",
+  memo: "메모",
+};
+
 export function resolveConsultationAudio(fileName: string, suppliedMimeType?: string) {
   const extension = fileName.toLowerCase().split(".").pop() || "";
   const mimeType = MIME_BY_EXTENSION[extension];
@@ -104,9 +168,13 @@ export type ConsultationRecord = {
   id: string;
   company_id: string;
   file_name: string;
-  storage_path: string;
-  mime_type: string;
-  file_size: number;
+  /** 파일이 있을 때만 채워진다. 직접 입력한 기록에는 없다. */
+  storage_path: string | null;
+  mime_type: string | null;
+  file_size: number | null;
+  source: ConsultationSource;
+  /** 직접 입력한 글, 또는 메모에서 읽어 낸 글. 녹취면 비어 있고 transcript 를 본다. */
+  note: string;
   status: "uploaded" | "processing" | "completed" | "failed";
   transcript: ConsultationTranscript;
   summary: ConsultationSummary;

@@ -16,7 +16,7 @@ import {
   SESSION_STATUS_CHOICES, SESSION_STATUS_LABEL, SESSION_STATUS_TONE, SessionStatus, withRo,
 } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerInput, LearnerStatus } from "@/lib/learners";
-import { SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
+import { SURVEY_EMAIL_SEND_ENABLED, SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { Feedback, Icon, useConfirm } from "./ui";
@@ -87,20 +87,26 @@ function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
         <div><dt>평균</dt><dd>{survey.overall === null ? "—" : `${survey.overall} / 5`}</dd></div>
       </dl>
       <div className="session-actions">
-        <button type="button" className="upload-chip" disabled={busy || !learners || !survey.questionCount}
+        {SURVEY_EMAIL_SEND_ENABLED && <button type="button" className="upload-chip" disabled={busy || !learners || !survey.questionCount}
           title={learners ? undefined : "이 교육과정에 배정된 수강생이 없습니다"}
           onClick={onSend}>
           {survey.sent ? "만족도 조사 다시 보내기" : "만족도 조사 보내기"}
-        </button>
+        </button>}
         <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer"
           aria-label="질문지 PDF 내려받기" title="질문지 PDF 내려받기"><Icon name="download" size={15} />질문지 PDF</a>
       </div>
-      <p className="survey-hint">응답 결과와 결과 PDF 는 만족도 메뉴에서</p>
+      <p className="survey-hint">
+        {SURVEY_EMAIL_SEND_ENABLED ? "응답 결과와 결과 PDF 는 만족도 메뉴에서" : "결과지 올리기와 결과 PDF 는 만족도 메뉴에서"}
+      </p>
     </> : <>
       {/* 질문지는 만족도 메뉴에서 만들고 여기서는 골라 오기만 한다 — 과정마다 문항을 새로
           쓰면 문항 id 가 갈려서 과정끼리 견줄 수 없다. 보낼 수강생이 이 과정에 매달려
           있으므로, 고르기와 발송은 같은 자리에 둔다. */}
-      <p className="body-text">만족도 메뉴에서 만들어 둔 질문지를 골라 씁니다. 만들면 이 화면에서 수강생에게 보냅니다.</p>
+      <p className="body-text">
+        {SURVEY_EMAIL_SEND_ENABLED
+          ? "만족도 메뉴에서 만들어 둔 질문지를 골라 씁니다. 만들면 이 화면에서 수강생에게 보냅니다."
+          : "만족도 메뉴에서 만들어 둔 질문지를 골라 씁니다. 만들면 결과를 모을 자리가 생깁니다."}
+      </p>
       <div className="session-actions">
         {templates.length > 1 && <label className="survey-template-pick">
           <span className="sr-only">질문지 고르기</span>

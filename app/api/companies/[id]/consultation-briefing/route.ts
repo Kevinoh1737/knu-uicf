@@ -53,10 +53,18 @@ function strings(value: unknown) {
     : [];
 }
 
-function transcriptText(transcript: ConsultationTranscript | null) {
-  return (transcript?.segments || [])
+/**
+ * 브리핑이 읽을 상담 본문.
+ *
+ * 녹취면 전사가 있고, 직접 입력·메모면 note 에 글이 있다. 전사만 보면 녹취 없이 남긴 상담이
+ * 통합 브리핑에서 통째로 빠진다 — 화면에는 상담 3건이라고 적혀 있는데 브리핑은 1건만 합친
+ * 상태가 되므로, 틀렸다는 것조차 알아채기 어렵다.
+ */
+function consultationText(row: { transcript?: ConsultationTranscript | null; note?: string | null }) {
+  const segments = (row.transcript?.segments || [])
     .map((segment) => `[${segment.timestamp}] ${segment.speaker}: ${segment.text}`)
     .join("\n");
+  return segments || String(row.note || "").trim();
 }
 
 function sessionDate(value: string) {
@@ -80,14 +88,19 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
 
     const { data: rows, error: rowsError } = await supabase
       .from("company_consultations")
-      .select("id,file_name,transcript,created_at")
+      .select("id,file_name,transcript,note,created_at")
       .eq("company_id", id)
       .eq("status", "completed")
       .order("created_at", { ascending: true });
     if (rowsError) throw rowsError;
 
     const sessions = (rows || [])
-      .map((row) => ({ id: row.id as string, fileName: row.file_name as string, createdAt: row.created_at as string, text: transcriptText(row.transcript as ConsultationTranscript) }))
+      .map((row) => ({
+        id: row.id as string,
+        fileName: row.file_name as string,
+        createdAt: row.created_at as string,
+        text: consultationText(row as { transcript?: ConsultationTranscript | null; note?: string | null }),
+      }))
       .filter((session) => session.text.length > 0);
 
     // A single session already has its own summary; a briefing only earns its cost from two or more.

@@ -14,6 +14,12 @@ import {
   MAX_CONSULTATION_SECONDS,
   MAX_CONSULTATION_SOURCE_SIZE,
   resolveConsultationAudio,
+  CONSULTATION_NOTE_ACCEPT,
+  CONSULTATION_NOTE_FORMAT_LABEL,
+  CONSULTATION_SOURCE_LABEL,
+  MAX_CONSULTATION_NOTE_SIZE,
+  MIN_CONSULTATION_NOTE_LENGTH,
+  resolveConsultationNote,
 } from "@/lib/consultations";
 import { COMPRESSED_MIME_TYPE, compressConsultationAudio, needsCompression, readAudioDuration } from "@/lib/audio/compress";
 import { InstructorDetail, InstructorItem, InstructorsPanel } from "./instructors-panel";
@@ -635,10 +641,59 @@ function NeedList({ title, needs }: { title: string; needs?: Array<{ title: stri
   </article>;
 }
 
+/**
+ * 상담 내용을 직접 적는 창.
+ *
+ * 녹취가 없으면 담당자의 기억이 유일한 원본이라, 적는 동안 무엇을 적어야 하는지 알려 주는
+ * 것이 곧 자료의 질이다. 그래서 빈 칸에 안내를 넣는다 — 나중에 요약이 '확인되지 않음' 으로
+ * 도배되는 것을 막는 가장 싼 방법이다.
+ */
+function TypedNoteModal({ value, onChange, busy, onClose, onSubmit }: {
+  value: string; onChange: (next: string) => void; busy: boolean;
+  onClose: () => void; onSubmit: () => void;
+}) {
+  useEscapeClose(!busy, onClose);
+  const enough = value.trim().length >= MIN_CONSULTATION_NOTE_LENGTH;
+  return <div className="modal-backdrop">
+    <button type="button" className="modal-scrim" aria-label="닫기" onClick={onClose} disabled={busy} />
+    <div className="modal note-modal" role="dialog" aria-modal="true" aria-labelledby="note-title">
+      <div className="modal-head">
+        <div>
+          <h2 id="note-title">상담 내용 직접 입력</h2>
+          <p>기억나는 대로 적으시면 됩니다. 문장이 매끄럽지 않아도 괜찮습니다.</p>
+        </div>
+        <button type="button" onClick={onClose} disabled={busy} aria-label="닫기">×</button>
+      </div>
+      <textarea
+        className="note-input" rows={14} value={value} disabled={busy}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label="상담 내용"
+        placeholder={"어떤 이야기가 오갔는지 적어 주세요.\n\n· 누구를 만났는지 (이름, 부서, 직급)\n· 어떤 업무에 시간이 가장 많이 든다고 했는지\n· 교육으로 무엇이 달라지길 바라는지\n· 참석 인원과 수준\n· 보안·장소·일정 같은 제약\n· 다음에 확인하기로 한 것"}
+      />
+      <div className="note-foot">
+        <span className={enough ? "" : "short"}>
+          {value.trim().length}자{enough ? "" : ` · ${MIN_CONSULTATION_NOTE_LENGTH}자 이상`}
+        </span>
+        <div className="modal-actions">
+          <button type="button" onClick={onClose} disabled={busy}>취소</button>
+          <button type="button" className="primary-small" onClick={onSubmit} disabled={busy || !enough}>
+            {busy ? "정리하는 중…" : "저장하고 정리"}
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>;
+}
+
 function ConsultingTab({ company, onDataChanged }: { company: CompanyItem; onDataChanged?: () => void }) {
   type ProcessState = "idle" | "compressing" | "uploading" | "transcribing";
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const noteFileInputRef = useRef<HTMLInputElement>(null);
   const [records, setRecords] = useState<ConsultationRecord[]>([]);
+  // 녹음을 못 한 상담을 남기는 두 길. 창을 띄우는 쪽이 직접 입력이다.
+  const [typing, setTyping] = useState(false);
+  const [noteText, setNoteText] = useState("");
+  const [noteBusy, setNoteBusy] = useState(false);
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
   const [dragging, setDragging] = useState(false);
@@ -670,6 +725,75 @@ function ConsultingTab({ company, onDataChanged }: { company: CompanyItem; onDat
       .finally(() => setLoading(false));
     return () => controller.abort();
   }, [company.id]);
+
+  /** 새 기록을 목록 맨 앞에 놓고 그것을 펼친다. 방금 만든 것을 바로 보는 게 당연하다. */
+  const acceptSaved = (saved: ConsultationRecord) => {
+    setRecords((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+    setSelectedId(saved.id);
+    onDataChanged?.();
+  };
+
+  const submitTypedNote = async () => {
+    const note = noteText.trim();
+    if (!company.id || noteBusy) return;
+    if (note.length < MIN_CONSULTATION_NOTE_LENGTH) {
+      setError(`상담 내용을 ${MIN_CONSULTATION_NOTE_LENGTH}자 이상 적어 주세요. 너무 짧으면 교육 설계에 쓸 것이 나오지 않습니다.`);
+      return;
+    }
+    setNoteBusy(true); setError("");
+    try {
+      const response = await fetch(`/api/companies/${company.id}/consultations/note`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "text", note }),
+      });
+      const result = await response.json() as { consultation?: ConsultationRecord; error?: string };
+      if (!response.ok || !result.consultation) throw new Error(result.error || "상담 기록을 저장하지 못했습니다.");
+      acceptSaved(result.consultation);
+      setTyping(false); setNoteText("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "상담 기록을 저장하지 못했습니다.");
+    } finally {
+      setNoteBusy(false);
+    }
+  };
+
+  const processNoteFile = async (file?: File) => {
+    if (!file || !company.id || noteBusy) return;
+    // 실패한 파일을 다시 고를 수 있도록 무엇보다 먼저 입력을 비운다(같은 파일 재선택은 change 를 안 낸다).
+    if (noteFileInputRef.current) noteFileInputRef.current.value = "";
+    const note = resolveConsultationNote(file.name, file.type);
+    if (!note) { setError(`${CONSULTATION_NOTE_FORMAT_LABEL} 파일을 선택해 주세요.`); return; }
+    if (file.size > MAX_CONSULTATION_NOTE_SIZE) { setError("메모 파일은 최대 20MB까지 올릴 수 있습니다."); return; }
+    setNoteBusy(true); setError("");
+    try {
+      const tokenResponse = await fetch("/api/uploads/consultation-note", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id, fileName: file.name, fileSize: file.size, mimeType: note.mimeType }),
+      });
+      const token = await tokenResponse.json() as { bucket?: string; path?: string; token?: string; mimeType?: string; error?: string };
+      if (!tokenResponse.ok || !token.token || !token.path) throw new Error(token.error || "업로드를 준비하지 못했습니다.");
+
+      // 브라우저가 붙인 형식이 버킷 허용 목록과 어긋나면 거절당한다(아이폰 .m4a 에서 겪은 것과 같은 함정).
+      const contentType = token.mimeType || note.mimeType;
+      const body = file.type === contentType ? file : new Blob([file], { type: contentType });
+      const { error: uploadError } = await createSupabaseBrowser().storage
+        .from(token.bucket || "consultation-notes")
+        .uploadToSignedUrl(token.path, token.token, body, { contentType });
+      if (uploadError) throw new Error(uploadError.message || "메모 파일을 업로드하지 못했습니다.");
+
+      const response = await fetch(`/api/companies/${company.id}/consultations/note`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source: "memo", storagePath: token.path, fileName: file.name, mimeType: contentType, fileSize: file.size }),
+      });
+      const result = await response.json() as { consultation?: ConsultationRecord; error?: string };
+      if (!response.ok || !result.consultation) throw new Error(result.error || "메모를 읽지 못했습니다.");
+      acceptSaved(result.consultation);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "메모를 읽지 못했습니다.");
+    } finally {
+      setNoteBusy(false);
+    }
+  };
 
   const processFile = async (file?: File) => {
     if (!file || !company.id || processState !== "idle") return;
@@ -803,6 +927,8 @@ function ConsultingTab({ company, onDataChanged }: { company: CompanyItem; onDat
   };
 
   const selected = records.find((item) => item.id === selectedId) || records[0];
+  // 셋 중 하나라도 돌고 있으면 나머지도 잠근다 — 동시에 두 건을 넣으면 어느 것이 실패했는지 알 수 없다.
+  const busy = processState !== "idle" || noteBusy;
   const summary = selected?.summary;
   const firstConstraint = summary?.constraints?.[0];
   const processLabel = processState === "compressing" ? `녹취파일 준비 중 ${Math.round(compressRatio * 100)}%`
@@ -820,12 +946,31 @@ function ConsultingTab({ company, onDataChanged }: { company: CompanyItem; onDat
 
   return <section className="tab-content consulting">
     {confirmDialog}
-    <div className="content-title"><div><h2>상담 기록과 녹취</h2><p>녹취를 올리면 전사와 요약을 만듭니다</p></div>{records.length > 0 && <button type="button" onClick={() => fileInputRef.current?.click()} disabled={processState !== "idle"}>＋ 녹취 추가</button>}</div>
+    <div className="content-title"><div><h2>상담 기록</h2><p>녹취를 올리거나, 직접 적거나, 적어 둔 메모를 올립니다</p></div>
+      {records.length > 0 && <div className="consultation-actions">
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={busy}>＋ 녹취</button>
+        <button type="button" onClick={() => { setError(""); setTyping(true); }} disabled={busy}>＋ 직접 입력</button>
+        <button type="button" onClick={() => noteFileInputRef.current?.click()} disabled={busy}>＋ 메모</button>
+      </div>}
+    </div>
     <input ref={fileInputRef} className="sr-only" type="file" accept={CONSULTATION_AUDIO_ACCEPT} onChange={(event) => processFile(event.target.files?.[0])} />
+    <input ref={noteFileInputRef} className="sr-only" type="file" accept={CONSULTATION_NOTE_ACCEPT} onChange={(event) => processNoteFile(event.target.files?.[0])} />
+    {typing && <TypedNoteModal
+      value={noteText} onChange={setNoteText} busy={noteBusy}
+      onClose={() => { if (!noteBusy) { setTyping(false); setError(""); } }}
+      onSubmit={submitTypedNote}
+    />}
+    {noteBusy && !typing && <div className="consultation-processing" role="status" aria-live="polite"><i aria-hidden="true"/><div><b>메모를 읽고 정리하는 중</b><span>사진 속 글씨를 옮겨 적고 있습니다</span></div><em aria-hidden="true"><span/></em></div>}
     {processState !== "idle" && <div className="consultation-processing" role="status" aria-live="polite"><i aria-hidden="true"/><div><b>{processLabel}</b><span>{processHint}</span></div><em aria-hidden="true" className={processState === "compressing" ? "determinate" : ""}><span style={processState === "compressing" ? { width: `${Math.max(2, Math.round(compressRatio * 100))}%` } : undefined}/></em></div>}
     {error && <p className="consultation-error" role="alert">{error}</p>}
-    {!selected && !loading && processState === "idle" && <div className={`upload-zone${dragging ? " dragging" : ""}`} onDragEnter={(event)=>{event.preventDefault();setDragging(true);}} onDragOver={(event)=>event.preventDefault()} onDragLeave={(event)=>{if(!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false);}} onDrop={(event)=>{event.preventDefault();setDragging(false);processFile(event.dataTransfer.files?.[0]);}}>
+    {!selected && !loading && !busy && <div className={`upload-zone${dragging ? " dragging" : ""}`} onDragEnter={(event)=>{event.preventDefault();setDragging(true);}} onDragOver={(event)=>event.preventDefault()} onDragLeave={(event)=>{if(!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false);}} onDrop={(event)=>{event.preventDefault();setDragging(false);processFile(event.dataTransfer.files?.[0]);}}>
       <span><Icon name="upload" size={22}/></span><h3>녹취파일을 놓거나 선택하세요</h3><p>한 번에 최대 {MAX_CONSULTATION_MINUTES}분 · 더 긴 상담은 나눠서 올려 주세요<br/>{CONSULTATION_FORMAT_LABEL} · 용량은 신경 쓰지 않아도 됩니다</p><button type="button" onClick={() => fileInputRef.current?.click()}>파일 선택</button>
+      {/* 녹음을 못 하는 상담이 있다. 그때 다른 길이 있다는 것을 여기서 알려 주지 않으면,
+          사장님은 이 화면을 '녹취가 없으면 쓸 수 없는 기능'으로 읽고 그냥 나간다. */}
+      <p className="upload-alt">녹음하지 못한 상담인가요?
+        <button type="button" onClick={() => { setError(""); setTyping(true); }}>직접 입력</button>
+        <button type="button" onClick={() => noteFileInputRef.current?.click()}>메모 올리기</button>
+      </p>
     </div>}
     {loading && <div className="consultation-loading"><i className="spinner" aria-hidden="true"/><span>상담 기록 불러오는 중</span></div>}
     {(briefing || briefingState === "building") && <BriefingPanel briefing={briefing} building={briefingState === "building"} sessionCount={completedIds.length} />}
@@ -834,13 +979,23 @@ function ConsultingTab({ company, onDataChanged }: { company: CompanyItem; onDat
       <div className="audio-bar">{/* 파일이 없으면 재생기를 감춘다. src 없는 <audio> 는 눌러도 아무 일이 없는 죽은 조작부가 되는데,
           원본이 지워졌거나 서명 URL 을 못 받은 기록에서 실제로 그렇게 된다. 원고와 요약은 그대로 남는다. */}
         {selected.audio_url && /* eslint-disable-next-line jsx-a11y/media-has-caption -- The complete transcript is displayed directly below. */
-          <audio controls preload="metadata" src={selected.audio_url}/>}<div><b>{selected.file_name}</b><small>{formatFileSize(selected.file_size)} · {createdDate(selected.created_at)}</small></div><span>{selected.status === "completed" ? "정리 완료" : selected.status === "failed" ? "처리 실패" : "처리 중"}</span><button type="button" className="record-delete" onClick={() => deleteRecord(selected)} disabled={deletingId === selected.id} aria-label={`${selected.file_name} 삭제`} title="이 녹취 삭제">{deletingId === selected.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}</button></div>
+          <audio controls preload="metadata" src={selected.audio_url}/>}<div><b>{selected.file_name}</b><small>{[CONSULTATION_SOURCE_LABEL[selected.source] || "녹취", selected.file_size ? formatFileSize(selected.file_size) : "", createdDate(selected.created_at)].filter(Boolean).join(" · ")}</small></div><span>{selected.status === "completed" ? "정리 완료" : selected.status === "failed" ? "처리 실패" : "처리 중"}</span><button type="button" className="record-delete" onClick={() => deleteRecord(selected)} disabled={deletingId === selected.id} aria-label={`${selected.file_name} 삭제`} title="이 상담 기록 삭제">{deletingId === selected.id ? <i className="spinner" aria-hidden="true"/> : <Icon name="trash" size={17}/>}</button></div>
       {summary?.overview && <article className="consultation-overview"><small>상담 요약</small><p>{summary.overview}</p></article>}
       <NeedList title="핵심 니즈" needs={summary?.keyNeeds} />
       <div className="insight-row two"><article><small>교육 대상</small><b>{summary?.audience?.headline || "확인 필요"}</b><p>{summary?.audience?.detail || "상담 내용에서 확인되지 않음"}</p></article><article><small>운영 제약</small><b>{firstConstraint || "확인 필요"}</b><p>{summary?.constraints?.slice(1).join(" · ") || "추가 제약 없음"}</p></article></div>
       {summary && <div className="consultation-details"><article><h3>합의사항</h3>{summary.decisions?.length ? <ul>{summary.decisions.map((item)=><li key={item}>{item}</li>)}</ul> : <p>확인된 합의사항 없음</p>}</article><article><h3>강사 전달사항</h3>{summary.instructorNotes?.length ? <ul>{summary.instructorNotes.map((item)=><li key={item}>{item}</li>)}</ul> : <p>추가 전달사항 없음</p>}</article><article><h3>추가 확인</h3>{summary.followUpQuestions?.length ? <ul>{summary.followUpQuestions.map((item)=><li key={item}>{item}</li>)}</ul> : <p>추가 질문 없음</p>}</article></div>}
-      <div className="dialogue-head"><div><h3>전체 대화</h3><span>{selected.transcript?.segments?.length || 0}개 발화</span></div></div>
-      <div className="dialogue">{selected.transcript?.segments?.map((segment,index)=><p key={`${segment.timestamp}-${index}`}><b>{segment.speaker}</b><span>{segment.text}</span><time>{segment.timestamp}</time></p>)}</div>
+      {/* 녹취에는 화자와 시각이 있어 표로 읽히지만, 적어 둔 글에는 없다. 없는 칸을 만들어
+          '화자 1' 을 붙이면 하지 않은 말을 누가 했다고 적는 셈이 된다. */}
+      {selected.source === "audio"
+        ? <>
+            <div className="dialogue-head"><div><h3>전체 대화</h3><span>{selected.transcript?.segments?.length || 0}개 발화</span></div></div>
+            <div className="dialogue">{selected.transcript?.segments?.map((segment,index)=><p key={`${segment.timestamp}-${index}`}><b>{segment.speaker}</b><span>{segment.text}</span><time>{segment.timestamp}</time></p>)}</div>
+          </>
+        : selected.note ? <>
+            <div className="dialogue-head"><div><h3>{selected.source === "memo" ? "메모에서 읽은 내용" : "적어 둔 상담 내용"}</h3><span>{selected.note.length}자</span></div></div>
+            <div className="note-body">{selected.note}</div>
+          </>
+        : null}
     </div>}
   </section>;
 }

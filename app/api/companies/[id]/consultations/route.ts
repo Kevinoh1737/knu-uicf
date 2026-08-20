@@ -1,9 +1,10 @@
 import { requireTeamSession } from "@/lib/auth/guard";
+import { analyzeConsultation } from "@/lib/ai/consultation-analysis";
 import { generateWithGemini } from "@/lib/ai/gemini";
 import { deleteGeminiFile, uploadGeminiFile } from "@/lib/ai/gemini-files";
 import {
   CONSULTATION_AUDIO_BUCKET,
-  ConsultationSummary,
+  CONSULTATION_COLUMNS,
   ConsultationTranscript,
   MAX_CONSULTATION_AUDIO_SIZE,
   resolveConsultationAudio,
@@ -54,31 +55,6 @@ const transcriptSchema = {
   required: ["language", "segments"],
 };
 
-const summarySchema = {
-  type: "OBJECT",
-  properties: {
-    overview: { type: "STRING" },
-    keyNeeds: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: { title: { type: "STRING" }, detail: { type: "STRING" } },
-        required: ["title", "detail"],
-      },
-    },
-    audience: {
-      type: "OBJECT",
-      properties: { headline: { type: "STRING" }, detail: { type: "STRING" } },
-      required: ["headline", "detail"],
-    },
-    constraints: { type: "ARRAY", items: { type: "STRING" } },
-    decisions: { type: "ARRAY", items: { type: "STRING" } },
-    instructorNotes: { type: "ARRAY", items: { type: "STRING" } },
-    followUpQuestions: { type: "ARRAY", items: { type: "STRING" } },
-  },
-  required: ["overview", "keyNeeds", "audience", "constraints", "decisions", "instructorNotes", "followUpQuestions"],
-};
-
 function cleanTranscript(value: ConsultationTranscript): ConsultationTranscript {
   return {
     language: String(value.language || "ko"),
@@ -92,24 +68,6 @@ function cleanTranscript(value: ConsultationTranscript): ConsultationTranscript 
   };
 }
 
-function cleanSummary(value: ConsultationSummary): ConsultationSummary {
-  const strings = (items: unknown) => Array.isArray(items) ? items.filter((item): item is string => typeof item === "string" && Boolean(item.trim())).map((item) => item.trim()) : [];
-  return {
-    overview: String(value.overview || "").trim(),
-    keyNeeds: Array.isArray(value.keyNeeds) ? value.keyNeeds
-      .filter((item) => item && typeof item.title === "string")
-      .map((item) => ({ title: item.title.trim(), detail: String(item.detail || "").trim() })) : [],
-    audience: {
-      headline: String(value.audience?.headline || "확인 필요").trim(),
-      detail: String(value.audience?.detail || "상담 내용에서 확인되지 않음").trim(),
-    },
-    constraints: strings(value.constraints),
-    decisions: strings(value.decisions),
-    instructorNotes: strings(value.instructorNotes),
-    followUpQuestions: strings(value.followUpQuestions),
-  };
-}
-
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   const unauthorized = await requireTeamSession();
   if (unauthorized) return unauthorized;
@@ -119,11 +77,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const supabase = createSupabaseAdmin();
     const { data, error } = await supabase
       .from("company_consultations")
-      .select("id,company_id,file_name,storage_path,mime_type,file_size,status,transcript,summary,error_message,created_at,updated_at")
+      .select(CONSULTATION_COLUMNS)
       .eq("company_id", id)
       .order("created_at", { ascending: false });
     if (error) throw error;
+    // 직접 입력한 기록에는 파일이 없다. 없는 경로로 서명 URL 을 만들려 하면 건건이 실패한다.
     const consultations = await Promise.all((data || []).map(async (item) => {
+      if (!item.storage_path || item.source !== "audio") return item;
       const { data: signed } = await supabase.storage.from(CONSULTATION_AUDIO_BUCKET).createSignedUrl(item.storage_path, 60 * 60);
       return { ...item, audio_url: signed?.signedUrl || undefined };
     }));
@@ -184,6 +144,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         storage_path: storagePath,
         mime_type: audio.mimeType,
         file_size: body.fileSize,
+        source: "audio",
         status: "processing",
       })
       .select("id")
@@ -213,23 +174,21 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const transcriptText = transcript.segments
       .map((segment) => `[${segment.timestamp}] ${segment.speaker}: ${segment.text}`)
       .join("\n");
-    const analysisResult = await generateWithGemini({
-      role: "consultationAnalysis",
-      prompt: `아래는 ${company.name}의 AI·AX 교육 상담 전문입니다. 교육사업팀 관리자가 바로 후속 교육을 설계하고 강사에게 전달할 수 있도록 중요한 내용만 구조화하세요.\n\n반드시 확인할 항목:\n- 회사 조직과 핵심 부서, 가장 반복적인 업무\n- 교육 목표와 개선하려는 현장 문제\n- 참석 인원, 부서, 직급, 연령대, 성비, AI 활용 수준\n- 필요한 실습 사례와 사용 가능한 업무 자료\n- 보안, 데이터, 장소, 장비, 일정 등 제약\n- 적합한 강사의 경험과 강의 준비에 필요한 정보\n- 4시간 특강 기준의 합의사항과 아직 확인하지 못한 질문\n\n오직 아래 상담 전문에 나온 사실만 요약하세요. 기업 정보나 기존 질문지의 내용을 상담에서 말한 것처럼 섞지 마세요. 녹취에 없는 내용은 추정하지 말고 '확인되지 않음' 또는 후속 질문으로 남기세요. 짧고 쉬운 표현을 사용하세요.\n\n기업 업종 참고: ${company.industry || "확인되지 않음"}\n\n상담 전문:\n${transcriptText}`,
-      responseSchema: summarySchema,
-      temperature: 0.1,
-      maxOutputTokens: 16_384,
+    const summary = await analyzeConsultation({
+      companyName: company.name,
+      industry: company.industry,
+      source: "audio",
+      text: transcriptText,
       timeoutMs: ANALYSIS_CALL_MS,
       budgetMs: remainingMs(),
       maxRetryWaitMs: ANALYSIS_RETRY_WAIT_MS,
     });
-    const summary = cleanSummary(JSON.parse(analysisResult.text) as ConsultationSummary);
 
     const { data: saved, error: updateError } = await supabase
       .from("company_consultations")
       .update({ transcript, summary, status: "completed", error_message: null, updated_at: new Date().toISOString() })
       .eq("id", consultationId)
-      .select("id,company_id,file_name,storage_path,mime_type,file_size,status,transcript,summary,error_message,created_at,updated_at")
+      .select(CONSULTATION_COLUMNS)
       .single();
     if (updateError || !saved) throw updateError || new Error("분석 결과를 저장하지 못했습니다.");
     const { data: signed } = await supabase.storage.from(CONSULTATION_AUDIO_BUCKET).createSignedUrl(storagePath, 60 * 60);

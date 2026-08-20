@@ -100,6 +100,17 @@ export const DEFAULT_QUESTIONS: SurveyQuestion[] = sanitizeQuestions([
   { id: "improve", type: "text", text: "더 다뤘으면 하는 내용이나 개선점이 있다면 적어 주세요.", required: false, source: "standard" },
 ]);
 
+/**
+ * 메일 발송을 화면에서 감춘다.
+ *
+ * 실제로는 수업이 끝나자마자 그 자리에서 수강생 휴대폰으로 링크를 보내 받는다. 메일은 그
+ * 자리에 없는 방식이라 응답률이 나오지 않는다 — 그래서 조작부를 내린다. 코드는 지우지
+ * 않는다: 나중에 사후 발송이 필요해지면(결석자 추가 응답 같은) 이 값만 되돌리면 된다.
+ *
+ * 발송 라우트(/api/surveys/[id]/send)는 살아 있다. 감춘 것은 부르는 버튼뿐이다.
+ */
+export const SURVEY_EMAIL_SEND_ENABLED = false;
+
 export type SurveyAnswers = Record<string, number | string>;
 
 /** 응답 저장 전 정리. 설문지에 없는 문항은 버리고, 척도는 1~5 정수만 남긴다. */
