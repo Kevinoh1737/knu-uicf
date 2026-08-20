@@ -42,5 +42,12 @@ yarn-error.log*
 /work/
 
 # Claude Code local settings
-.claude/settings.local.json
 demo-samples/
+
+# 에이전트 도구가 남기는 상태. 이 저장소의 산출물이 아니다 —
+# 다른 프로젝트에서 열린 세션의 상태 파일이 실제로 커밋된 적이 있다.
+.omc/
+
+# esbuild 로 잠깐 묶는 검증 스크립트 번들
+_*.mjs
+.claude/settings.local.json

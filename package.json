@@ -9,7 +9,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ignore-pattern .next --ignore-pattern .next.nosync"
+    "lint": "eslint . --ignore-pattern .next --ignore-pattern .next.nosync",
+    "pre-deploy": "npx esbuild scripts/pre-deploy.ts --bundle --platform=node --format=esm --target=node22 --tsconfig=tsconfig.json --outfile=./_pre-deploy.mjs --packages=external && node ./_pre-deploy.mjs; rm -f ./_pre-deploy.mjs"
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
