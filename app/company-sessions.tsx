@@ -17,6 +17,7 @@ import {
 } from "@/lib/company-stage";
 import { LEARNER_STATUS_LABEL, LearnerInput, LearnerStatus } from "@/lib/learners";
 import { SURVEY_EMAIL_SEND_ENABLED, SURVEY_STATUS_LABEL, SurveyStatus } from "@/lib/surveys";
+import { SurveyImportModal } from "./survey-import";
 import { formatHeldOn } from "@/lib/course-time";
 import { createSupabaseBrowser } from "@/lib/supabase/browser";
 import { Feedback, Icon, useConfirm } from "./ui";
@@ -60,10 +61,10 @@ type SessionRow = {
  * 교육과정 안의 만족도. 문항을 고치는 곳은 만족도 메뉴이고, 여기서는 '보내고 결과를 보는'
  * 두 가지만 한다 — 발송은 그 교육과정에 배정된 수강생에게만 나간다.
  */
-function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
+function SessionSurvey({ session, busy, templates, onSend, onCreate, onImport }: {
   session: SessionRow; busy: boolean;
   templates: SurveyTemplateOption[];
-  onSend: () => void; onCreate: (templateId: string) => void;
+  onSend: () => void; onCreate: (templateId: string) => void; onImport: (surveyId: string) => void;
 }) {
   // 기본 질문지를 미리 골라 둔다 — 대부분은 그대로 쓰고, 다른 것을 쓸 때만 손이 간다.
   const [templateId, setTemplateId] = useState("");
@@ -92,6 +93,11 @@ function SessionSurvey({ session, busy, templates, onSend, onCreate }: {
           onClick={onSend}>
           {survey.sent ? "만족도 조사 다시 보내기" : "만족도 조사 보내기"}
         </button>}
+        {/* 현장에서 구글폼으로 받은 결과지를 여기서도 올릴 수 있다 — 교육과정을 보다가
+            바로 넣는 흐름이 만족도 메뉴로 건너가는 것보다 짧다. */}
+        <button type="button" className="upload-chip" onClick={() => onImport(survey.id)} disabled={busy}>
+          <Icon name="upload" size={15} />결과지 올리기
+        </button>
         <a className="upload-chip" href={`/api/surveys/${survey.id}/pdf`} target="_blank" rel="noreferrer"
           aria-label="질문지 PDF 내려받기" title="질문지 PDF 내려받기"><Icon name="download" size={15} />질문지 PDF</a>
       </div>
@@ -308,6 +314,7 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
   const [adding, setAdding] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState("");
+  const [importingSurvey, setImportingSurvey] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const [form, setForm] = useState({ title: "", heldOn: "", startTime: "", location: "", headcount: "", durationHours: "4" });
   const [roster, setRoster] = useState<{ enrolled: EnrolledRow[]; available: PoolRow[] } | null>(null);
@@ -743,6 +750,21 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
 
   return <section className="tab-content">
     {confirmDialog}
+    {importingSurvey && <SurveyImportModal
+      surveyId={importingSurvey}
+      onClose={() => setImportingSurvey("")}
+      onImported={(result) => {
+        setImportingSurvey("");
+        void reload();
+        setFeedback({
+          message: [
+            `응답 ${result.imported}명을 들여왔습니다.`,
+            result.unreadable ? `못 알아본 칸 ${result.unreadable}개는 건너뛰었습니다` : "",
+          ].filter(Boolean).join(" · "),
+          error: false,
+        });
+      }}
+    />}
     <div className="content-title">
       <div>
         <h2>교육 진행</h2>
@@ -979,7 +1001,8 @@ export function CompanySessionsTab({ companyId, onDataChanged }: { companyId: st
 
                   <SessionSurvey session={session} busy={busyId === session.id} templates={templates}
                     onSend={() => void sendSurvey(session)}
-                    onCreate={(templateId) => void createSurvey(session.id, templateId)} />
+                    onCreate={(templateId) => void createSurvey(session.id, templateId)}
+                    onImport={(surveyId) => setImportingSurvey(surveyId)} />
 
                   {rosterFor === session.id && <SessionRoster
                     roster={roster}

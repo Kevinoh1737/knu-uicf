@@ -10,6 +10,7 @@ import {
 } from "@/lib/surveys";
 import { formatHeldOn } from "@/lib/course-time";
 import { Feedback, Icon, useConfirm, useEscapeClose } from "./ui";
+import { SurveyImportModal } from "./survey-import";
 import { displayCompanyName } from "@/lib/company-name";
 
 type SurveyBrief = {
@@ -709,6 +710,7 @@ function QuestionRows({ questions, disabled, onUpdate, onMove, onRemove }: {
  */
 function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => void }) {
   const [detail, setDetail] = useState<Detail | null>(null);
+  const [importing, setImporting] = useState(false);
   const [busy, setBusy] = useState("");
   const [feedback, setFeedback] = useState<{ message: string; error: boolean } | null>(null);
   const { ask, confirmDialog } = useConfirm();
@@ -771,6 +773,21 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
 
   return <section className="workspace-panel survey-editor">
     {confirmDialog}
+    {importing && <SurveyImportModal
+      surveyId={surveyId}
+      onClose={() => setImporting(false)}
+      onImported={(result) => {
+        setImporting(false);
+        void load();
+        // 몇 칸을 못 읽었는지 조용히 넘기지 않는다 — 평균이 왜 그런지 나중에 물어볼 때 답이 된다.
+        const notes = [
+          `응답 ${result.imported}명을 들여왔습니다.`,
+          result.named ? `이름 ${result.named}명 확인` : "이름 없이 들어왔습니다(익명 조사)",
+          result.unreadable ? `못 알아본 칸 ${result.unreadable}개는 건너뛰었습니다` : "",
+        ].filter(Boolean);
+        setFeedback({ message: notes.join(" · "), error: false });
+      }}
+    />}
     <button type="button" className="backbar" onClick={onBack}>← 만족도 목록</button>
 
     <div className="content-title">
@@ -790,6 +807,10 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
       {/* 여기는 답을 보는 자리다. 빈 질문지(종이로 돌리는 것)는 교육과정 화면에 있다 —
           아직 안 보낸 교육에서 인쇄하는 것이지, 결과를 보며 받을 것이 아니다. */}
       <div className="title-actions">
+        {/* 현장에서는 구글폼으로 받는다. 그 결과지를 여기서 들여와야 비교·PDF 가 성립한다. */}
+        <button type="button" className="upload-chip" onClick={() => setImporting(true)} disabled={Boolean(busy)}>
+          <Icon name="upload" size={15} /> 결과지 올리기
+        </button>
         <a className="upload-chip lead" href={`/api/surveys/${surveyId}/report`} target="_blank" rel="noreferrer">
           <Icon name="download" size={15} /> 결과 PDF
         </a>
@@ -816,7 +837,7 @@ function SurveyResult({ surveyId, onBack }: { surveyId: string; onBack: () => vo
     </div>
 
     {summary.responded === 0
-      ? <p className="action-hint">아직 들어온 응답이 없습니다. 발송은 기업 화면의 교육과정에서 합니다.</p>
+      ? <p className="action-hint">아직 들어온 응답이 없습니다. 현장에서 받은 구글폼 결과지를 올리면 여기에 정리됩니다.</p>
       : <div className="survey-results">
           <h3>응답 결과</h3>
           {summary.scales.map((scale) => <div key={scale.id} className="survey-result-row">

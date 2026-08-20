@@ -29,9 +29,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (error || !survey) throw error || new Error("만족도 조사를 찾지 못했습니다.");
 
     const [{ data: responses }, { data: invites }] = await Promise.all([
-      // 누가 낸 답인지 붙이려면 초대를 거쳐야 한다 — 응답은 사람이 아니라 초대에 매달려 있다.
+      // 누가 낸 답인지 붙이는 길이 둘이다. 링크로 받은 응답은 초대를 거쳐 수강생에 닿고,
+      // 결과지에서 들여온 응답은 초대가 없어 파일에 적혀 있던 이름을 그대로 쓴다.
       supabase.from("survey_responses")
-        .select("answers,submitted_at,invite_id,survey_invites(learners(name,department))")
+        .select("answers,submitted_at,invite_id,respondent_name,survey_invites(learners(name,department))")
         .eq("survey_id", id)
         .order("submitted_at", { ascending: true }),
       supabase.from("survey_invites").select("sent_at").eq("survey_id", id),
@@ -44,10 +45,13 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       (invites || []).filter((invite) => invite.sent_at).length,
     );
 
-    const detail = (responses || []).map((response) => {
+    // 익명으로 받은 조사는 이름이 없는 것이 정상이다. 그때 '이름 미상' 이라고 적으면 이름이
+    // 있어야 하는데 잃어버린 것처럼 읽힌다 — 응답 번호를 주는 편이 사실에 가깝다.
+    const detail = (responses || []).map((response, index) => {
       const learner = (response.survey_invites as { learners?: { name?: string; department?: string } | null } | null)?.learners;
+      const imported = String((response as { respondent_name?: string }).respondent_name || "").trim();
       return {
-        name: learner?.name || "이름 미상",
+        name: learner?.name || imported || `응답 ${index + 1}`,
         department: learner?.department || "",
         answers: (response.answers || {}) as SurveyAnswers,
       };
