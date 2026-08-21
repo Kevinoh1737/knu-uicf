@@ -5,6 +5,7 @@ import {
   resolveInstructorDocument,
 } from "@/lib/instructors";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { cleanFileName } from "@/lib/file-names";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
   if (unauthorized) return unauthorized;
   try {
     const body = await request.json() as { fileName?: string; fileSize?: number; kind?: string };
-    const fileName = typeof body.fileName === "string" ? body.fileName.trim() : "";
+    const fileName = cleanFileName(body.fileName);
     const kind = typeof body.kind === "string" && KINDS.has(body.kind) ? body.kind : "";
     if (!fileName || !kind) return Response.json({ error: "업로드 정보를 확인하지 못했습니다." }, { status: 400 });
 

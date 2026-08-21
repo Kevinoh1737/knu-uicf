@@ -10,6 +10,7 @@ import {
   resolveConsultationAudio,
 } from "@/lib/consultations";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { cleanFileName } from "@/lib/file-names";
 
 export const runtime = "nodejs";
 /** 800s is the Vercel Pro ceiling. Transcribing an hour of audio genuinely needs minutes, not seconds. */
@@ -117,7 +118,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
   try {
     const { id } = await context.params;
     const body = await request.json() as { storagePath?: string; fileName?: string; mimeType?: string; fileSize?: number };
-    const fileName = String(body.fileName || "").trim();
+    const fileName = cleanFileName(body.fileName);
     const storagePath = String(body.storagePath || "").trim();
     const audio = resolveConsultationAudio(fileName, body.mimeType);
     if (!UUID.test(id)) return Response.json({ error: "기업 정보를 확인하지 못했습니다." }, { status: 400 });

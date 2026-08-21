@@ -420,15 +420,25 @@ normalize(file_name, NFC) like '%한주케미칼%'   → 1건
 **터지는 시점은 파일명 검색이나 중복 검사를 붙일 때다.** 그때 "분명히 올렸는데 안 나온다"로
 나타나고, 원인이 눈에 안 보여서 찾는 데 오래 걸린다. 지금 고치는 게 싸다.
 
-### 고칠 방향
+### 고친 방법 (2026-08-21)
 
-받는 자리에서 `fileName.normalize("NFC")` 한 줄씩. 들어오는 문을 다 막아야 한다:
+`lib/file-names.ts` 의 `cleanFileName()` 하나로 모았다. 자리마다 `normalize` 를 흩뿌리면
+다음에 업로드 경로가 하나 늘 때 거기만 빠지고, 그 사실은 몇 달 뒤에야 드러난다.
 
-- `app/api/uploads/consultation-audio/route.ts`
-- `app/api/uploads/consultation-note/route.ts`
-- `app/api/uploads/instructor-document/route.ts`
-- `app/api/uploads/company-pdf/route.ts`
-- `app/api/companies/[id]/consultations/route.ts` (본 저장 지점)
+파일명을 **저장하는** 자리 전부에 물렸다(7개 파일 8군데):
+
+- `app/api/uploads/consultation-audio` · `consultation-note` · `instructor-document`
+- `app/api/companies/[id]/consultations/route.ts` · `.../consultations/note/route.ts` (2군데)
+- `app/api/course-sessions/[id]/documents/route.ts`
+- `app/api/instructors/route.ts`
+
+**일부러 손대지 않은 곳 둘** — 파일명을 저장하지 않고 확장자만 보는 자리다. ASCII 라
+자모 분해의 영향이 없고, 여기에 넣으면 죽은 코드가 된다:
+
+- `app/api/uploads/company-pdf/route.ts` (`.pdf` 인지만 본다, 경로는 UUID)
+- `app/api/surveys/[id]/import/route.ts` (`.csv` 인지만 본다)
+
+검증은 `scripts/check-file-names.ts` 9가지. '보기에 같다'가 아니라 **글자로 같은가**를 본다.
 
 이미 들어간 행은 한 번 훑어 고친다 — 추가·완화만 하는 변경이라 안전하다:
 

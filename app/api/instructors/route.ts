@@ -1,6 +1,7 @@
 import { requireTeamSession } from "@/lib/auth/guard";
 import { recordFromProfile, sanitizeProfile } from "@/lib/instructors";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { cleanFileName } from "@/lib/file-names";
 
 export const runtime = "nodejs";
 
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       const { error: documentError } = await supabase.from("instructor_documents").insert({
         instructor_id: data.id,
         kind: "profile",
-        file_name: source.fileName,
+        file_name: cleanFileName(source.fileName),
         storage_path: source.storagePath,
         mime_type: source.mimeType || "",
         file_size: Math.max(0, Number(source.fileSize) || 0),

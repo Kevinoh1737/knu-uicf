@@ -2,6 +2,7 @@ import { requireTeamSession } from "@/lib/auth/guard";
 import { generateWithGemini } from "@/lib/ai/gemini";
 import { INSTRUCTOR_DOCUMENTS_BUCKET, sanitizeMaterials, sanitizeOutline } from "@/lib/instructors";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
+import { cleanFileName } from "@/lib/file-names";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -87,7 +88,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const body = await request.json() as { kind?: string; storagePath?: string; fileName?: string; mimeType?: string; fileSize?: number };
     const kind = body.kind === "outline" || body.kind === "materials" ? body.kind : "";
     const storagePath = typeof body.storagePath === "string" ? body.storagePath : "";
-    const fileName = (body.fileName || "").trim();
+    const fileName = cleanFileName(body.fileName);
     if (!kind || !storagePath || !fileName) {
       return Response.json({ error: "업로드 정보를 확인하지 못했습니다." }, { status: 400 });
     }

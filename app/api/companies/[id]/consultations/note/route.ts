@@ -21,6 +21,7 @@ import {
 } from "@/lib/consultations";
 import { createSupabaseAdmin } from "@/lib/supabase/admin";
 import { trackQuality } from "@/lib/telemetry";
+import { cleanFileName } from "@/lib/file-names";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -91,7 +92,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           { status: 400 },
         );
       }
-      const title = String(body.fileName || "").trim() || defaultTitle("직접 입력");
+      const title = cleanFileName(body.fileName) || defaultTitle("직접 입력");
 
       const { data: created, error: insertError } = await supabase
         .from("company_consultations")
@@ -109,7 +110,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     // ─── 메모 파일 ────────────────────────────────────────────────────────────
-    const fileName = String(body.fileName || "").trim();
+    const fileName = cleanFileName(body.fileName);
     const storagePath = String(body.storagePath || "").trim();
     const note = resolveConsultationNote(fileName, body.mimeType);
     if (!note || !storagePath.startsWith(`${id}/`) || storagePath.includes("..") || storagePath.split("/").length !== 2) {

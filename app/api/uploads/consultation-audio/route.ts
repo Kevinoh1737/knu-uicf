@@ -6,6 +6,7 @@ import {
   MAX_CONSULTATION_AUDIO_SIZE,
   resolveConsultationAudio,
 } from "@/lib/consultations";
+import { cleanFileName } from "@/lib/file-names";
 
 export const runtime = "nodejs";
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
       mimeType?: string;
     };
     const companyId = String(body.companyId || "");
-    const fileName = String(body.fileName || "").trim();
+    const fileName = cleanFileName(body.fileName);
     const audio = resolveConsultationAudio(fileName, body.mimeType);
 
     if (!UUID.test(companyId)) return Response.json({ error: "기업 정보를 확인하지 못했습니다." }, { status: 400 });
