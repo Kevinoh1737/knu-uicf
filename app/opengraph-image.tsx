@@ -16,9 +16,10 @@ export const alt = "KNU UICF 교육사업팀 — 강원대학교 산학협력단
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// app/globals.css 의 --green, --nav, 그리고 강조에 쓰는 살구색.
-const GREEN = "#173f35";
-const DEEP = "#12241f";
+// app/globals.css 의 --brand, --nav, 그리고 강조에 쓰는 살구색.
+// 살구색은 공식 로고의 마름모에서 온 색이라 남색 위에서 그대로 산다.
+const BRAND = "#173452";
+const DEEP = "#0e1b28";
 const ACCENT = "#e9a06f";
 
 const asset = (...parts: string[]) => path.join(process.cwd(), "public", ...parts);
@@ -36,7 +37,7 @@ export default async function OpenGraphImage() {
       <div
         style={{
           width: "100%", height: "100%", display: "flex", flexDirection: "column",
-          justifyContent: "space-between", background: GREEN, position: "relative",
+          justifyContent: "space-between", background: BRAND, position: "relative",
           fontFamily: "Pretendard", color: "#ffffff", padding: "72px 80px",
         }}
       >
