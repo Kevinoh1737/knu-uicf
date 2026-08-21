@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
-/** `/api/ai/health` carries its own CRON_SECRET check so scheduled runs keep working. */
-const OPEN_PATHS = new Set(["/login", "/api/auth/login", "/api/auth/logout", "/api/ai/health"]);
+/** 스케줄러가 부르는 두 경로는 스스로 CRON_SECRET 을 검사한다. 사람이 아니라 로그인 뒤에 둘 수 없다. */
+const OPEN_PATHS = new Set([
+  "/login", "/api/auth/login", "/api/auth/logout",
+  "/api/ai/health", "/api/cron/alerts",
+]);
 
 /**
  * 수강생용 만족도 응답. 받는 사람은 우리 시스템 계정이 없으므로 로그인 뒤에 둘 수 없다 —

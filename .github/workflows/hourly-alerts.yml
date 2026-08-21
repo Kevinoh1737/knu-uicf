@@ -1,0 +1,35 @@
+# 업무시간 중 수시 알림.
+#
+# Vercel 크론은 이 프로젝트의 요금제(Hobby)에서 하루 한 번만 돈다. 마감 요약은 그것으로
+# 되지만 '지금 뭔가 실패하고 있다' 는 하루 뒤에 알면 늦다. 그래서 시간당 호출만 여기서
+# 대신 때린다 — 하는 일은 Vercel 크론과 똑같이 같은 주소를 부르는 것뿐이다.
+#
+# Pro 로 올리면 이 파일을 지우고 vercel.json 의 crons 에 hourly 를 한 줄 더하면 된다.
+name: 수시 알림
+
+on:
+  schedule:
+    # UTC 기준이다. 한국은 +9 이므로 00~09 UTC = 09~18 KST. 평일만.
+    - cron: "0 0-9 * * 1-5"
+  # 손으로 한 번 돌려 보고 싶을 때.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 알림 확인 요청
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          set -euo pipefail
+          status=$(curl -sS -o /tmp/out.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "https://knu-eduflow.vercel.app/api/cron/alerts?mode=hourly")
+          # 본문에는 경로·건수만 있고 비밀은 없다. 실패했을 때 사유를 봐야 하므로 찍는다.
+          cat /tmp/out.json
+          echo
+          if [ "$status" != "200" ]; then
+            echo "::error::알림 확인이 $status 로 실패했습니다"
+            exit 1
+          fi
