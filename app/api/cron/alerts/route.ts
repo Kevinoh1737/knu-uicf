@@ -114,7 +114,7 @@ export async function GET(request: Request) {
       .limit(MAX_ROWS);
     const baseline = buildBaseline((baselineData || []) as EventRow[]);
 
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://knu-eduflow.vercel.app";
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://knu-uicf-edu.synthya.ai";
     const composed = composeAlert({
       mode, rows, baseline,
       since: since.toISOString(), until: until.toISOString(),

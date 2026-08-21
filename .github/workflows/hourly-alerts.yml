@@ -25,7 +25,7 @@ jobs:
           set -euo pipefail
           status=$(curl -sS -o /tmp/out.json -w '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "https://knu-eduflow.vercel.app/api/cron/alerts?mode=hourly")
+            "https://knu-uicf-edu.synthya.ai/api/cron/alerts?mode=hourly")
           # 본문에는 경로·건수만 있고 비밀은 없다. 실패했을 때 사유를 봐야 하므로 찍는다.
           cat /tmp/out.json
           echo

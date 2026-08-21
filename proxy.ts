@@ -2,10 +2,19 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth/session";
 
-/** 스케줄러가 부르는 두 경로는 스스로 CRON_SECRET 을 검사한다. 사람이 아니라 로그인 뒤에 둘 수 없다. */
+/**
+ * 로그인 담장 밖에 두는 경로.
+ *
+ * - `/api/ai/health` · `/api/cron/alerts` — 부르는 쪽이 사람이 아니다. 스스로 CRON_SECRET 을 검사한다.
+ * - `/opengraph-image` · `/icon` — 링크를 공유했을 때 카카오톡·슬랙이 가지러 오는 그림이다.
+ *   **아래 matcher 는 확장자로 거르는데 이 둘은 확장자가 없어** 그냥 두면 담장에 걸리고,
+ *   수집기는 PNG 대신 로그인 리다이렉트를 받아 카드가 비어 보인다(2026-08-21 실측).
+ *   담기는 것은 우리 로고와 팀 이름뿐이라 밖에 있어도 된다.
+ */
 const OPEN_PATHS = new Set([
   "/login", "/api/auth/login", "/api/auth/logout",
   "/api/ai/health", "/api/cron/alerts",
+  "/opengraph-image", "/icon", "/apple-icon",
 ]);
 
 /**

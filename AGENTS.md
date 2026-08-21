@@ -3,7 +3,8 @@
 강원대학교 산학협력단 교육사업팀이 쓰는 내부 시스템. 기업 조사 → 상담 → 교육과정 설계 →
 강사 배정·계약 → 수강생 → 만족도까지 한 줄로 잇는다. 모든 사용자 문구는 한국어다.
 
-프로덕션: https://knu-eduflow.vercel.app · 저장소: Kevinoh1737/knu-uicf
+프로덕션: https://knu-uicf-edu.synthya.ai · 저장소: Kevinoh1737/knu-uicf
+(`knu-eduflow.vercel.app` 도 같은 배포를 가리키지만 정식 주소가 아니다 — 공유 카드·알림 링크는 위 주소를 쓴다.)
 
 ---
 
@@ -70,7 +71,8 @@ moawa 폴더에서 열린 세션이 **moawa 의 지침(무료 정책·BILLING_MO
 
 ```bash
 npx vercel --prod --yes
-npx vercel alias set <새-배포-주소> knu-eduflow.vercel.app
+npx vercel alias set <새-배포-주소> knu-uicf-edu.synthya.ai
+npx vercel alias set <새-배포-주소> knu-eduflow.vercel.app   # 옛 주소도 함께 옮긴다
 ```
 
 ### 배포 전에 반드시 하는 것

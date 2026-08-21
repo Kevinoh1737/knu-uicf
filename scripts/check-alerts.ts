@@ -34,7 +34,7 @@ function row(partial: Partial<EventRow>): EventRow {
   };
 }
 
-const ARGS = { since: at(-60), until: at(0), adminUrl: "https://knu-eduflow.vercel.app/admin" };
+const ARGS = { since: at(-60), until: at(0), adminUrl: "https://knu-uicf-edu.synthya.ai/admin" };
 
 console.log("\n── 실패 묶기 ──");
 
@@ -253,7 +253,7 @@ check("한 통이 텔레그램 상한에 닿지 않는다", () => {
 
 check("/admin 링크가 늘 붙는다", () => {
   const composed = composeAlert({ mode: "daily", rows: [], baseline: new Map(), ...ARGS });
-  assert.match(composed.text, /knu-eduflow\.vercel\.app\/admin/);
+  assert.match(composed.text, /knu-uicf-edu\.synthya\.ai\/admin/);
 });
 
 console.log(`\n${checks}개 모두 통과\n`);
