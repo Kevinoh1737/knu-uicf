@@ -376,3 +376,68 @@ if (exact.length) return exact.find(row => row.stockCode?.trim()) || exact[0];
    이건 지금 만들어도 낭비가 아니다 — 참관 기록이 쌓이기 시작해야 나중에 추천이 근거를 갖는다.
 2. 회사 조사 결과와 맞추는 추천은 **카테고리가 실제로 쌓인 뒤에.** 그때 무엇을 근거로
    맞출지(업종·직급 구성·AI 숙련도)를 실제 기록을 보고 정한다.
+
+## 15. 맥·아이폰에서 올린 파일은 이름이 자모 분해된 채로 저장된다 (2026-08-20 시연에서 발견)
+
+시연 기록을 되짚다 찾았다. 어제 16:21 에 올린 녹취의 파일명이 **NFD(자모 분해)** 로 저장돼
+있었다. 화면에는 똑같이 보여서 시연 중에 아무도 몰랐다.
+
+실측 (2026-08-21):
+
+| 파일 | 저장 형태 | 글자수 |
+|---|---|---|
+| `면담녹취_글로벌이엔피_20260521.mp3` (스크립트가 넣음) | NFC | 24 |
+| `면담녹취_한주케미칼_20260814.m4a` (시연 중 실제 업로드) | **NFD** | 37 (NFC 로는 23) |
+
+검색이 실제로 깨진다:
+
+```
+file_name like '%한주케미칼%'                   → 0건
+normalize(file_name, NFC) like '%한주케미칼%'   → 1건
+```
+
+### 한 파일이 아니다
+
+| 자리 | 깨짐 / 전체 |
+|---|---|
+| `instructor_documents.file_name` | **3 / 3** (08-16·08-19·08-20) |
+| `company_consultations.file_name` | 1 / 2 |
+| 사람이 타이핑한 값(강사명·회사명·수강생명·교육 제목·응답자명) | **0 / 153** |
+
+규칙이 정확하다 — **맥·아이폰에서 올린 파일 이름은 전부 깨지고, 사람이 친 글자는 전부
+멀쩡하다.** macOS 파일 시스템이 한글 파일명을 자모 분해해 두기 때문이고, 브라우저가
+`File.name` 을 그대로 넘긴다. 우리 코드는 **어디에서도 정규화하지 않는다**(grep 확인).
+08-16 부터 계속 이랬으므로 시연이 만든 문제가 아니라 시연이 **드러낸** 문제다.
+
+### 지금 당장 무엇이 깨지나 — 솔직히 말하면 아직 별로 없다
+
+- **파일명으로 검색하는 화면이 아직 없다.** 그래서 오늘의 피해는 거의 없다. 잠재 결함이다.
+- 화면 표시는 멀쩡하다. NFC 와 NFD 는 같은 모양으로 그려진다.
+- `storage_path` 는 UUID 라 무사하고, 확장자는 ASCII 라 `.m4a`·`.pdf` 판별도 정상이다.
+- 하나 걸리는 곳: `app/api/companies/[id]/consultation-briefing/route.ts:128` 이 파일명을
+  **AI 프롬프트에 그대로 넣는다**. 모델이 분해된 자모를 보게 된다. 치명적이진 않다.
+
+**터지는 시점은 파일명 검색이나 중복 검사를 붙일 때다.** 그때 "분명히 올렸는데 안 나온다"로
+나타나고, 원인이 눈에 안 보여서 찾는 데 오래 걸린다. 지금 고치는 게 싸다.
+
+### 고칠 방향
+
+받는 자리에서 `fileName.normalize("NFC")` 한 줄씩. 들어오는 문을 다 막아야 한다:
+
+- `app/api/uploads/consultation-audio/route.ts`
+- `app/api/uploads/consultation-note/route.ts`
+- `app/api/uploads/instructor-document/route.ts`
+- `app/api/uploads/company-pdf/route.ts`
+- `app/api/companies/[id]/consultations/route.ts` (본 저장 지점)
+
+이미 들어간 행은 한 번 훑어 고친다 — 추가·완화만 하는 변경이라 안전하다:
+
+```sql
+update public.instructor_documents  set file_name = normalize(file_name, NFC)
+  where file_name <> normalize(file_name, NFC);
+update public.company_consultations set file_name = normalize(file_name, NFC)
+  where file_name <> normalize(file_name, NFC);
+```
+
+시연 데이터를 지울 때 상담 녹취는 함께 사라지지만 **강사 서류 3건은 강사를 남기면 남는다.**
+그때 이 update 를 같이 돌린다.
